@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.20.1 - 2026-03-04
+
+### Changes
+
+- **App renamed** — App is now "SPERT® Release Forecaster" across the homepage header, About page, browser tab title, changelog, and report footer, reflecting SPERT's expansion into a suite of web apps for agile project management
+
 ## v0.20.0 - 2026-02-19
 
 ### New Features
