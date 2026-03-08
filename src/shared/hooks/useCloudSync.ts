@@ -9,7 +9,7 @@ import {
   loadProjects,
   saveProject,
   deleteProject,
-  subscribeToOwnedProjects,
+  subscribeToUserProjects,
   loadSettings,
   saveSettings,
   flushPendingSaves,
@@ -107,7 +107,7 @@ export function useCloudSync(user: User | null, mode: 'local' | 'cloud') {
       if (cancelled) return
 
       // Subscribe to Firestore snapshots (incoming changes)
-      unsubscribeSnapshot = subscribeToOwnedProjects(uid, (projectDocs) => {
+      unsubscribeSnapshot = subscribeToUserProjects(uid, (projectDocs) => {
         const { projects, sprints } = processProjectDocs(projectDocs, docMetaRef)
 
         // Same data-loss guard for snapshot updates

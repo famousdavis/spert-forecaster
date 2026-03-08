@@ -115,27 +115,63 @@ export async function deleteProject(projectId: string): Promise<void> {
 }
 
 /** Subscribe to real-time updates for all projects where user is owner or member. */
-export function subscribeToOwnedProjects(
+export function subscribeToUserProjects(
   uid: string,
   callback: (projects: Map<string, FirestoreProjectDoc>) => void
 ): Unsubscribe {
   if (!db) return () => {}
 
-  const q = query(
-    collection(db, COLLECTIONS.projects),
-    where('owner', '==', uid)
-  )
+  // Track results from each listener separately to avoid flicker on merge
+  const ownedProjects = new Map<string, FirestoreProjectDoc>()
+  const editorProjects = new Map<string, FirestoreProjectDoc>()
+  const viewerProjects = new Map<string, FirestoreProjectDoc>()
 
-  return onSnapshot(q, (snapshot) => {
-    // Skip local echoes
-    if (snapshot.metadata.hasPendingWrites) return
+  // Wait until all three listeners have delivered their first snapshot
+  // before calling the callback, to prevent briefly dropping shared projects
+  let ownedReady = false
+  let editorReady = false
+  let viewerReady = false
 
-    const projects = new Map<string, FirestoreProjectDoc>()
-    for (const docSnap of snapshot.docs) {
-      projects.set(docSnap.id, docSnap.data() as FirestoreProjectDoc)
+  function mergeAndNotify() {
+    if (!ownedReady || !editorReady || !viewerReady) return
+
+    const merged = new Map<string, FirestoreProjectDoc>()
+    // Lower-priority first so owned takes precedence
+    for (const [id, d] of viewerProjects) merged.set(id, d)
+    for (const [id, d] of editorProjects) merged.set(id, d)
+    for (const [id, d] of ownedProjects) merged.set(id, d)
+    callback(merged)
+  }
+
+  function handleSnapshot(
+    target: Map<string, FirestoreProjectDoc>,
+    setReady: () => void
+  ) {
+    return (snapshot: import('firebase/firestore').QuerySnapshot) => {
+      if (snapshot.metadata.hasPendingWrites) return
+      target.clear()
+      for (const docSnap of snapshot.docs) {
+        target.set(docSnap.id, docSnap.data() as FirestoreProjectDoc)
+      }
+      setReady()
+      mergeAndNotify()
     }
-    callback(projects)
-  })
+  }
+
+  const ownedQ = query(collection(db, COLLECTIONS.projects), where('owner', '==', uid))
+  const unsubOwned = onSnapshot(ownedQ, handleSnapshot(ownedProjects, () => { ownedReady = true }))
+
+  const editorQ = query(collection(db, COLLECTIONS.projects), where(`members.${uid}`, '==', 'editor'))
+  const unsubEditor = onSnapshot(editorQ, handleSnapshot(editorProjects, () => { editorReady = true }))
+
+  const viewerQ = query(collection(db, COLLECTIONS.projects), where(`members.${uid}`, '==', 'viewer'))
+  const unsubViewer = onSnapshot(viewerQ, handleSnapshot(viewerProjects, () => { viewerReady = true }))
+
+  return () => {
+    unsubOwned()
+    unsubEditor()
+    unsubViewer()
+  }
 }
 
 /** Check if a project document exists. */
