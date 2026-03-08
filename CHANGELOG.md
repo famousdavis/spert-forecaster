@@ -4,6 +4,8 @@
 
 ### Bug Fixes
 
+- **Data-loss prevention**: Added guard in `useCloudSync` to prevent empty Firestore results from wiping non-empty local data — if cloud returns 0 projects but local store has projects, the replacement is skipped
+- **Migration required for cloud mode**: Replaced "Skip" with "Cancel" on the migration prompt — Cancel stays in local mode instead of switching to cloud without uploading. Cloud mode now requires successful migration (zero errors) to activate
 - **reorderProjects sync bus emit**: Project reordering now emits to the sync bus, matching every other store mutation — ensures cloud sync consistency
 - **useCloudSync race condition**: Initial Firestore load is now awaited before the snapshot listener attaches, preventing duplicate `replaceProjectsFromCloud` calls with conflicting data; added `cancelled` flag to prevent listener attachment after unmount
 
