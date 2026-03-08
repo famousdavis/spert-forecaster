@@ -23,7 +23,25 @@ import {
   firestoreDocToSettings,
 } from '@/shared/firebase/firestore-converters'
 import type { FirestoreProjectDoc } from '@/shared/firebase/types'
+import type { Project, Sprint } from '@/shared/types'
 import { getWorkspaceId } from '@/shared/state/storage'
+
+/** Convert Firestore project docs into typed arrays for the Zustand store. */
+function processProjectDocs(
+  projectDocs: Iterable<[string, FirestoreProjectDoc]>,
+  docMetaRef: React.MutableRefObject<Map<string, FirestoreProjectDoc>>
+): { projects: Project[]; sprints: Sprint[] } {
+  const projects: Project[] = []
+  const sprints: Sprint[] = []
+
+  for (const [docId, doc] of projectDocs) {
+    docMetaRef.current.set(docId, doc)
+    projects.push(firestoreDocToProject(docId, doc))
+    sprints.push(...firestoreDocToSprints(doc))
+  }
+
+  return { projects, sprints }
+}
 
 /**
  * Cloud sync hook — activates Firestore sync when in cloud mode.
@@ -43,6 +61,7 @@ export function useCloudSync(user: User | null, mode: 'local' | 'cloud') {
     if (!isActive || !user) return
 
     const uid = user.uid
+    let cancelled = false
     let unsubscribeSnapshot: (() => void) | null = null
     let unsubscribeSyncBus: (() => void) | null = null
 
@@ -53,24 +72,19 @@ export function useCloudSync(user: User | null, mode: 'local' | 'cloud') {
       lastSignIn: new Date().toISOString(),
     }).catch((err) => console.error('Profile upsert failed:', err))
 
-    // --- Initial load from Firestore ---
-    async function initialLoad() {
+    // --- Async setup: load first, then attach listeners ---
+    async function setup() {
+      // Initial load from Firestore
       try {
-        // Load projects
         const projectDocs = await loadProjects(uid)
-        const projects = []
-        const sprints = []
+        if (cancelled) return
 
-        for (const [docId, doc] of projectDocs) {
-          docMetaRef.current.set(docId, doc)
-          projects.push(firestoreDocToProject(docId, doc))
-          sprints.push(...firestoreDocToSprints(doc))
-        }
-
+        const { projects, sprints } = processProjectDocs(projectDocs, docMetaRef)
         useProjectStore.getState().replaceProjectsFromCloud(projects, sprints)
 
         // Load settings
         const settingsDoc = await loadSettings(uid)
+        if (cancelled) return
         if (settingsDoc) {
           const settings = firestoreDocToSettings(settingsDoc)
           useSettingsStore.getState().replaceSettingsFromCloud(settings)
@@ -78,23 +92,17 @@ export function useCloudSync(user: User | null, mode: 'local' | 'cloud') {
       } catch (err) {
         console.error('Initial cloud load failed:', err)
       }
+
+      if (cancelled) return
+
+      // Subscribe to Firestore snapshots (incoming changes)
+      unsubscribeSnapshot = subscribeToOwnedProjects(uid, (projectDocs) => {
+        const { projects, sprints } = processProjectDocs(projectDocs, docMetaRef)
+        useProjectStore.getState().replaceProjectsFromCloud(projects, sprints)
+      })
     }
 
-    initialLoad()
-
-    // --- Subscribe to Firestore snapshots (incoming changes) ---
-    unsubscribeSnapshot = subscribeToOwnedProjects(uid, (projectDocs) => {
-      const projects = []
-      const sprints = []
-
-      for (const [docId, doc] of projectDocs) {
-        docMetaRef.current.set(docId, doc)
-        projects.push(firestoreDocToProject(docId, doc))
-        sprints.push(...firestoreDocToSprints(doc))
-      }
-
-      useProjectStore.getState().replaceProjectsFromCloud(projects, sprints)
-    })
+    setup()
 
     // --- Subscribe to sync bus (outgoing changes) ---
     unsubscribeSyncBus = syncBus.subscribe((event) => {
@@ -143,6 +151,7 @@ export function useCloudSync(user: User | null, mode: 'local' | 'cloud') {
     window.addEventListener('beforeunload', handleBeforeUnload)
 
     return () => {
+      cancelled = true
       unsubscribeSnapshot?.()
       unsubscribeSyncBus?.()
       window.removeEventListener('beforeunload', handleBeforeUnload)

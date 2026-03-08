@@ -8,9 +8,33 @@ import {
   updateDoc,
   query,
   where,
+  type DocumentReference,
 } from 'firebase/firestore'
 import { db } from './config'
 import { COLLECTIONS, type ProjectRole, type ProjectMember, type FirestoreProfileDoc } from './types'
+
+type SharingResult = { success: boolean; error?: string }
+
+type OwnerVerification =
+  | { ok: true; projectRef: DocumentReference }
+  | { ok: false; result: SharingResult }
+
+/** Verify that the current user is the owner of a project. Returns projectRef on success. */
+async function verifyProjectOwner(
+  projectId: string,
+  currentUid: string
+): Promise<OwnerVerification> {
+  const projectRef = doc(db!, COLLECTIONS.projects, projectId)
+  const projectSnap = await getDoc(projectRef)
+  if (!projectSnap.exists()) {
+    return { ok: false, result: { success: false, error: 'Project not found' } }
+  }
+  const projectData = projectSnap.data()
+  if (projectData.owner !== currentUid) {
+    return { ok: false, result: { success: false, error: 'Only the project owner can perform this action' } }
+  }
+  return { ok: true, projectRef }
+}
 
 /** Find a user by email address. Returns null if not found. */
 export async function findUserByEmail(email: string): Promise<{ uid: string; profile: FirestoreProfileDoc } | null> {
@@ -31,18 +55,12 @@ export async function shareProject(
   projectId: string,
   email: string,
   role: ProjectRole
-): Promise<{ success: boolean; error?: string }> {
+): Promise<SharingResult> {
   if (!db) return { success: false, error: 'Firestore not available' }
 
-  // Verify current user is owner
-  const projectRef = doc(db, COLLECTIONS.projects, projectId)
-  const projectSnap = await getDoc(projectRef)
-  if (!projectSnap.exists()) return { success: false, error: 'Project not found' }
-
-  const projectData = projectSnap.data()
-  if (projectData.owner !== currentUid) {
-    return { success: false, error: 'Only the project owner can share' }
-  }
+  const verification = await verifyProjectOwner(projectId, currentUid)
+  if (!verification.ok) return verification.result
+  const { projectRef } = verification
 
   // Find target user
   const targetUser = await findUserByEmail(email)
@@ -50,9 +68,13 @@ export async function shareProject(
   if (targetUser.uid === currentUid) return { success: false, error: 'Cannot share with yourself' }
 
   // Add member
-  await updateDoc(projectRef, {
-    [`members.${targetUser.uid}`]: role,
-  })
+  try {
+    await updateDoc(projectRef, {
+      [`members.${targetUser.uid}`]: role,
+    })
+  } catch (err) {
+    return { success: false, error: `Failed to update project: ${err}` }
+  }
 
   return { success: true }
 }
@@ -62,23 +84,22 @@ export async function removeProjectMember(
   currentUid: string,
   projectId: string,
   targetUid: string
-): Promise<{ success: boolean; error?: string }> {
+): Promise<SharingResult> {
   if (!db) return { success: false, error: 'Firestore not available' }
 
-  const projectRef = doc(db, COLLECTIONS.projects, projectId)
-  const projectSnap = await getDoc(projectRef)
-  if (!projectSnap.exists()) return { success: false, error: 'Project not found' }
-
-  const projectData = projectSnap.data()
-  if (projectData.owner !== currentUid) {
-    return { success: false, error: 'Only the project owner can remove members' }
-  }
+  const verification = await verifyProjectOwner(projectId, currentUid)
+  if (!verification.ok) return verification.result
+  const { projectRef } = verification
 
   // Remove from members map by setting to deleteField
-  const { deleteField } = await import('firebase/firestore')
-  await updateDoc(projectRef, {
-    [`members.${targetUid}`]: deleteField(),
-  })
+  try {
+    const { deleteField } = await import('firebase/firestore')
+    await updateDoc(projectRef, {
+      [`members.${targetUid}`]: deleteField(),
+    })
+  } catch (err) {
+    return { success: false, error: `Failed to remove member: ${err}` }
+  }
 
   return { success: true }
 }
@@ -126,21 +147,20 @@ export async function updateMemberRole(
   projectId: string,
   targetUid: string,
   newRole: ProjectRole
-): Promise<{ success: boolean; error?: string }> {
+): Promise<SharingResult> {
   if (!db) return { success: false, error: 'Firestore not available' }
 
-  const projectRef = doc(db, COLLECTIONS.projects, projectId)
-  const projectSnap = await getDoc(projectRef)
-  if (!projectSnap.exists()) return { success: false, error: 'Project not found' }
+  const verification = await verifyProjectOwner(projectId, currentUid)
+  if (!verification.ok) return verification.result
+  const { projectRef } = verification
 
-  const projectData = projectSnap.data()
-  if (projectData.owner !== currentUid) {
-    return { success: false, error: 'Only the project owner can change roles' }
+  try {
+    await updateDoc(projectRef, {
+      [`members.${targetUid}`]: newRole,
+    })
+  } catch (err) {
+    return { success: false, error: `Failed to update role: ${err}` }
   }
-
-  await updateDoc(projectRef, {
-    [`members.${targetUid}`]: newRole,
-  })
 
   return { success: true }
 }

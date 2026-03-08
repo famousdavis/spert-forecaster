@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.21.1 - 2026-03-08
+
+### Bug Fixes
+
+- **reorderProjects sync bus emit**: Project reordering now emits to the sync bus, matching every other store mutation — ensures cloud sync consistency
+- **useCloudSync race condition**: Initial Firestore load is now awaited before the snapshot listener attaches, preventing duplicate `replaceProjectsFromCloud` calls with conflicting data; added `cancelled` flag to prevent listener attachment after unmount
+
+### Improvements
+
+- **Error handling in sharing operations**: `shareProject`, `removeProjectMember`, and `updateMemberRole` now wrap Firestore writes in try-catch blocks, returning structured error results instead of throwing unhandled exceptions
+- **DRY ownership verification**: Extracted `verifyProjectOwner()` helper in `firestore-sharing.ts` — three functions no longer duplicate the same 8-line ownership check
+- **DRY doc-processing**: Extracted `processProjectDocs()` helper in `useCloudSync.ts` — eliminates duplicated Firestore-to-Zustand conversion loop
+- **DRY forecast inputs default**: Extracted `DEFAULT_FORECAST_INPUTS` constant in `project-store.ts` — was duplicated inline in two places
+
+### Test Coverage
+
+- 568 tests passing (was 561): added 7 tests for `firestore-migration.ts` covering successful migration, ID collision detection, permission-denied fallback, error accumulation, originRef fallback, and empty project list
+
 ## v0.21.0 - 2026-03-08
 
 ### New Features

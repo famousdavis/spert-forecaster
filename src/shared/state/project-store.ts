@@ -93,6 +93,15 @@ interface ProjectState {
 const generateId = () => crypto.randomUUID()
 const now = () => new Date().toISOString()
 
+const DEFAULT_FORECAST_INPUTS: ForecastInputs = {
+  remainingBacklog: '',
+  velocityMean: '',
+  velocityStdDev: '',
+  forecastMode: undefined,
+  velocityEstimate: undefined,
+  selectedCV: undefined,
+}
+
 // Lazily ensure _originRef is set (first structural mutation or export)
 const ensureOriginRef = (state: { _originRef: string }): string =>
   state._originRef || getWorkspaceId()
@@ -160,7 +169,7 @@ export const useProjectStore = create<ProjectState>()(
         }
       },
 
-      reorderProjects: (projectIds) =>
+      reorderProjects: (projectIds) => {
         set((state) => {
           const projectMap = new Map(state.projects.map((p) => [p.id, p]))
           return {
@@ -168,7 +177,13 @@ export const useProjectStore = create<ProjectState>()(
               .map((id) => projectMap.get(id))
               .filter((p): p is Project => p !== undefined),
           }
-        }),
+        })
+        // Emit save for each project so cloud sync can persist order
+        const isCloud = get()._isCloudUpdate
+        for (const id of projectIds) {
+          emitProjectSave(id, isCloud)
+        }
+      },
 
       setViewingProjectId: (id) => set({ viewingProjectId: id }),
 
@@ -421,7 +436,7 @@ export const useProjectStore = create<ProjectState>()(
           forecastInputs: {
             ...state.forecastInputs,
             [projectId]: {
-              ...(state.forecastInputs[projectId] || { remainingBacklog: '', velocityMean: '', velocityStdDev: '', forecastMode: undefined, velocityEstimate: undefined, selectedCV: undefined }),
+              ...(state.forecastInputs[projectId] || DEFAULT_FORECAST_INPUTS),
               [field]: value,
             },
           },
@@ -429,7 +444,7 @@ export const useProjectStore = create<ProjectState>()(
 
       getForecastInputs: (projectId) => {
         const state = get()
-        return state.forecastInputs[projectId] || { remainingBacklog: '', velocityMean: '', velocityStdDev: '', forecastMode: undefined, velocityEstimate: undefined, selectedCV: undefined }
+        return state.forecastInputs[projectId] || DEFAULT_FORECAST_INPUTS
       },
 
       setBurnUpConfig: (projectId, config) =>
