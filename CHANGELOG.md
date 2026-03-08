@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.21.2 - 2026-03-08
+
+### Security Hardening
+
+- **HSTS header**: Added `Strict-Transport-Security: max-age=63072000; includeSubDomains; preload` to prevent protocol downgrade attacks
+- **Real-time sync for shared projects**: `subscribeToOwnedProjects` renamed to `subscribeToUserProjects` — now subscribes to owned, editor-member, and viewer-member project queries instead of only owned projects. All three snapshot listeners must deliver their first result before the callback fires, preventing shared projects from briefly disappearing from the store
+
+### Security Audit Summary
+
+Full audit of Firebase config, Firestore rules, auth flows, input validation, XSS/injection, data exposure, dependencies, and security headers. No critical vulnerabilities found. Verified secure: CSP headers, Firestore CRUD rules, OAuth implementation, HTML/CSV escaping, import validation, file upload restrictions, data sanitization, sharing authorization, cloud sync guards, localStorage handling, dependency versions, and worker communication.
+
 ## v0.21.1 - 2026-03-08
 
 ### Bug Fixes
