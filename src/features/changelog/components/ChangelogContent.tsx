@@ -14,7 +14,7 @@ export function ChangelogContent({ entries }: ChangelogContentProps) {
       <div>
         <h1 className="text-2xl font-bold">Changelog</h1>
         <p className="text-muted-foreground italic">
-          Release history for SPERT® Release Forecaster
+          Release history for SPERT® Forecaster
         </p>
       </div>
 

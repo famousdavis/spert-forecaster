@@ -75,7 +75,7 @@ export function AppShell() {
                 SPERT</span><span className="text-gray-400 dark:text-gray-500 font-normal text-base sm:text-lg align-top">®</span>
               <span
                 className="font-bold bg-gradient-to-r from-spert-blue-light to-spert-blue-dark bg-clip-text text-transparent"
-              > Release Forecaster</span>
+              > Forecaster</span>
             </h1>
             <p className="text-sm text-gray-500 dark:text-gray-400 italic">{APP_DESCRIPTION}</p>
           </div>
