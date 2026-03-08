@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.20.2 - 2026-03-07
+
+### Changes
+
+- **App renamed** — Shortened app name from "SPERT® Release Forecaster" to "SPERT® Forecaster" across header, About page, browser tab title, changelog, and back-link on changelog page
+
 ## v0.20.1 - 2026-03-04
 
 ### Changes

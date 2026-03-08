@@ -15,13 +15,13 @@ export function AboutTab() {
   return (
     <div className="max-w-[800px]">
       <h2 className="text-2xl mb-2 text-spert-text">
-        About <TrademarkedName name="SPERT" /> Release Forecaster
+        About <TrademarkedName name="SPERT" /> Forecaster
       </h2>
       <p className="text-spert-text-muted italic mb-8">{APP_DESCRIPTION}</p>
 
       <section className="mb-8">
         <h3 className="text-xl mb-3 text-spert-blue">
-          What is <TrademarkedName name="SPERT" /> Release Forecaster?
+          What is <TrademarkedName name="SPERT" /> Forecaster?
         </h3>
         <p className="leading-relaxed text-spert-text-secondary">
           <TrademarkedName name="Statistical PERT" bold /> (<TrademarkedName name="SPERT" />) makes
