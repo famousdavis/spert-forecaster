@@ -80,7 +80,18 @@ export function useCloudSync(user: User | null, mode: 'local' | 'cloud') {
         if (cancelled) return
 
         const { projects, sprints } = processProjectDocs(projectDocs, docMetaRef)
-        useProjectStore.getState().replaceProjectsFromCloud(projects, sprints)
+
+        // Data-loss guard: if cloud is empty but local has projects, skip
+        // replacement on initial load. This prevents wiping un-migrated local
+        // data when cloud mode activates without a prior upload.
+        const localProjects = useProjectStore.getState().projects
+        if (projects.length === 0 && localProjects.length > 0) {
+          console.warn(
+            `Cloud returned 0 projects but local has ${localProjects.length} — skipping initial replacement to protect local data`
+          )
+        } else {
+          useProjectStore.getState().replaceProjectsFromCloud(projects, sprints)
+        }
 
         // Load settings
         const settingsDoc = await loadSettings(uid)
@@ -98,6 +109,16 @@ export function useCloudSync(user: User | null, mode: 'local' | 'cloud') {
       // Subscribe to Firestore snapshots (incoming changes)
       unsubscribeSnapshot = subscribeToOwnedProjects(uid, (projectDocs) => {
         const { projects, sprints } = processProjectDocs(projectDocs, docMetaRef)
+
+        // Same data-loss guard for snapshot updates
+        const localProjects = useProjectStore.getState().projects
+        if (projects.length === 0 && localProjects.length > 0) {
+          console.warn(
+            `Cloud snapshot returned 0 projects but local has ${localProjects.length} — skipping replacement`
+          )
+          return
+        }
+
         useProjectStore.getState().replaceProjectsFromCloud(projects, sprints)
       })
     }

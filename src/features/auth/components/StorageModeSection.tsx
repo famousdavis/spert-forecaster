@@ -55,7 +55,10 @@ export function StorageModeSection() {
         lastSignIn: new Date().toISOString(),
       })
       setMigrationResult(result)
-      setMode('cloud')
+      // Only switch to cloud if migration had no errors
+      if (result.errors.length === 0) {
+        setMode('cloud')
+      }
     } catch (err) {
       setMigrationResult({
         projectsUploaded: 0,
@@ -69,9 +72,9 @@ export function StorageModeSection() {
     }
   }
 
-  const handleSkipMigration = () => {
+  const handleCancelMigration = () => {
     setShowMigrationPrompt(false)
-    setMode('cloud')
+    // Stay in local mode — do NOT switch to cloud without uploading
   }
 
   const handleReUpload = () => {
@@ -170,7 +173,7 @@ export function StorageModeSection() {
             <div className="p-3 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg space-y-2">
               <p className="text-sm text-spert-text dark:text-gray-200">
                 You have {projects.length} project{projects.length !== 1 ? 's' : ''} stored locally.
-                Would you like to upload them to the cloud?
+                Upload them to the cloud to continue in cloud mode.
               </p>
               <div className="flex gap-2">
                 <button
@@ -180,10 +183,10 @@ export function StorageModeSection() {
                   Upload to Cloud
                 </button>
                 <button
-                  onClick={handleSkipMigration}
+                  onClick={handleCancelMigration}
                   className="px-3 py-1.5 text-sm font-medium rounded border border-spert-border dark:border-gray-600 text-spert-text dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
                 >
-                  Skip
+                  Cancel
                 </button>
               </div>
             </div>
