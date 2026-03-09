@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.21.3 - 2026-03-09
+
+### Features
+
+- **Quick Reference Guide**: Added downloadable PDF quick reference guide to the About tab — a 3-page printable overview of all features, workflow steps, forecast inputs, results, milestones, productivity adjustments, sprint history, and data/settings. PDF hosted on GitHub main branch.
+
 ## v0.21.2 - 2026-03-08
 
 ### Security Hardening
