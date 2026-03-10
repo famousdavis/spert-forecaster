@@ -5,8 +5,11 @@ Copyright (C) 2007 Free Software Foundation, Inc. <https://fsf.org/>
 Everyone is permitted to copy and distribute verbatim copies
 of this license document, but changing it is not allowed.
 
-SPERT - Agile Release Forecasting with Monte Carlo Simulation
-Copyright (C) 2025
+SPERT® - Agile Release Forecasting with Monte Carlo Simulation
+Copyright (C) 2025-2026 William W. Davis, MSPM, PMP. All rights reserved.
+
+SPERT® and Statistical PERT® are registered trademarks of William W. Davis
+with the United States Patent and Trademark Office (USPTO).
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -20,3 +23,20 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+ADDITIONAL TERMS UNDER SECTION 7 OF THE GNU GPL v3
+====================================================
+
+In accordance with Section 7 of the GNU General Public License v3.0,
+the following additional terms apply to this software:
+
+1. Attribution Requirement: You must retain all copyright notices,
+   including the per-file copyright headers, in all copies or
+   substantial portions of the software. Modified versions must
+   clearly indicate that changes were made and must not misrepresent
+   the origin of the software.
+
+2. Trademark Notice: The names "SPERT" and "Statistical PERT" are
+   registered trademarks and may not be used to endorse or promote
+   products derived from this software without prior written permission
+   from the trademark holder.

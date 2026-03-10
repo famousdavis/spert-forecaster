@@ -1,3 +1,7 @@
+// Copyright (C) 2026 William W. Davis, MSPM, PMP. All rights reserved.
+// Licensed under the GNU General Public License v3.0.
+// See LICENSE file in the project root for full license text.
+
 // Firestore CRUD operations for SPERT Forecaster data.
 // All writes use merge:true to preserve owner/members fields.
 // Saves are debounced at 500ms with beforeunload flush.

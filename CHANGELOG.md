@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.21.5 - 2026-03-09
+
+### Copyright Attribution
+
+- **Copyright headers**: Added copyright and license headers to all 144 human-authored source files (`.ts`, `.tsx`, `.css`, `.mjs`, `.rules`)
+- **LICENSE file**: Updated with full author attribution, trademark notice, and Section 7 additional terms (attribution retention, trademark protection)
+- **Standing instructions**: Added copyright section to CLAUDE.md requiring headers on all new source files
+
 ## v0.21.4 - 2026-03-09
 
 ### Bug Fixes
