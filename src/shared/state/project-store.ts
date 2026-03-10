@@ -403,6 +403,7 @@ export const useProjectStore = create<ProjectState>()(
           forecastInputs: {},
           burnUpConfigs: {},
         }))
+        syncBus.emit({ type: 'project:import' })
       },
 
       mergeImportData: (projects, sprints) => {
@@ -419,6 +420,7 @@ export const useProjectStore = create<ProjectState>()(
           forecastInputs: {},
           burnUpConfigs: {},
         }))
+        syncBus.emit({ type: 'project:import' })
       },
 
       replaceProjectsFromCloud: (projects, sprints) => {

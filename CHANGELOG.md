@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.21.4 - 2026-03-09
+
+### Bug Fixes
+
+- **Import fails silently in cloud mode**: `importData()` and `mergeImportData()` updated Zustand store but never emitted sync bus events, so Firestore was never notified — the next cloud snapshot overwrote local state back to pre-import data. Added `project:import` sync event type that deletes stale cloud projects and saves all imported projects via `saveProjectImmediate`
+
 ## v0.21.3 - 2026-03-09
 
 ### Features

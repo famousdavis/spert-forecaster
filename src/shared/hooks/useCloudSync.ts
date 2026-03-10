@@ -8,6 +8,7 @@ import { syncBus } from '@/shared/firebase/sync-bus'
 import {
   loadProjects,
   saveProject,
+  saveProjectImmediate,
   deleteProject,
   subscribeToUserProjects,
   loadSettings,
@@ -154,6 +155,37 @@ export function useCloudSync(user: User | null, mode: 'local' | 'cloud') {
           deleteProject(event.projectId).catch((err) =>
             console.error('Cloud delete failed:', err)
           )
+          break
+        }
+        case 'project:import': {
+          const state = useProjectStore.getState()
+          const importedIds = new Set(state.projects.map((p) => p.id))
+
+          // Delete old cloud projects not present in the import
+          for (const oldId of docMetaRef.current.keys()) {
+            if (!importedIds.has(oldId)) {
+              docMetaRef.current.delete(oldId)
+              deleteProject(oldId).catch((err) =>
+                console.error('Cloud delete failed:', err)
+              )
+            }
+          }
+
+          // Save all imported projects (immediate, with owner/members)
+          for (const project of state.projects) {
+            const doc = projectToFirestoreDoc(
+              project,
+              state.sprints,
+              currentUser.uid,
+              docMetaRef.current.get(project.id),
+              state._originRef || getWorkspaceId(),
+              state._changeLog
+            )
+            docMetaRef.current.set(project.id, doc)
+            saveProjectImmediate(project.id, doc).catch((err) =>
+              console.error(`Cloud import save failed for ${project.id}:`, err)
+            )
+          }
           break
         }
         case 'settings:save': {

@@ -57,6 +57,7 @@ export interface FirestoreProfileDoc {
 export type SyncEvent =
   | { type: 'project:save'; projectId: string }
   | { type: 'project:delete'; projectId: string }
+  | { type: 'project:import' }
   | { type: 'settings:save' }
 
 // --- Collection Names ---
