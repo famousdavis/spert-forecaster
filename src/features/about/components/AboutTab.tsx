@@ -67,7 +67,7 @@ export function AboutTab() {
           workflow steps, and key concepts.
         </p>
         <a
-          href="https://github.com/famousdavis/spert-web/raw/main/SPERTForecaster_Quick_Reference_Guide.pdf"
+          href="https://github.com/famousdavis/spert-forecaster/raw/main/SPERTForecaster_Quick_Reference_Guide.pdf"
           target="_blank"
           rel="noopener noreferrer"
           className="inline-block px-6 py-3 bg-spert-blue text-white no-underline rounded font-semibold mt-2"
@@ -106,7 +106,7 @@ export function AboutTab() {
           Created by <strong>William W. Davis, MSPM, PMP</strong>
         </p>
         <a
-          href="https://github.com/famousdavis/spert-web"
+          href="https://github.com/famousdavis/spert-forecaster"
           target="_blank"
           rel="noopener noreferrer"
           className="inline-block px-6 py-3 bg-spert-blue text-white no-underline rounded font-semibold mt-2"
