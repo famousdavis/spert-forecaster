@@ -21,6 +21,7 @@ import { UserMenu } from '@/features/auth'
 import { KeyboardShortcutsHelp } from '@/shared/components/KeyboardShortcutsHelp'
 import { useKeyboardShortcuts, type KeyboardShortcut } from '@/shared/hooks'
 import { Toaster } from 'sonner'
+import { FirstRunBanner } from './FirstRunBanner'
 
 export function AppShell() {
   const [activeTab, setActiveTab] = useState<TabId>('projects')
@@ -89,6 +90,8 @@ export function AppShell() {
             <UserMenu />
           </div>
         </header>
+
+        <FirstRunBanner />
 
         <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} />
 

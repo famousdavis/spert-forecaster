@@ -4,7 +4,10 @@
 
 'use client'
 
+import { useState } from 'react'
 import { useAuth } from '@/shared/providers/AuthProvider'
+import { isTosCached, cacheTos, setPendingWrite } from '@/features/auth/lib/tos'
+import { ConsentModal } from './ConsentModal'
 
 function GoogleIcon() {
   return (
@@ -30,22 +33,68 @@ function MicrosoftIcon() {
 
 export function SignInButtons() {
   const { user, isFirebaseAvailable, signInWithGoogle, signInWithMicrosoft } = useAuth()
+  const [pendingProvider, setPendingProvider] = useState<'google' | 'microsoft' | null>(null)
+  const [showConsent, setShowConsent] = useState(false)
 
   if (!isFirebaseAvailable || user) return null
+
+  const handleClick = (provider: 'google' | 'microsoft') => {
+    if (isTosCached()) {
+      // ToS already accepted — proceed directly to Firebase Auth
+      if (provider === 'google') {
+        signInWithGoogle()
+      } else {
+        signInWithMicrosoft()
+      }
+    } else {
+      // Show consent modal before Firebase Auth
+      setPendingProvider(provider)
+      setShowConsent(true)
+    }
+  }
+
+  const handleConsentAccept = () => {
+    // Cache ToS acceptance in localStorage BEFORE Firebase Auth fires
+    cacheTos()
+    // Flag for post-auth Firestore write
+    setPendingWrite()
+    // Close modal
+    setShowConsent(false)
+
+    // Initiate Firebase Auth with the originally selected provider
+    if (pendingProvider === 'google') {
+      signInWithGoogle()
+    } else if (pendingProvider === 'microsoft') {
+      signInWithMicrosoft()
+    }
+    // If user cancels the Firebase Auth popup, localStorage cache persists (per spec)
+  }
+
+  const handleConsentCancel = () => {
+    setShowConsent(false)
+    setPendingProvider(null)
+  }
 
   const btnClass =
     'flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded border border-spert-border dark:border-gray-600 bg-white dark:bg-gray-700 text-spert-text dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors cursor-pointer'
 
   return (
-    <div className="flex items-center gap-1.5">
-      <button onClick={signInWithGoogle} className={btnClass} title="Sign in with Google">
-        <GoogleIcon />
-        <span className="hidden sm:inline">Google</span>
-      </button>
-      <button onClick={signInWithMicrosoft} className={btnClass} title="Sign in with Microsoft">
-        <MicrosoftIcon />
-        <span className="hidden sm:inline">Microsoft</span>
-      </button>
-    </div>
+    <>
+      <div className="flex items-center gap-1.5">
+        <button onClick={() => handleClick('google')} className={btnClass} title="Sign in with Google">
+          <GoogleIcon />
+          <span className="hidden sm:inline">Google</span>
+        </button>
+        <button onClick={() => handleClick('microsoft')} className={btnClass} title="Sign in with Microsoft">
+          <MicrosoftIcon />
+          <span className="hidden sm:inline">Microsoft</span>
+        </button>
+      </div>
+      <ConsentModal
+        isOpen={showConsent}
+        onAccept={handleConsentAccept}
+        onCancel={handleConsentCancel}
+      />
+    </>
   )
 }

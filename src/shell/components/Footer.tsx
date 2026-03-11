@@ -4,6 +4,7 @@
 
 import Link from 'next/link'
 import { APP_VERSION } from '@/shared/constants'
+import { TOS_URL, PRIVACY_URL } from '@/features/auth/lib/tos'
 
 export function Footer() {
   return (
@@ -16,6 +17,25 @@ export function Footer() {
         Version {APP_VERSION}
       </Link>
       {' '}| Licensed under GNU GPL v3
+      <br className="sm:hidden" />
+      <span className="hidden sm:inline"> | </span>
+      <a
+        href={TOS_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-blue-500 hover:text-blue-600 transition-colors"
+      >
+        Terms of Service
+      </a>
+      {' | '}
+      <a
+        href={PRIVACY_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-blue-500 hover:text-blue-600 transition-colors"
+      >
+        Privacy Policy
+      </a>
     </footer>
   )
 }
