@@ -9,7 +9,7 @@ SPERT® (Statistical PERT®) — Agile Release Forecasting with Monte Carlo Simu
 - **UI**: React 19.2.4, Tailwind CSS 4.x, shadcn/ui
 - **Charts**: Recharts 3.x
 - **State**: Zustand 5.x with localStorage persistence
-- **Cloud**: Firebase 11.x (optional — Firestore, Auth, Google/Microsoft OAuth)
+- **Cloud**: Firebase 12.x (optional — Firestore, Auth, Google/Microsoft OAuth)
 - **Testing**: Vitest 4.x, Testing Library, jsdom
 - **Linting**: ESLint 9.x (flat config) with eslint-config-next
 - **Deployment**: Vercel (auto-deploy from main)
@@ -31,11 +31,12 @@ src/
 │   │   │   ├── BurnUpChartCanvas.tsx     # Pure Recharts burn-up rendering
 │   │   │   ├── ForecastForm.tsx          # Forecast input form
 │   │   │   ├── ForecastModeToggle.tsx    # History/Subjective pill-style toggle
+│   │   │   ├── ResultsTable.tsx          # Percentile results table, row builders, column helpers
 │   │   │   ├── SubjectiveInputs.tsx      # CV elicitation for Subjective mode
 │   │   │   ├── VolatilityAdjuster.tsx    # SD multiplier radio panel for History mode
 │   │   │   ├── ScopeGrowthSection.tsx    # Scope growth modeling controls
 │   │   │   ├── ReportButton.tsx          # Report generation button with section selector popover
-│   │   │   └── ...                       # Results, CDF, histogram, milestones, etc.
+│   │   │   └── ...                       # ForecastResults, CDF, histogram, milestones, etc.
 │   │   ├── hooks/              # State orchestration
 │   │   │   ├── useForecastState.ts       # Top-level simulation orchestration
 │   │   │   ├── useScopeGrowthState.ts    # Scope growth state + resolution

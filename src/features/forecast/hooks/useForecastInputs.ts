@@ -9,6 +9,14 @@ import { useProjectStore, selectViewingProject } from '@/shared/state/project-st
 import type { VelocityStats, ForecastMode, Sprint } from '@/shared/types'
 import { DEFAULT_CV, DEFAULT_VOLATILITY_MULTIPLIER, MIN_SPRINTS_FOR_HISTORY } from '../constants'
 
+/** Find the backlog-at-end value from the sprint with the highest sprintNumber */
+export function getLastSprintBacklog(sprints: Sprint[]): number | undefined {
+  if (sprints.length === 0) return undefined
+  return sprints.reduce((latest, s) =>
+    s.sprintNumber > latest.sprintNumber ? s : latest
+  ).backlogAtSprintEnd
+}
+
 /**
  * Form state for the forecast: backlog, velocity overrides, subjective inputs,
  * and milestone-derived values. Persisted per project via the project store.
@@ -36,8 +44,8 @@ export function useForecastInputs(calculatedStats: VelocityStats, includedSprint
     })
   }, [milestones])
 
-  // Form values — pre-fill backlog from last sprint when user hasn't entered a value
-  const lastSprintBacklog = sprints.length > 0 ? sprints[sprints.length - 1].backlogAtSprintEnd : undefined
+  // Form values — pre-fill backlog from the most recent sprint (by sprintNumber, not insertion order)
+  const lastSprintBacklog = getLastSprintBacklog(sprints)
   const storedBacklog = forecastInputs?.remainingBacklog
   const remainingBacklog = storedBacklog || (lastSprintBacklog !== undefined ? String(lastSprintBacklog) : '')
   const velocityMean = forecastInputs?.velocityMean ?? ''

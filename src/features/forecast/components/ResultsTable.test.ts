@@ -3,7 +3,7 @@
 // See LICENSE file in the project root for full license text.
 
 import { describe, it, expect } from 'vitest'
-import { buildDynamicPercentileRows } from './ForecastResults'
+import { buildDynamicPercentileRows } from './ResultsTable'
 import type { QuadSimulationData } from '../lib/monte-carlo'
 
 describe('buildDynamicPercentileRows', () => {

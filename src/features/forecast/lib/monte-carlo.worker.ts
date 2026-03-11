@@ -7,18 +7,19 @@ import type { SimulationContext } from './monte-carlo'
 
 export interface WorkerInput extends SimulationContext {
   milestoneThresholds?: number[] // Cumulative backlog thresholds for milestone mode
+  _messageId?: number            // Correlation ID echoed back to caller
 }
 
 self.onmessage = (e: MessageEvent<WorkerInput>) => {
-  const { config, historicalVelocities, productivityFactors, milestoneThresholds, scopeGrowthPerSprint } = e.data
+  const { config, historicalVelocities, productivityFactors, milestoneThresholds, scopeGrowthPerSprint, _messageId } = e.data
 
+  let result
   if (milestoneThresholds && milestoneThresholds.length > 0) {
-    const result = runQuadrupleForecastWithMilestones(
+    result = runQuadrupleForecastWithMilestones(
       config, milestoneThresholds, historicalVelocities, productivityFactors, scopeGrowthPerSprint
     )
-    self.postMessage(result)
   } else {
-    const result = runQuadrupleForecast(config, historicalVelocities, productivityFactors, scopeGrowthPerSprint)
-    self.postMessage(result)
+    result = runQuadrupleForecast(config, historicalVelocities, productivityFactors, scopeGrowthPerSprint)
   }
+  self.postMessage({ ...result, _messageId })
 }

@@ -1,5 +1,25 @@
 # Changelog
 
+## v0.22.1 - 2026-03-11
+
+### Bug Fixes
+
+- **Sprint order assumption**: `useForecastInputs` used array insertion order (`sprints[sprints.length - 1]`) instead of highest `sprintNumber` to determine the last sprint's backlog — backfilling history out of order displayed the wrong sprint's value for backlog pre-fill and "Last sprint" text. Extracted `getLastSprintBacklog()` pure helper that uses `reduce()` to find the sprint with the highest number
+- **Worker race condition**: In `useSimulationWorker`, starting a new simulation while the worker was still processing an old one could resolve the new promise with stale data. Added `_messageId` correlation counter — worker echoes the ID back, and `onmessage` silently discards responses with mismatched IDs
+
+### Refactoring
+
+- **Decomposed `ForecastResults.tsx`**: Extracted `ResultsTable.tsx` (133 LOC) containing the table component, row builders, distribution column helpers, and related types. `ForecastResults.tsx` reduced from 473 to 356 LOC
+
+### Dependencies
+
+- Updated within semver range: zustand 5.0.10→5.0.11, @vitejs/plugin-react 5.1.2→5.1.4, recharts 3.7.0→3.8.0, tailwind-merge 3.4.0→3.5.0, tailwindcss→4.2.1, @tailwindcss/postcss→4.2.1
+- Bumped lucide-react range: `^0.563.0` → `^0.577.0` (updated to 0.577.0)
+
+### Test Coverage
+
+- 574 tests passing (was 568): added 6 tests for `getLastSprintBacklog` covering empty array, single sprint, in-order, out-of-order, undefined backlog, and zero backlog edge cases
+
 ## v0.22.0 - 2026-03-11
 
 ### Legal Compliance

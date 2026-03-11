@@ -22,7 +22,9 @@ type WorkerResult = QuadForecastResult | QuadMilestoneForecastResult
 
 export function useSimulationWorker() {
   const workerRef = useRef<Worker | null>(null)
+  const messageIdRef = useRef(0)
   const pendingRef = useRef<{
+    _messageId: number
     resolve: (value: WorkerResult) => void
     reject: (reason: Error) => void
   } | null>(null)
@@ -33,7 +35,9 @@ export function useSimulationWorker() {
       new URL('../lib/monte-carlo.worker.ts', import.meta.url)
     )
 
-    workerRef.current.onmessage = (e: MessageEvent<WorkerResult>) => {
+    workerRef.current.onmessage = (e: MessageEvent<WorkerResult & { _messageId?: number }>) => {
+      // Drop stale responses from superseded simulations
+      if (pendingRef.current && e.data._messageId !== pendingRef.current._messageId) return
       setIsSimulating(false)
       pendingRef.current?.resolve(e.data)
       pendingRef.current = null
@@ -67,15 +71,16 @@ export function useSimulationWorker() {
       pendingRef.current = null
     }
 
+    const id = ++messageIdRef.current
     setIsSimulating(true)
 
     return new Promise<QuadForecastResult>((resolve, reject) => {
       pendingRef.current = {
+        _messageId: id,
         resolve: resolve as (value: WorkerResult) => void,
         reject,
       }
-      const message: WorkerInput = input
-      workerRef.current?.postMessage(message)
+      workerRef.current?.postMessage({ ...input, _messageId: id })
     })
   }, [])
 
@@ -92,15 +97,16 @@ export function useSimulationWorker() {
       pendingRef.current = null
     }
 
+    const id = ++messageIdRef.current
     setIsSimulating(true)
 
     return new Promise<QuadMilestoneForecastResult>((resolve, reject) => {
       pendingRef.current = {
+        _messageId: id,
         resolve: resolve as (value: WorkerResult) => void,
         reject,
       }
-      const message: WorkerInput = input
-      workerRef.current?.postMessage(message)
+      workerRef.current?.postMessage({ ...input, _messageId: id })
     })
   }, [])
 
