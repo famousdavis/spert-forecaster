@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.22.2 - 2026-03-11
+
+### Security Hardening
+
+- **Report generation CSP bypass**: Replaced `window.open()` + `document.write()` with blob URL approach — new report window now inherits the origin's Content Security Policy instead of running in an unrestricted context
+- **Firestore project list enumeration**: Tightened `list` rule from `isAuth()` to require owner/member membership, matching the existing `get` rule — prevents authenticated users from enumerating all project IDs in the collection
+- **Missing Firestore rules for users collection**: Added `users/{uid}` rules restricting read/write to the authenticated UID owner — the ToS acceptance flow (`tos.ts`) reads/writes this collection but had no corresponding security rules in the reference file
+- **CSP directive tightening**: Removed `wasm-unsafe-eval` from `script-src` — the app does not use WebAssembly, so this directive unnecessarily widened the attack surface
+- **Email validation in sharing**: Added format validation (RFC 5321 length limit, basic format check) to `findUserByEmail()` as defense-in-depth before Firestore query
+- **Environment example cleanup**: Removed actual Firebase project ID from `.env.example`, replaced with empty placeholder
+
 ## v0.22.1 - 2026-03-11
 
 ### Bug Fixes

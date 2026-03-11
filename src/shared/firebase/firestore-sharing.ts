@@ -40,12 +40,14 @@ async function verifyProjectOwner(
   return { ok: true, projectRef }
 }
 
-/** Find a user by email address. Returns null if not found. */
+/** Find a user by email address. Returns null if not found or invalid. */
 export async function findUserByEmail(email: string): Promise<{ uid: string; profile: FirestoreProfileDoc } | null> {
   if (!db) return null
+  const cleaned = email.toLowerCase().trim()
+  if (!cleaned || cleaned.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleaned)) return null
   const q = query(
     collection(db, COLLECTIONS.profiles),
-    where('email', '==', email.toLowerCase().trim())
+    where('email', '==', cleaned)
   )
   const snap = await getDocs(q)
   if (snap.empty) return null

@@ -25,7 +25,7 @@ if (!isDev) {
       // 'unsafe-inline' needed for theme script in layout.tsx to prevent flash
       // 'blob:' needed for Web Workers (Monte Carlo simulation)
       // Firebase Auth loads scripts from apis.google.com + accounts.google.com
-      "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob: https://apis.google.com https://accounts.google.com",
+      "script-src 'self' 'unsafe-inline' blob: https://apis.google.com https://accounts.google.com",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com",
       // Google user avatars served from *.googleusercontent.com

@@ -120,10 +120,13 @@ export function openForecastReport(
   metadata: ReportMetadata
 ): void {
   const html = buildReportHtml(sections, metadata)
-  const w = window.open('', '_blank')
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const w = window.open(url, '_blank')
   if (!w) {
+    URL.revokeObjectURL(url)
     throw new Error('Pop-up blocked. Please allow pop-ups for this site.')
   }
-  w.document.write(html)
-  w.document.close()
+  // Revoke after the window has loaded to free memory
+  w.addEventListener('load', () => URL.revokeObjectURL(url))
 }

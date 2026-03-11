@@ -18,7 +18,8 @@ service cloud.firestore {
     // Note: Forecaster uses a separate `owner` field (not in members map)
     // `members` map contains only editors/viewers
     match /spertforecaster_projects/{projectId} {
-      allow list: if isAuth();
+      allow list: if isAuth() &&
+        (resource.data.owner == request.auth.uid || request.auth.uid in resource.data.members);
       allow get: if isAuth() &&
         (resource.data.owner == request.auth.uid || request.auth.uid in resource.data.members);
       allow create: if isAuth() &&
@@ -37,6 +38,11 @@ service cloud.firestore {
       allow write: if isAuth() && request.auth.uid == uid;
     }
     match /spertforecaster_settings/{uid} {
+      allow read, write: if isAuth() && request.auth.uid == uid;
+    }
+
+    // ToS/Privacy Policy acceptance records
+    match /users/{uid} {
       allow read, write: if isAuth() && request.auth.uid == uid;
     }
   }
