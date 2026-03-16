@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.22.4 - 2026-03-16
+
+### UX
+
+- **First-run banner wording**: Updated to establish browsewrap agreement — using the app implies acceptance of Terms of Service and Privacy Policy. Added clickable links to both documents. Cloud Storage still requires explicit consent via the existing ConsentModal
+
 ## v0.22.3 - 2026-03-11
 
 ### Infrastructure
