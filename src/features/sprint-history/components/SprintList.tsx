@@ -7,12 +7,14 @@
 import { useMemo } from 'react'
 import { cn } from '@/lib/utils'
 import type { Sprint } from '@/shared/types'
-import { formatDateRange } from '@/shared/lib/dates'
+import { formatDateRange, resolveAllSprintDates } from '@/shared/lib/dates'
 
 interface SprintListProps {
   sprints: Sprint[]
   unitOfMeasure: string
   sortAscending: boolean
+  firstSprintStartDate?: string
+  sprintCadenceWeeks?: 1 | 2 | 3 | 4
   onToggleSortOrder: () => void
   onEdit: (sprint: Sprint) => void
   onDelete: (id: string) => void
@@ -23,11 +25,23 @@ export function SprintList({
   sprints,
   unitOfMeasure,
   sortAscending,
+  firstSprintStartDate,
+  sprintCadenceWeeks,
   onToggleSortOrder,
   onEdit,
   onDelete,
   onToggleIncluded,
 }: SprintListProps) {
+  // Resolve all sprint dates with cascade-forward logic
+  const resolvedDates = useMemo(() => {
+    if (!firstSprintStartDate || !sprintCadenceWeeks) return null
+    return resolveAllSprintDates(
+      firstSprintStartDate,
+      sprintCadenceWeeks,
+      sprints.map(s => ({ sprintNumber: s.sprintNumber, customFinishDate: s.customFinishDate }))
+    )
+  }, [firstSprintStartDate, sprintCadenceWeeks, sprints])
+
   // Sort sprints by sprint number
   const sortedSprints = useMemo(() => {
     return [...sprints].sort((a, b) =>
@@ -106,7 +120,19 @@ export function SprintList({
                   />
                 </td>
                 <td className="px-4 py-3 text-sm dark:text-gray-100">
-                  Sprint {sprint.sprintNumber}: {formatDateRange(sprint.sprintStartDate, sprint.sprintFinishDate)}
+                  {(() => {
+                    const resolved = resolvedDates?.get(sprint.sprintNumber)
+                    const startDate = resolved?.startDate ?? sprint.sprintStartDate
+                    const finishDate = resolved?.finishDate ?? sprint.sprintFinishDate
+                    return (
+                      <>
+                        Sprint {sprint.sprintNumber}: {formatDateRange(startDate, finishDate)}
+                        {sprint.customFinishDate && (
+                          <span className="ml-1 text-xs text-spert-blue" title="Custom finish date">&#9998;</span>
+                        )}
+                      </>
+                    )
+                  })()}
                 </td>
                 <td className="px-4 py-3 text-right text-sm font-medium dark:text-gray-100">
                   {sprint.doneValue}

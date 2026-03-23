@@ -25,6 +25,7 @@ export function ForecastTab() {
     projectSprints,
     completedSprintCount,
     forecastStartDate,
+    resolvedSprintDates,
     calculatedStats,
     milestones,
     cumulativeThresholds,
@@ -279,6 +280,8 @@ export function ForecastTab() {
             onFontSizeChange={setBurnUpFontSize}
             milestones={milestones}
             cumulativeThresholds={cumulativeThresholds}
+            forecastStartDate={forecastStartDate}
+            resolvedSprintDates={resolvedSprintDates}
           />
 
           {/* Cumulative Probability Distribution */}

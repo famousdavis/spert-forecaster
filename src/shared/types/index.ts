@@ -46,6 +46,7 @@ export interface Sprint {
   sprintNumber: number // Sequential sprint number (1, 2, 3, ...)
   sprintStartDate: string // ISO date string (YYYY-MM-DD) - calculated from firstSprintStartDate + cadence
   sprintFinishDate: string // ISO date string (YYYY-MM-DD) - calculated, always a business day (Mon-Fri)
+  customFinishDate?: string // ISO date string (YYYY-MM-DD) - user override for non-standard sprint durations
   doneValue: number
   backlogAtSprintEnd?: number // Optional: total backlog remaining at sprint end (for burn-up chart)
   includedInForecast: boolean

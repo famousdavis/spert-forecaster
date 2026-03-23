@@ -17,6 +17,9 @@ import {
   formatDateLong,
   formatDateRange,
   isValidDateRange,
+  getNextBusinessDay,
+  resolveAllSprintDates,
+  resolveAnchorDate,
 } from './dates'
 
 describe('addDays', () => {
@@ -396,5 +399,141 @@ describe('countWorkingDays edge cases', () => {
 
   it('returns 1 for single working day', () => {
     expect(countWorkingDays('2026-01-05', '2026-01-05')).toBe(1) // Monday
+  })
+})
+
+describe('getNextBusinessDay', () => {
+  it('returns Tuesday when given Monday', () => {
+    expect(getNextBusinessDay('2026-01-05')).toBe('2026-01-06') // Mon -> Tue
+  })
+
+  it('returns Monday when given Friday', () => {
+    expect(getNextBusinessDay('2026-01-09')).toBe('2026-01-12') // Fri -> Mon
+  })
+
+  it('returns Monday when given Saturday', () => {
+    expect(getNextBusinessDay('2026-01-10')).toBe('2026-01-12') // Sat -> Mon
+  })
+
+  it('returns Monday when given Sunday', () => {
+    expect(getNextBusinessDay('2026-01-11')).toBe('2026-01-12') // Sun -> Mon
+  })
+})
+
+describe('resolveAllSprintDates', () => {
+  // 2-week cadence, starting Monday Jan 5, 2026
+  const firstStart = '2026-01-05'
+  const cadence = 2
+
+  it('returns empty map for no sprints', () => {
+    const result = resolveAllSprintDates(firstStart, cadence, [])
+    expect(result.size).toBe(0)
+  })
+
+  it('computes standard dates when no custom finish dates', () => {
+    const sprints = [
+      { sprintNumber: 1 },
+      { sprintNumber: 2 },
+      { sprintNumber: 3 },
+    ]
+    const result = resolveAllSprintDates(firstStart, cadence, sprints)
+
+    expect(result.get(1)?.startDate).toBe('2026-01-05')
+    expect(result.get(1)?.finishDate).toBe(calculateSprintFinishDate('2026-01-05', cadence))
+    expect(result.get(2)?.startDate).toBe(calculateSprintStartDate(firstStart, 2, cadence))
+    expect(result.get(3)?.startDate).toBe(calculateSprintStartDate(firstStart, 3, cadence))
+  })
+
+  it('cascades forward when a sprint has a custom finish date', () => {
+    const standardFinish1 = calculateSprintFinishDate('2026-01-05', cadence)
+    // Extend sprint 1 by one week
+    const customFinish1 = addDays(standardFinish1, 7)
+
+    const sprints = [
+      { sprintNumber: 1, customFinishDate: customFinish1 },
+      { sprintNumber: 2 },
+      { sprintNumber: 3 },
+    ]
+    const result = resolveAllSprintDates(firstStart, cadence, sprints)
+
+    // Sprint 1: starts normally, finishes at custom date
+    expect(result.get(1)?.startDate).toBe('2026-01-05')
+    expect(result.get(1)?.finishDate).toBe(customFinish1)
+
+    // Sprint 2: starts on next business day after sprint 1's custom finish
+    const sprint2Start = getNextBusinessDay(customFinish1)
+    expect(result.get(2)?.startDate).toBe(sprint2Start)
+
+    // Sprint 3: starts on next business day after sprint 2's computed finish
+    const sprint2Finish = calculateSprintFinishDate(sprint2Start, cadence)
+    const sprint3Start = getNextBusinessDay(sprint2Finish)
+    expect(result.get(3)?.startDate).toBe(sprint3Start)
+  })
+
+  it('sorts sprints by number before walking', () => {
+    // Pass sprints out of order
+    const sprints = [
+      { sprintNumber: 3 },
+      { sprintNumber: 1 },
+      { sprintNumber: 2 },
+    ]
+    const result = resolveAllSprintDates(firstStart, cadence, sprints)
+
+    // Should resolve correctly regardless of input order
+    expect(result.get(1)?.startDate).toBe('2026-01-05')
+    expect(result.get(2)?.startDate).toBe(calculateSprintStartDate(firstStart, 2, cadence))
+  })
+})
+
+describe('resolveAnchorDate', () => {
+  const firstStart = '2026-01-05'
+  const cadence = 2
+
+  it('returns firstSprintStartDate when no sprints', () => {
+    expect(resolveAnchorDate(firstStart, cadence, [])).toBe(firstStart)
+  })
+
+  it('returns next business day after last sprint finish with standard cadence', () => {
+    const sprints = [
+      { sprintNumber: 1 },
+      { sprintNumber: 2 },
+    ]
+    const result = resolveAnchorDate(firstStart, cadence, sprints)
+
+    // Should equal what calculateSprintStartDate gives for sprint 3
+    expect(result).toBe(calculateSprintStartDate(firstStart, 3, cadence))
+  })
+
+  it('shifts anchor when last sprint has custom finish date', () => {
+    const sprint2Start = calculateSprintStartDate(firstStart, 2, cadence)
+    const sprint2StandardFinish = calculateSprintFinishDate(sprint2Start, cadence)
+    const customFinish2 = addDays(sprint2StandardFinish, 7) // Extend by a week
+
+    const sprints = [
+      { sprintNumber: 1 },
+      { sprintNumber: 2, customFinishDate: customFinish2 },
+    ]
+    const result = resolveAnchorDate(firstStart, cadence, sprints)
+
+    // Anchor should be next business day after the custom finish
+    expect(result).toBe(getNextBusinessDay(customFinish2))
+    // And should NOT equal the standard sprint 3 start
+    expect(result).not.toBe(calculateSprintStartDate(firstStart, 3, cadence))
+  })
+
+  it('cascades through intermediate custom dates', () => {
+    const standardFinish1 = calculateSprintFinishDate('2026-01-05', cadence)
+    const customFinish1 = addDays(standardFinish1, 7)
+
+    const sprints = [
+      { sprintNumber: 1, customFinishDate: customFinish1 },
+      { sprintNumber: 2 },
+    ]
+    const result = resolveAnchorDate(firstStart, cadence, sprints)
+
+    // Sprint 2 starts after custom sprint 1, finishes at standard cadence from there
+    const sprint2Start = getNextBusinessDay(customFinish1)
+    const sprint2Finish = calculateSprintFinishDate(sprint2Start, cadence)
+    expect(result).toBe(getNextBusinessDay(sprint2Finish))
   })
 })

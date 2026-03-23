@@ -63,16 +63,16 @@ export function AboutTab() {
       <section className="mb-8">
         <h3 className="text-xl mb-3 text-spert-blue">Quick Reference Guide</h3>
         <p className="leading-relaxed text-spert-text-secondary mb-3">
-          Download the printable quick reference guide for a concise overview of all features,
+          View the printable quick reference guide for a concise overview of all features,
           workflow steps, and key concepts.
         </p>
         <a
-          href="https://github.com/famousdavis/spert-forecaster/raw/main/SPERTForecaster_Quick_Reference_Guide.pdf"
+          href="/SPERTForecaster_Quick_Reference_Guide.pdf"
           target="_blank"
           rel="noopener noreferrer"
           className="inline-block px-6 py-3 bg-spert-blue text-white no-underline rounded font-semibold mt-2"
         >
-          Download Quick Reference Guide (PDF)
+          Open Quick Reference Guide (PDF)
         </a>
       </section>
 

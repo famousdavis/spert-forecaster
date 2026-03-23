@@ -10,6 +10,13 @@ import { copyElementAsImage } from '@/shared/lib/copy-image'
 import { cn } from '@/lib/utils'
 import { COLORS } from '@/shared/lib/colors'
 
+// Firefox exposes ClipboardItem and navigator.clipboard.write on its API surface,
+// but clipboard.write() silently fails for image/png at runtime because the feature
+// is behind a disabled-by-default about:config flag. UA check is the only reliable detection.
+const CLIPBOARD_IMAGE_SUPPORTED =
+  typeof navigator !== 'undefined' &&
+  !/firefox/i.test(navigator.userAgent)
+
 type CopyStatus = 'idle' | 'copying' | 'success' | 'error'
 
 interface CopyImageButtonProps {
@@ -21,6 +28,7 @@ export function CopyImageButton({ targetRef, title = 'Copy as image' }: CopyImag
   const [status, setStatus] = useState<CopyStatus>('idle')
 
   const handleCopy = useCallback(async () => {
+    if (!CLIPBOARD_IMAGE_SUPPORTED) return
     if (!targetRef.current) {
       toast.error('Failed to copy: element not found')
       return
@@ -38,17 +46,22 @@ export function CopyImageButton({ targetRef, title = 'Copy as image' }: CopyImag
     }
   }, [targetRef])
 
+  const unsupportedTitle = 'Copy image is not supported in this browser — try Chrome, Edge, or Safari.'
+
   return (
     <button
       className={cn(
         'copy-image-button bg-transparent border-0 p-1 shrink-0 transition-opacity duration-200',
-        status === 'copying' ? 'cursor-wait opacity-100' : 'cursor-pointer',
-        status === 'idle' ? 'opacity-50 hover:opacity-100' : 'opacity-100'
+        !CLIPBOARD_IMAGE_SUPPORTED
+          ? 'opacity-30 cursor-not-allowed'
+          : status === 'copying' ? 'cursor-wait opacity-100'
+          : status === 'idle' ? 'cursor-pointer opacity-50 hover:opacity-100'
+          : 'opacity-100'
       )}
-      onClick={handleCopy}
-      disabled={status === 'copying'}
-      title={title}
-      aria-label={title}
+      onClick={CLIPBOARD_IMAGE_SUPPORTED ? handleCopy : undefined}
+      disabled={!CLIPBOARD_IMAGE_SUPPORTED || status === 'copying'}
+      title={CLIPBOARD_IMAGE_SUPPORTED ? title : unsupportedTitle}
+      aria-label={CLIPBOARD_IMAGE_SUPPORTED ? title : unsupportedTitle}
     >
       {status === 'copying' && (
         <svg

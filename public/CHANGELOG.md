@@ -1,5 +1,28 @@
 # Changelog
 
+## v0.23.0 - 2026-03-23
+
+### Features
+
+- **Custom sprint finish dates**: Historical sprints can now have their finish date overridden to reflect non-standard sprint durations (e.g., spring break extending a 2-week sprint to 3 weeks). Custom dates cascade forward — subsequent sprint start dates shift accordingly. Forecast projections anchor from the last historical sprint's actual finish date. A pencil icon (&#9998;) indicates sprints with custom dates in the sprint list
+- **Quick Reference Guide opens in browser**: The QRG PDF now opens in a new browser tab instead of downloading, served from the app's `public/` directory
+
+### Bug Fixes
+
+- **Copy image browser compatibility**: Copy image button is now shown as disabled with an explanatory tooltip in browsers that do not support image clipboard writes (Firefox). Chrome, Edge, Safari, and Brave are unaffected
+
+### UX
+
+- **Export filename**: JSON export filename changed from `spert-data-` to `spert-forecaster-` prefix for clarity across the SPERT suite
+
+### Technical
+
+- New cascade-aware date utilities: `resolveAllSprintDates()` (O(n) batch), `resolveAnchorDate()`, `getNextBusinessDay()`
+- Productivity adjustment call site updated to use cascade-resolved anchor date
+- Burn-up chart uses resolved dates for historical points and cascade-aware projections
+- Import validation extended for `customFinishDate` field
+- 14 new tests for cascade date resolution logic
+
 ## v0.22.4 - 2026-03-16
 
 ### UX

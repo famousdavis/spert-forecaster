@@ -29,6 +29,8 @@ export interface BurnUpCalculationInput {
   sprintCadenceWeeks: number
   firstSprintStartDate: string
   completedSprintCount: number
+  forecastStartDate?: string // Cascade-resolved anchor for forecast projections
+  resolvedSprintDates?: Map<number, { startDate: string; finishDate: string }> // Cascade-aware historical dates
 }
 
 function getDistributionData(sim: QuadSimulationData, dist: DistributionType): number[] | null {
@@ -53,7 +55,7 @@ function calculateImpliedVelocity(sorted: number[], percentile: number, backlog:
 }
 
 export function calculateBurnUpData(input: BurnUpCalculationInput): BurnUpDataPoint[] {
-  const { sprints, forecastBacklog, simulationData, config, sprintCadenceWeeks, firstSprintStartDate, completedSprintCount } = input
+  const { sprints, forecastBacklog, simulationData, config, sprintCadenceWeeks, firstSprintStartDate, completedSprintCount, forecastStartDate, resolvedSprintDates } = input
 
   const sortedSprints = [...sprints].sort((a, b) => a.sprintNumber - b.sprintNumber)
   const totalDone = sortedSprints.reduce((sum, s) => sum + s.doneValue, 0)
@@ -73,6 +75,8 @@ export function calculateBurnUpData(input: BurnUpCalculationInput): BurnUpDataPo
     totalDone,
     hasBacklogHistory,
     syntheticBacklog,
+    forecastStartDate,
+    resolvedSprintDates,
   })
 }
 
@@ -87,10 +91,12 @@ interface BuildChartDataInput {
   totalDone: number
   hasBacklogHistory: boolean
   syntheticBacklog: number
+  forecastStartDate?: string
+  resolvedSprintDates?: Map<number, { startDate: string; finishDate: string }>
 }
 
 function buildChartData(input: BuildChartDataInput): BurnUpDataPoint[] {
-  const { sortedSprints, forecastBacklog, distData, config, sprintCadenceWeeks, firstSprintStartDate, completedSprintCount, totalDone, hasBacklogHistory, syntheticBacklog } = input
+  const { sortedSprints, forecastBacklog, distData, config, sprintCadenceWeeks, firstSprintStartDate, completedSprintCount, totalDone, hasBacklogHistory, syntheticBacklog, forecastStartDate, resolvedSprintDates } = input
 
   const intersections = config.lines.map((l) => calculateIntersectionSprint(distData, l.percentile, completedSprintCount))
   const velocities = config.lines.map((l) => calculateImpliedVelocity(distData, l.percentile, forecastBacklog))
@@ -101,11 +107,12 @@ function buildChartData(input: BuildChartDataInput): BurnUpDataPoint[] {
 
   const points: BurnUpDataPoint[] = []
 
-  // Historical data points
+  // Historical data points — use cascade-resolved dates when available
   let cumDone = 0
   for (const sprint of sortedSprints) {
     cumDone += sprint.doneValue
-    const finishDate = getSprintFinishDate(firstSprintStartDate, sprint.sprintNumber, sprintCadenceWeeks)
+    const resolved = resolvedSprintDates?.get(sprint.sprintNumber)
+    const finishDate = resolved?.finishDate ?? getSprintFinishDate(firstSprintStartDate, sprint.sprintNumber, sprintCadenceWeeks)
     const rawScope = hasBacklogHistory && sprint.backlogAtSprintEnd !== undefined
       ? cumDone + sprint.backlogAtSprintEnd
       : syntheticBacklog
@@ -121,10 +128,13 @@ function buildChartData(input: BuildChartDataInput): BurnUpDataPoint[] {
     })
   }
 
-  // Forecast projection points
+  // Forecast projection points — use anchor date for cascade-aware projections
+  const projectionAnchor = forecastStartDate ?? calculateSprintStartDate(firstSprintStartDate, completedSprintCount + 1, sprintCadenceWeeks)
   for (let num = completedSprintCount + 1; num <= maxSprint; num++) {
     const sprintsIn = num - completedSprintCount
-    const finishDate = getSprintFinishDate(firstSprintStartDate, num, sprintCadenceWeeks)
+    // Project from anchor: sprint 1 from anchor = anchor + 0 cadence, sprint 2 = anchor + 1 cadence, etc.
+    const sprintStart = calculateSprintStartDate(projectionAnchor, sprintsIn, sprintCadenceWeeks)
+    const finishDate = calculateSprintFinishDate(sprintStart, sprintCadenceWeeks)
 
     const lines = config.lines.map((_, i) => {
       if (num > intersections[i]) return undefined

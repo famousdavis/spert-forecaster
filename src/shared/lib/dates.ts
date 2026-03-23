@@ -210,6 +210,97 @@ export function getWorkingDaysInRange(startDate: string, endDate: string): strin
 }
 
 /**
+ * Get the next business day (Mon-Fri) after a given date.
+ * If the day after the given date is a business day, returns that date.
+ * If it's Saturday, returns Monday. If it's Sunday, returns Monday.
+ */
+export function getNextBusinessDay(dateStr: string): string {
+  const nextDay = addDays(dateStr, 1)
+  const date = new Date(nextDay + 'T00:00:00')
+  const day = date.getDay()
+
+  if (day === 6) {
+    // Saturday -> Monday (add 2 days)
+    return addDays(nextDay, 2)
+  } else if (day === 0) {
+    // Sunday -> Monday (add 1 day)
+    return addDays(nextDay, 1)
+  }
+  return nextDay
+}
+
+/**
+ * Resolve all historical sprint dates with cascade-forward logic.
+ * When a sprint has a customFinishDate, all subsequent sprint start dates shift.
+ *
+ * @param firstSprintStartDate - The project's first sprint start date
+ * @param cadenceWeeks - The project's sprint cadence in weeks
+ * @param historicalSprints - Array of sprints (will be sorted by sprintNumber internally)
+ * @returns Map of sprintNumber → { startDate, finishDate } with cascade applied
+ */
+export function resolveAllSprintDates(
+  firstSprintStartDate: string,
+  cadenceWeeks: number,
+  historicalSprints: Array<{ sprintNumber: number; customFinishDate?: string }>
+): Map<number, { startDate: string; finishDate: string }> {
+  const result = new Map<number, { startDate: string; finishDate: string }>()
+
+  if (historicalSprints.length === 0) return result
+
+  // Sort by sprint number ascending to ensure correct cascade order
+  const sorted = [...historicalSprints].sort((a, b) => a.sprintNumber - b.sprintNumber)
+
+  let currentStart = firstSprintStartDate
+
+  for (const sprint of sorted) {
+    // If there's a gap between expected sprint number and actual, advance by cadence
+    const prevSprint = result.size > 0
+      ? sorted[sorted.indexOf(sprint) - 1]
+      : null
+
+    if (prevSprint) {
+      const prevResolved = result.get(prevSprint.sprintNumber)!
+      currentStart = getNextBusinessDay(prevResolved.finishDate)
+    } else {
+      // First sprint: use project's first sprint start date
+      currentStart = firstSprintStartDate
+    }
+
+    const computedFinish = calculateSprintFinishDate(currentStart, cadenceWeeks)
+    const finishDate = sprint.customFinishDate ?? computedFinish
+
+    result.set(sprint.sprintNumber, { startDate: currentStart, finishDate })
+  }
+
+  return result
+}
+
+/**
+ * Derive the forecast start date from historical sprints with cascade-forward logic.
+ * Returns the start date of the next sprint after the last historical sprint.
+ *
+ * @param firstSprintStartDate - The project's first sprint start date
+ * @param cadenceWeeks - The project's sprint cadence in weeks
+ * @param historicalSprints - Array of sprints (will be sorted internally)
+ * @returns ISO date string for the next sprint's start date
+ */
+export function resolveAnchorDate(
+  firstSprintStartDate: string,
+  cadenceWeeks: number,
+  historicalSprints: Array<{ sprintNumber: number; customFinishDate?: string }>
+): string {
+  if (historicalSprints.length === 0) return firstSprintStartDate
+
+  const resolved = resolveAllSprintDates(firstSprintStartDate, cadenceWeeks, historicalSprints)
+  const maxSprintNumber = Math.max(...historicalSprints.map(s => s.sprintNumber))
+  const lastResolved = resolved.get(maxSprintNumber)
+
+  if (!lastResolved) return firstSprintStartDate
+
+  return getNextBusinessDay(lastResolved.finishDate)
+}
+
+/**
  * Calculate the weighted average productivity factor for a sprint.
  *
  * For each working day in the sprint:

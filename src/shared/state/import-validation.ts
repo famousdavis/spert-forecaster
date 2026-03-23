@@ -192,6 +192,9 @@ export function validateImportData(data: unknown): data is ExportData {
     if (s.sprintFinishDate !== undefined && !isValidIsoDate(s.sprintFinishDate)) {
       throw new Error(`Sprint at index ${i} has invalid sprintFinishDate (must be YYYY-MM-DD format).`)
     }
+    if (s.customFinishDate !== undefined && !isValidIsoDate(s.customFinishDate)) {
+      throw new Error(`Sprint at index ${i} has invalid customFinishDate (must be YYYY-MM-DD format).`)
+    }
   }
 
   return true

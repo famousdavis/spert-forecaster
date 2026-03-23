@@ -7,7 +7,7 @@
 import { useMemo } from 'react'
 import { useProjectStore, selectViewingProject } from '@/shared/state/project-store'
 import { calculateVelocityStats, calculateScopeChangeStats } from '../lib/statistics'
-import { today, calculateSprintStartDate } from '@/shared/lib/dates'
+import { today, resolveAnchorDate, resolveAllSprintDates } from '@/shared/lib/dates'
 import { MIN_SPRINTS_FOR_BOOTSTRAP } from '../constants'
 
 /**
@@ -49,12 +49,24 @@ export function useSprintData() {
     if (!selectedProject?.firstSprintStartDate || !selectedProject?.sprintCadenceWeeks) return today()
     if (projectSprints.length === 0) return today()
 
-    return calculateSprintStartDate(
+    return resolveAnchorDate(
       selectedProject.firstSprintStartDate,
-      completedSprintCount + 1,
-      selectedProject.sprintCadenceWeeks
+      selectedProject.sprintCadenceWeeks,
+      projectSprints.map(s => ({ sprintNumber: s.sprintNumber, customFinishDate: s.customFinishDate }))
     )
   }, [selectedProject, projectSprints, completedSprintCount])
+
+  // Resolved sprint dates map for burn-up chart historical points
+  const resolvedSprintDates = useMemo(() => {
+    if (!selectedProject?.firstSprintStartDate || !selectedProject?.sprintCadenceWeeks) return undefined
+    if (projectSprints.length === 0) return undefined
+
+    return resolveAllSprintDates(
+      selectedProject.firstSprintStartDate,
+      selectedProject.sprintCadenceWeeks,
+      projectSprints.map(s => ({ sprintNumber: s.sprintNumber, customFinishDate: s.customFinishDate }))
+    )
+  }, [selectedProject, projectSprints])
 
   const canUseBootstrap = includedSprints.length >= MIN_SPRINTS_FOR_BOOTSTRAP
 
@@ -71,6 +83,7 @@ export function useSprintData() {
     scopeChangeStats,
     completedSprintCount,
     forecastStartDate,
+    resolvedSprintDates,
     canUseBootstrap,
     historicalVelocities,
   }

@@ -92,8 +92,8 @@ describe('firestoreDocToProject', () => {
     expect(project.id).toBe('doc-id')
     expect(project.name).toBe('Cloud Project')
     expect(project.unitOfMeasure).toBe('hours')
-    expect((project as Record<string, unknown>).owner).toBeUndefined()
-    expect((project as Record<string, unknown>).members).toBeUndefined()
+    expect((project as unknown as Record<string, unknown>).owner).toBeUndefined()
+    expect((project as unknown as Record<string, unknown>).members).toBeUndefined()
   })
 })
 

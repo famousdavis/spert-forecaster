@@ -174,6 +174,7 @@ export function SprintHistoryTab() {
           sprint={editingSprint}
           project={selectedProject}
           existingSprintCount={sprints.length}
+          allSprints={sprints}
           onSubmit={handleFormSubmit}
           onCancel={handleFormCancel}
         />
@@ -199,6 +200,8 @@ export function SprintHistoryTab() {
               sprints={sprints}
               unitOfMeasure={selectedProject.unitOfMeasure}
               sortAscending={sortAscending}
+              firstSprintStartDate={selectedProject.firstSprintStartDate}
+              sprintCadenceWeeks={selectedProject.sprintCadenceWeeks}
               onToggleSortOrder={handleToggleSortOrder}
               onEdit={handleEdit}
               onDelete={handleDeleteRequest}

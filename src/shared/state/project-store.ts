@@ -205,10 +205,14 @@ export const useProjectStore = create<ProjectState>()(
 
       updateSprint: (id, updates) => {
         const sprint = get().sprints.find((s) => s.id === id)
+        const hasDateChange = 'customFinishDate' in updates && updates.customFinishDate !== sprint?.customFinishDate
         set((state) => ({
           sprints: state.sprints.map((s) =>
             s.id === id ? { ...s, ...updates, updatedAt: now() } : s
           ),
+          ...(hasDateChange ? {
+            _changeLog: appendChangeLogEntry(state._changeLog, { op: 'edit', entity: 'sprintDate', id }),
+          } : {}),
         }))
         if (sprint) emitProjectSave(sprint.projectId, get()._isCloudUpdate)
       },

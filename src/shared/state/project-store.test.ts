@@ -894,9 +894,9 @@ describe('importData with fingerprinting', () => {
     })
     const state = useProjectStore.getState()
     // These should not exist on the store state
-    expect((state as Record<string, unknown>)._storageRef).toBeUndefined()
-    expect((state as Record<string, unknown>)._exportedBy).toBeUndefined()
-    expect((state as Record<string, unknown>)._exportedById).toBeUndefined()
+    expect((state as unknown as Record<string, unknown>)._storageRef).toBeUndefined()
+    expect((state as unknown as Record<string, unknown>)._exportedBy).toBeUndefined()
+    expect((state as unknown as Record<string, unknown>)._exportedById).toBeUndefined()
   })
 })
 

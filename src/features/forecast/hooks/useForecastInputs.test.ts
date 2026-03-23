@@ -10,6 +10,8 @@ function createSprint(overrides: Partial<Sprint> & { sprintNumber: number }): Sp
   return {
     id: `sprint-${overrides.sprintNumber}`,
     projectId: 'project-1',
+    sprintStartDate: '2026-01-05',
+    sprintFinishDate: '2026-01-16',
     doneValue: 10,
     includedInForecast: true,
     createdAt: '2026-01-01T00:00:00Z',

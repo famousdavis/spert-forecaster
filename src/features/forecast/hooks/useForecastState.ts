@@ -187,13 +187,15 @@ export function useForecastState() {
     }
 
     // Pre-calculate productivity factors if enabled adjustments exist
+    // Use the cascade-resolved forecastStartDate as anchor, with sprint index 1,
+    // so future sprint date ranges align with any custom finish date shifts
     const enabledAdjustments = productivityAdjustments.filter((a) => a.enabled !== false)
     let productivityFactors: number[] | undefined
     if (enabledAdjustments.length > 0) {
       const { factors } = preCalculateSprintFactors(
-        selectedProject.firstSprintStartDate,
+        sprintData.forecastStartDate,
         selectedProject.sprintCadenceWeeks,
-        sprintData.completedSprintCount + 1,
+        1,
         enabledAdjustments
       )
       productivityFactors = factors
@@ -415,6 +417,7 @@ export function useForecastState() {
     projectSprints: sprintData.projectSprints,
     completedSprintCount: sprintData.completedSprintCount,
     forecastStartDate: sprintData.forecastStartDate,
+    resolvedSprintDates: sprintData.resolvedSprintDates,
     calculatedStats: sprintData.calculatedStats,
 
     // Milestone data (from useForecastInputs)

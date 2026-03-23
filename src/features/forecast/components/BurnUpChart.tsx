@@ -29,6 +29,8 @@ interface BurnUpChartProps {
   onFontSizeChange?: (size: ChartFontSize) => void
   milestones?: Milestone[]
   cumulativeThresholds?: number[]
+  forecastStartDate?: string
+  resolvedSprintDates?: Map<number, { startDate: string; finishDate: string }>
 }
 
 export function BurnUpChart({
@@ -45,6 +47,8 @@ export function BurnUpChart({
   onFontSizeChange,
   milestones = [],
   cumulativeThresholds = [],
+  forecastStartDate,
+  resolvedSprintDates,
 }: BurnUpChartProps) {
   const [isExpanded, setIsExpanded] = useState(false)
   const fontSizes = CHART_FONT_SIZES[fontSize]
@@ -85,8 +89,10 @@ export function BurnUpChart({
         sprintCadenceWeeks,
         firstSprintStartDate,
         completedSprintCount,
+        forecastStartDate,
+        resolvedSprintDates,
       }),
-    [sprints, forecastBacklog, simulationData, config, sprintCadenceWeeks, firstSprintStartDate, completedSprintCount]
+    [sprints, forecastBacklog, simulationData, config, sprintCadenceWeeks, firstSprintStartDate, completedSprintCount, forecastStartDate, resolvedSprintDates]
   )
 
   // Calculate Y-axis domain based on data

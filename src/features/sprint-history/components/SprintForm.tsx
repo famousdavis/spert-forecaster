@@ -8,15 +8,17 @@ import { useState, useMemo } from 'react'
 import { cn } from '@/lib/utils'
 import type { Sprint, Project } from '@/shared/types'
 import {
-  calculateSprintStartDate,
   calculateSprintFinishDate,
   formatDateRange,
+  resolveAllSprintDates,
+  getNextBusinessDay,
 } from '@/shared/lib/dates'
 
 interface SprintFormProps {
   sprint: Sprint | null
   project: Project
   existingSprintCount: number
+  allSprints: Sprint[]
   onSubmit: (data: Omit<Sprint, 'id' | 'projectId' | 'createdAt' | 'updatedAt'>) => void
   onCancel: () => void
 }
@@ -25,6 +27,7 @@ export function SprintForm({
   sprint,
   project,
   existingSprintCount,
+  allSprints,
   onSubmit,
   onCancel,
 }: SprintFormProps) {
@@ -39,61 +42,89 @@ export function SprintForm({
   // Calculate the sprint number and dates
   const sprintNumber = sprint?.sprintNumber ?? existingSprintCount + 1
 
-  const { sprintStartDate, sprintFinishDate, dateLabel } = useMemo(() => {
-    if (sprint) {
-      // Editing existing sprint - use its stored dates
+  // Resolve all sprint dates with cascade-forward logic
+  const resolvedDates = useMemo(() => {
+    if (!project.firstSprintStartDate || !project.sprintCadenceWeeks) return null
+    return resolveAllSprintDates(
+      project.firstSprintStartDate,
+      project.sprintCadenceWeeks,
+      allSprints.map(s => ({ sprintNumber: s.sprintNumber, customFinishDate: s.customFinishDate }))
+    )
+  }, [project.firstSprintStartDate, project.sprintCadenceWeeks, allSprints])
+
+  const { sprintStartDate, computedFinishDate, dateLabel } = useMemo(() => {
+    if (sprint && resolvedDates) {
+      // Editing existing sprint - use cascade-resolved dates for start
+      const resolved = resolvedDates.get(sprint.sprintNumber)
+      const startDate = resolved?.startDate ?? sprint.sprintStartDate
+      const computedFinish = project.sprintCadenceWeeks
+        ? calculateSprintFinishDate(startDate, project.sprintCadenceWeeks)
+        : sprint.sprintFinishDate
       return {
-        sprintStartDate: sprint.sprintStartDate,
-        sprintFinishDate: sprint.sprintFinishDate,
+        sprintStartDate: startDate,
+        computedFinishDate: computedFinish,
         dateLabel: `Sprint ${sprint.sprintNumber}: ${formatDateRange(
-          sprint.sprintStartDate,
-          sprint.sprintFinishDate
+          startDate,
+          sprint.customFinishDate ?? computedFinish
         )}`,
       }
     }
 
-    // New sprint - calculate dates from firstSprintStartDate and sprintCadenceWeeks
+    // New sprint - calculate dates using cascade-resolved anchor
     if (!project.firstSprintStartDate || !project.sprintCadenceWeeks) {
       return {
         sprintStartDate: '',
-        sprintFinishDate: '',
+        computedFinishDate: '',
         dateLabel: 'Set sprint configuration above to calculate dates',
       }
     }
 
-    const startDate = calculateSprintStartDate(
-      project.firstSprintStartDate,
-      sprintNumber,
-      project.sprintCadenceWeeks
-    )
+    // For a new sprint, the start date depends on the previous sprint's resolved finish
+    let startDate: string
+    if (resolvedDates && resolvedDates.size > 0) {
+      const maxExistingSprint = Math.max(...Array.from(resolvedDates.keys()))
+      const lastResolved = resolvedDates.get(maxExistingSprint)!
+      startDate = getNextBusinessDay(lastResolved.finishDate)
+    } else {
+      startDate = project.firstSprintStartDate
+    }
+
     const finishDate = calculateSprintFinishDate(startDate, project.sprintCadenceWeeks)
 
     return {
       sprintStartDate: startDate,
-      sprintFinishDate: finishDate,
+      computedFinishDate: finishDate,
       dateLabel: `Sprint ${sprintNumber}: ${formatDateRange(startDate, finishDate)}`,
     }
-  }, [sprint, project.firstSprintStartDate, project.sprintCadenceWeeks, sprintNumber])
+  }, [sprint, project.firstSprintStartDate, project.sprintCadenceWeeks, sprintNumber, resolvedDates])
+
+  // Custom finish date state - initialized from sprint's custom date or empty (meaning use computed)
+  const [customFinishDate, setCustomFinishDate] = useState(sprint?.customFinishDate ?? '')
+  const effectiveFinishDate = customFinishDate || computedFinishDate
+  const hasCustomFinishDate = customFinishDate.length > 0 && customFinishDate !== computedFinishDate
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!sprintStartDate || !sprintFinishDate) return
+    if (!sprintStartDate || !effectiveFinishDate) return
 
     onSubmit({
       sprintNumber,
       sprintStartDate,
-      sprintFinishDate,
+      sprintFinishDate: effectiveFinishDate,
+      customFinishDate: hasCustomFinishDate ? customFinishDate : undefined,
       doneValue: Number(doneValue),
       backlogAtSprintEnd: backlogAtSprintEnd ? Number(backlogAtSprintEnd) : undefined,
       includedInForecast,
     })
   }
 
+  const isFinishDateValid = !customFinishDate || customFinishDate >= sprintStartDate
   const isValid =
     sprintStartDate.length > 0 &&
-    sprintFinishDate.length > 0 &&
+    effectiveFinishDate.length > 0 &&
     doneValue.length > 0 &&
-    Number(doneValue) >= 0
+    Number(doneValue) >= 0 &&
+    isFinishDateValid
 
   const needsFirstSprintDate = !project.firstSprintStartDate && !sprint
 
@@ -162,6 +193,44 @@ export function SprintForm({
             placeholder="—"
           />
         </div>
+
+        {/* Custom finish date override */}
+        {sprintStartDate && (
+          <div className="flex items-center gap-2">
+            <label
+              htmlFor="customFinishDate"
+              className="text-sm font-semibold text-spert-text-secondary whitespace-nowrap"
+            >
+              Finish Date
+            </label>
+            <input
+              id="customFinishDate"
+              type="date"
+              value={customFinishDate || computedFinishDate}
+              min={sprintStartDate}
+              onChange={(e) => setCustomFinishDate(e.target.value)}
+              className={cn(
+                'p-2 text-[0.9rem] rounded dark:text-gray-100',
+                hasCustomFinishDate
+                  ? 'border-2 border-spert-blue bg-spert-bg-highlight dark:bg-blue-900/30'
+                  : 'border border-spert-border dark:border-gray-600 bg-white dark:bg-gray-700'
+              )}
+            />
+            {hasCustomFinishDate && (
+              <button
+                type="button"
+                onClick={() => setCustomFinishDate('')}
+                className="text-xs text-spert-blue hover:underline whitespace-nowrap"
+                title="Reset to standard cadence date"
+              >
+                Reset
+              </button>
+            )}
+            {!isFinishDateValid && (
+              <span className="text-xs text-spert-error">Must be ≥ start date</span>
+            )}
+          </div>
+        )}
 
         {/* Include in forecast checkbox */}
         <div className="flex items-center gap-2">
