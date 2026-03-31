@@ -9,14 +9,14 @@ import { db } from '@/shared/firebase/config'
 
 // --- Constants ---
 
-export const TOS_VERSION = '03-20-2026'
-export const PRIVACY_VERSION = '03-20-2026'
+export const TOS_VERSION = '03-31-2026'
+export const PRIVACY_VERSION = '03-31-2026'
 export const TOS_LS_KEY = 'spert_tos_accepted_version'
 export const TOS_WRITE_PENDING_KEY = 'spert_tos_write_pending'
 export const FIRST_RUN_SEEN_KEY = 'spert_firstRun_seen'
 export const TOS_APP_ID = 'spert-forecaster'
-export const TOS_URL = 'https://spert-landing.vercel.app/TOS.pdf'
-export const PRIVACY_URL = 'https://spert-landing.vercel.app/PRIVACY.pdf'
+export const TOS_URL = 'https://spertsuite.com/TOS.pdf'
+export const PRIVACY_URL = 'https://spertsuite.com/PRIVACY.pdf'
 
 // --- localStorage helpers ---
 

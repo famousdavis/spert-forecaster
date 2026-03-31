@@ -33,8 +33,8 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 
 Reference copies of the Terms of Service and Privacy Policy are in `/legal`. The canonical versions used by the app at runtime are hosted at:
 
-- https://spert-landing.vercel.app/TOS.pdf
-- https://spert-landing.vercel.app/PRIVACY.pdf
+- https://spertsuite.com/TOS.pdf
+- https://spertsuite.com/PRIVACY.pdf
 
 ## Deploy on Vercel
 
