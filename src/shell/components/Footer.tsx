@@ -35,6 +35,15 @@ export function Footer() {
       >
         Privacy Policy
       </a>
+      {' | '}
+      <a
+        href="https://github.com/famousdavis/spert-forecaster/blob/main/LICENSE"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-blue-500 hover:text-blue-600 transition-colors"
+      >
+        License
+      </a>
     </footer>
   )
 }

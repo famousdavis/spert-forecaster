@@ -7,6 +7,8 @@
 - Updated Terms of Service and Privacy Policy to v03-31-2026
 - Updated canonical legal document URLs to spertsuite.com
 - Updated consent UI text to SPERT® Suite branding
+- Standardized LICENSE to SPERT® Suite format (GPL v3 + lettered additional terms)
+- Added License footer link to GitHub LICENSE file
 
 ## v0.23.0 - 2026-03-23
 
