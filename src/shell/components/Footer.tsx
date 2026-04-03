@@ -19,6 +19,15 @@ export function Footer() {
       {' '}| Licensed under GNU GPL v3
       <br />
       <a
+        href="https://spertsuite.com"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-blue-500 hover:text-blue-600 transition-colors"
+      >
+        SPERT<span className="text-gray-400 dark:text-gray-500 font-normal text-xs align-top">®</span> Suite
+      </a>
+      {' | '}
+      <a
         href={TOS_URL}
         target="_blank"
         rel="noopener noreferrer"
