@@ -36,7 +36,10 @@ export function UserMenu({ onNavigateToSettings }: AuthChipProps) {
   const { mode } = useStorageMode()
 
   const isCloudSignedIn = mode === 'cloud' && !!user
-  const firstName = user?.displayName?.split(' ')[0] ?? user?.email ?? ''
+  const rawName = user?.displayName ?? ''
+  const firstName = rawName.includes(',')
+    ? rawName.split(',')[1]?.trim().split(' ')[0] ?? user?.email ?? ''
+    : rawName.split(' ')[0] || user?.email || ''
   const initial = firstName.charAt(0).toUpperCase()
 
   return (
