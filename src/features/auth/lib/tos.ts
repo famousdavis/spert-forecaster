@@ -9,8 +9,8 @@ import { db } from '@/shared/firebase/config'
 
 // --- Constants ---
 
-export const TOS_VERSION = '03-31-2026'
-export const PRIVACY_VERSION = '03-31-2026'
+export const TOS_VERSION = '04-05-2026'
+export const PRIVACY_VERSION = '04-05-2026'
 export const TOS_LS_KEY = 'spert_tos_accepted_version'
 export const TOS_WRITE_PENDING_KEY = 'spert_tos_write_pending'
 export const FIRST_RUN_SEEN_KEY = 'spert_firstRun_seen'
