@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.23.5 - 2026-04-09
+
+### Changed
+
+- **Auth chip in-place sign out**: Clicking anywhere on the signed-in auth chip (avatar, name, or cloud icon) now opens a lightweight popover showing the user's display name and email with a Sign Out button. The chip no longer navigates to Settings when signed in. Popover dismisses via Escape key or outside click; Sign Out button disables and shows "Signing out…" during the Firebase request. Signed-out "Sign in" behavior is unchanged.
+
 ## v0.23.4 - 2026-04-05
 
 ### Legal
