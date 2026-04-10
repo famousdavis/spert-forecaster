@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.23.6 - 2026-04-10
+
+### Fixed
+
+- **Auth chip sign-in modal**: Clicking the auth chip in local storage mode now opens a sign-in modal instead of navigating to the Settings tab
+- **Auth chip full-pill click target**: The entire auth chip pill is now clickable when in local storage mode (previously only the "Sign in" text segment was a button)
+
 ## v0.23.5 - 2026-04-09
 
 ### Changed
