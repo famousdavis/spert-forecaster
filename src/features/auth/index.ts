@@ -3,5 +3,6 @@
 // See LICENSE file in the project root for full license text.
 
 export { UserMenu } from './components/UserMenu'
+export { StorageLoginModal } from './components/StorageLoginModal'
 export { StorageModeSection } from './components/StorageModeSection'
 export { SharingSection } from './components/SharingSection'
