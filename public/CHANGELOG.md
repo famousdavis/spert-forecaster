@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.24.1 - 2026-04-19
+
+### Fixed
+
+- **Auth chip sign-in modal — post-signin dead end**: After successfully signing in via the chip's sign-in modal, the modal previously showed the decorative storage radio with no actionable buttons (the embedded `SignInButtons` component correctly hid itself once authenticated, leaving the modal empty). The modal now detects the signed-in + local-mode state and replaces the sign-in buttons with an **Upload & Switch to Cloud Storage** button that runs the full local-to-cloud migration inline and closes the modal on success. The decorative radio now reflects the proposed target mode (Cloud highlighted) so the user sees where they're heading. The modal also auto-closes if the user is already in cloud mode, and the backdrop/Escape dismissal is disabled while the migration is in flight
+
 ## v0.24.0 - 2026-04-18
 
 *Dedicated to the EGS6629 graduate students at the University of Florida, spring 2026 semester — whose careful, hands-on feedback while using SPERT® Forecaster for real project work directly shaped every improvement in this release.*
