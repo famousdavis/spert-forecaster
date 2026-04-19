@@ -152,7 +152,7 @@ export function SprintForm({
             htmlFor="doneValue"
             className="text-sm font-semibold text-spert-text-secondary whitespace-nowrap"
           >
-            Done ({project.unitOfMeasure}) <span className="text-spert-error">*</span>
+            Done this sprint ({project.unitOfMeasure}) <span className="text-spert-error">*</span>
           </label>
           <input
             id="doneValue"
@@ -179,7 +179,7 @@ export function SprintForm({
             htmlFor="backlogAtSprintEnd"
             className="text-sm font-semibold text-spert-text-secondary whitespace-nowrap"
           >
-            Backlog at End
+            Backlog at End ({project.unitOfMeasure})
           </label>
           <input
             id="backlogAtSprintEnd"

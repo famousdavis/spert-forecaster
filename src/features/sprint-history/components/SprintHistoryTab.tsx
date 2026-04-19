@@ -14,6 +14,7 @@ import { useIsClient } from '@/shared/hooks'
 import { ConfirmDialog } from '@/shared/components/ConfirmDialog'
 import { SprintList } from './SprintList'
 import { SprintForm } from './SprintForm'
+import { RecentSprintsSummary } from './RecentSprintsSummary'
 import { SprintConfig } from './SprintConfig'
 import { VelocityStats } from './VelocityStats'
 import { VelocityChart } from './VelocityChart'
@@ -168,16 +169,25 @@ export function SprintHistoryTab() {
         )}
       </div>
 
-      {/* Sprint Form - appears immediately after the Add Sprint button */}
+      {/* Recent sprints reference + Sprint Form — appear immediately after the Add Sprint button.
+          Reference-then-form ordering is intentional: prior values above, in-progress form below. */}
       {selectedProject && isFormOpen && (
-        <SprintForm
-          sprint={editingSprint}
-          project={selectedProject}
-          existingSprintCount={sprints.length}
-          allSprints={sprints}
-          onSubmit={handleFormSubmit}
-          onCancel={handleFormCancel}
-        />
+        <>
+          <RecentSprintsSummary
+            sprints={sprints}
+            unitOfMeasure={selectedProject.unitOfMeasure}
+            firstSprintStartDate={selectedProject.firstSprintStartDate}
+            sprintCadenceWeeks={selectedProject.sprintCadenceWeeks}
+          />
+          <SprintForm
+            sprint={editingSprint}
+            project={selectedProject}
+            existingSprintCount={sprints.length}
+            allSprints={sprints}
+            onSubmit={handleFormSubmit}
+            onCancel={handleFormCancel}
+          />
+        </>
       )}
 
       {selectedProject && (

@@ -14,6 +14,7 @@ interface SubjectiveInputsProps {
   onCVChange: (cv: number) => void
   unitOfMeasure: string
   calculatedMean?: number
+  includedSprintCount?: number
 }
 
 export function SubjectiveInputs({
@@ -23,9 +24,18 @@ export function SubjectiveInputs({
   onCVChange,
   unitOfMeasure,
   calculatedMean = 0,
+  includedSprintCount = 0,
 }: SubjectiveInputsProps) {
   // Use estimate if provided, otherwise fall back to calculated mean for range previews
   const estimateNum = Number(velocityEstimate) || calculatedMean
+
+  // Divergence warning: fires when user's estimate is far from the historical mean.
+  // Gated on meaningful history (2+ included sprints with a nonzero calculated mean).
+  const rawEstimate = Number(velocityEstimate)
+  const hasMeaningfulHistory = includedSprintCount >= 2 && calculatedMean > 0
+  const showDivergenceWarning =
+    hasMeaningfulHistory && rawEstimate > 0 && (rawEstimate > calculatedMean * 2 || rawEstimate < calculatedMean * 0.5)
+  const divergenceDirection = rawEstimate > calculatedMean ? 'above' : 'below'
 
   return (
     <div className="mt-3 rounded-md border border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-900/10 p-3">
@@ -52,6 +62,11 @@ export function SubjectiveInputs({
             )}
             placeholder={calculatedMean > 0 ? `Calc: ${calculatedMean.toFixed(1)}` : 'e.g. 30'}
           />
+          {showDivergenceWarning && (
+            <p className="mt-1 text-xs text-spert-warning-dark dark:text-yellow-400">
+              Your estimate ({rawEstimate.toFixed(0)}) is significantly {divergenceDirection} the historical average ({calculatedMean.toFixed(1)}). Verify this is intentional.
+            </p>
+          )}
         </div>
 
         {/* CV radio buttons */}

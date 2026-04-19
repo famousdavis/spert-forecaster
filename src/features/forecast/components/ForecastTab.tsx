@@ -33,6 +33,9 @@ export function ForecastTab() {
     setForecastMode,
     includedSprintCount,
     lastSprintBacklog,
+    derivedBacklogFromIncluded,
+    hasBacklogDrift,
+    resetRemainingBacklogToDerived,
     remainingBacklog,
     velocityMean,
     velocityStdDev,
@@ -145,6 +148,9 @@ export function ForecastTab() {
               effectiveStdDev={effectiveStdDev}
               unitOfMeasure={selectedProject.unitOfMeasure}
               lastSprintBacklog={lastSprintBacklog}
+              derivedBacklogFromIncluded={derivedBacklogFromIncluded}
+              hasBacklogDrift={hasBacklogDrift}
+              onResetBacklogToDerived={resetRemainingBacklogToDerived}
               sprints={projectSprints}
               scopeChangeStats={scopeChangeStats}
               modelScopeGrowth={modelScopeGrowth}
@@ -198,6 +204,7 @@ export function ForecastTab() {
                       results={results}
                       forecastMode={forecastMode}
                       completedSprintCount={completedSprintCount}
+                      includedSprintCount={includedSprintCount}
                       onExport={handleExportCsv}
                       milestones={milestones}
                       milestoneResultsState={milestoneResultsState}

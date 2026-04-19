@@ -74,7 +74,7 @@ export const useSettingsStore = create<SettingsState>()(
   persist(
     (set, get) => ({
       // Defaults
-      autoRecalculate: false,
+      autoRecalculate: true,
       trialCount: DEFAULT_TRIAL_COUNT as TrialCount,
       defaultChartFontSize: DEFAULT_CHART_FONT_SIZE,
       defaultCustomPercentile: 85,

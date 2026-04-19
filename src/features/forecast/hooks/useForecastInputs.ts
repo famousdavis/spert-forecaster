@@ -9,17 +9,29 @@ import { useProjectStore, selectViewingProject } from '@/shared/state/project-st
 import type { VelocityStats, ForecastMode, Sprint } from '@/shared/types'
 import { DEFAULT_CV, DEFAULT_VOLATILITY_MULTIPLIER, MIN_SPRINTS_FOR_HISTORY } from '../constants'
 
-/** Find the backlog-at-end value from the sprint with the highest sprintNumber */
+/**
+ * Find the most recent defined backlog-at-end value from the given sprint list.
+ * Walks back from the highest sprintNumber so sprints without a recorded backlog
+ * are skipped. Returns undefined when no sprint in the list has a backlog value.
+ *
+ * The caller is responsible for pre-filtering to the relevant scope (e.g., the
+ * included-in-forecast subset), since this function picks from whatever it's given.
+ */
 export function getLastSprintBacklog(sprints: Sprint[]): number | undefined {
   if (sprints.length === 0) return undefined
-  return sprints.reduce((latest, s) =>
-    s.sprintNumber > latest.sprintNumber ? s : latest
-  ).backlogAtSprintEnd
+  const descending = [...sprints].sort((a, b) => b.sprintNumber - a.sprintNumber)
+  for (const s of descending) {
+    if (s.backlogAtSprintEnd !== undefined) return s.backlogAtSprintEnd
+  }
+  return undefined
 }
 
 /**
  * Form state for the forecast: backlog, velocity overrides, subjective inputs,
  * and milestone-derived values. Persisted per project via the project store.
+ *
+ * The `sprints` parameter should be the *included-in-forecast* subset so that
+ * excluding a sprint correctly updates the derived backlog value.
  */
 export function useForecastInputs(calculatedStats: VelocityStats, includedSprintCount: number, sprints: Sprint[]) {
   const selectedProject = useProjectStore(selectViewingProject)
@@ -44,10 +56,18 @@ export function useForecastInputs(calculatedStats: VelocityStats, includedSprint
     })
   }, [milestones])
 
-  // Form values — pre-fill backlog from the most recent sprint (by sprintNumber, not insertion order)
-  const lastSprintBacklog = getLastSprintBacklog(sprints)
+  // Form values — derive backlog from the most recent *included* sprint that has a value recorded.
+  // `derivedBacklogFromIncluded` powers both the pre-fill and the "Reset to N" drift action.
+  const derivedBacklogFromIncluded = getLastSprintBacklog(sprints)
+  const lastSprintBacklog = derivedBacklogFromIncluded
   const storedBacklog = forecastInputs?.remainingBacklog
-  const remainingBacklog = storedBacklog || (lastSprintBacklog !== undefined ? String(lastSprintBacklog) : '')
+  const remainingBacklog = storedBacklog || (derivedBacklogFromIncluded !== undefined ? String(derivedBacklogFromIncluded) : '')
+
+  const hasBacklogDrift =
+    storedBacklog !== undefined &&
+    storedBacklog !== '' &&
+    derivedBacklogFromIncluded !== undefined &&
+    Number(storedBacklog) !== derivedBacklogFromIncluded
   const velocityMean = forecastInputs?.velocityMean ?? ''
   const velocityStdDev = forecastInputs?.velocityStdDev ?? ''
 
@@ -61,6 +81,10 @@ export function useForecastInputs(calculatedStats: VelocityStats, includedSprint
 
   const setRemainingBacklog = (value: string) => {
     if (selectedProject) setForecastInput(selectedProject.id, 'remainingBacklog', value)
+  }
+  const resetRemainingBacklogToDerived = () => {
+    if (!selectedProject || derivedBacklogFromIncluded === undefined) return
+    setForecastInput(selectedProject.id, 'remainingBacklog', String(derivedBacklogFromIncluded))
   }
   const setVelocityMean = (value: string) => {
     if (selectedProject) setForecastInput(selectedProject.id, 'velocityMean', value)
@@ -115,6 +139,8 @@ export function useForecastInputs(calculatedStats: VelocityStats, includedSprint
     cumulativeThresholds,
     remainingBacklog,
     lastSprintBacklog,
+    derivedBacklogFromIncluded,
+    hasBacklogDrift,
     velocityMean,
     velocityStdDev,
     effectiveMean,
@@ -123,6 +149,7 @@ export function useForecastInputs(calculatedStats: VelocityStats, includedSprint
     velocityEstimate,
     selectedCV,
     setRemainingBacklog,
+    resetRemainingBacklogToDerived,
     setVelocityMean,
     setVelocityStdDev,
     setForecastMode,
