@@ -27,6 +27,9 @@ interface ForecastFormProps {
   effectiveStdDev: number
   unitOfMeasure: string
   lastSprintBacklog?: number
+  derivedBacklogFromIncluded?: number
+  hasBacklogDrift: boolean
+  onResetBacklogToDerived: () => void
   sprints: Sprint[]
   scopeChangeStats?: ScopeChangeStats | null
   modelScopeGrowth: boolean
@@ -69,6 +72,9 @@ export function ForecastForm({
   effectiveStdDev,
   unitOfMeasure,
   lastSprintBacklog,
+  derivedBacklogFromIncluded,
+  hasBacklogDrift,
+  onResetBacklogToDerived,
   sprints,
   scopeChangeStats,
   modelScopeGrowth,
@@ -109,6 +115,18 @@ export function ForecastForm({
     }
   }
 
+  const hasOverrides =
+    velocityMean !== '' ||
+    velocityStdDev !== '' ||
+    volatilityMultiplier !== DEFAULT_VOLATILITY_MULTIPLIER
+
+  const handleResetOverrides = () => {
+    onVelocityMeanChange('')
+    onVelocityStdDevChange('')
+    onVolatilityMultiplierChange(DEFAULT_VOLATILITY_MULTIPLIER)
+    if (adjusterOpen) setAdjusterOpen(false)
+  }
+
   return (
     <div className="rounded-lg border border-border dark:border-gray-700 p-4 bg-spert-bg-input dark:bg-gray-800">
       <ForecastModeToggle
@@ -143,6 +161,19 @@ export function ForecastForm({
             {lastSprintBacklog !== undefined
               ? `Last sprint: ${lastSprintBacklog.toLocaleString()}`
               : '\u00A0'}
+            {hasBacklogDrift && derivedBacklogFromIncluded !== undefined && (
+              <>
+                {' · '}
+                <button
+                  type="button"
+                  onClick={onResetBacklogToDerived}
+                  title="Replace the current backlog with the most recent included sprint's backlog"
+                  className="text-xs text-spert-text-muted dark:text-gray-400 hover:text-spert-text dark:hover:text-gray-200 transition-colors cursor-pointer bg-transparent border-none p-0 underline"
+                >
+                  Reset to {derivedBacklogFromIncluded.toLocaleString()}
+                </button>
+              </>
+            )}
           </p>
         </div>
 
@@ -229,6 +260,19 @@ export function ForecastForm({
                 </button>
               </>
             )}
+            {!isSubjective && hasOverrides && (
+              <>
+                {' · '}
+                <button
+                  type="button"
+                  onClick={handleResetOverrides}
+                  title="Clear manual velocity/StdDev overrides and reset volatility multiplier"
+                  className="text-xs text-spert-text-muted dark:text-gray-400 hover:text-spert-text dark:hover:text-gray-200 transition-colors cursor-pointer bg-transparent border-none p-0 underline"
+                >
+                  Reset overrides
+                </button>
+              </>
+            )}
           </p>
         </div>
 
@@ -309,6 +353,7 @@ export function ForecastForm({
           onCVChange={onCVChange}
           unitOfMeasure={unitOfMeasure}
           calculatedMean={calculatedMean}
+          includedSprintCount={includedSprintCount}
         />
       )}
 

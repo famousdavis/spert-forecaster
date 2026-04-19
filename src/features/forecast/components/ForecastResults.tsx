@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils'
 import type { QuadResults, QuadSimulationData } from '../lib/monte-carlo'
 import type { MilestoneResults } from '../hooks/useForecastState'
 import type { Milestone, ForecastMode } from '@/shared/types'
-import { SELECTABLE_PERCENTILES } from '../constants'
+import { SELECTABLE_PERCENTILES, MIN_SPRINTS_FOR_BOOTSTRAP } from '../constants'
 import { ReportButton } from './ReportButton'
 import { CopyImageButton } from '@/shared/components/CopyImageButton'
 import {
@@ -23,6 +23,7 @@ interface ForecastResultsProps {
   results: QuadResults
   forecastMode: ForecastMode
   completedSprintCount: number
+  includedSprintCount?: number
   onExport?: () => void
   milestones?: Milestone[]
   milestoneResultsState?: MilestoneResults | null
@@ -134,6 +135,7 @@ export function ForecastResults({
   results,
   forecastMode,
   completedSprintCount,
+  includedSprintCount,
   onExport,
   milestones = [],
   milestoneResultsState,
@@ -320,6 +322,16 @@ export function ForecastResults({
           )}
 
           <div className="text-xs text-muted-foreground space-y-1">
+            {forecastMode === 'history' && includedSprintCount !== undefined && includedSprintCount > 0 && includedSprintCount < 4 && (
+              <p className="text-spert-warning-dark dark:text-yellow-400">
+                ⚠ Only {includedSprintCount} sprint{includedSprintCount === 1 ? '' : 's'} included — forecast spread may be understated with limited history.
+              </p>
+            )}
+            {forecastMode === 'history' && !hasBootstrap && includedSprintCount !== undefined && (
+              <p>
+                ℹ Bootstrap distribution unlocks when {MIN_SPRINTS_FOR_BOOTSTRAP} or more sprints are included (currently {includedSprintCount} included).
+              </p>
+            )}
             {modeContext && <p>{modeContext}</p>}
             <p>
               P<em>X</em> means there is an <em>X</em>% chance of finishing by that date <em>or sooner</em>. Higher

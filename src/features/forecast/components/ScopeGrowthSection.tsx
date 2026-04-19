@@ -51,7 +51,10 @@ export function ScopeGrowthSection({
           className="rounded border-gray-300 dark:border-gray-500"
         />
         <span className="text-sm font-medium text-spert-text-secondary dark:text-gray-300">
-          Model scope growth
+          Model scope growth{' '}
+          <span className="text-xs font-normal text-spert-text-muted">
+            (if backlog tends to grow each sprint)
+          </span>
         </span>
       </label>
 

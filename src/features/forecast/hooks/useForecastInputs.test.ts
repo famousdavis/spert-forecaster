@@ -49,10 +49,30 @@ describe('getLastSprintBacklog', () => {
     expect(getLastSprintBacklog(sprints)).toBe(30) // sprint 7 has highest number
   })
 
-  it('returns undefined when highest sprint has no backlog field', () => {
+  it('walks back to the next-most-recent sprint with a defined backlog', () => {
+    // When the highest-numbered sprint has no backlog recorded, the function should
+    // skip it and return the next-most-recent sprint that does have a backlog value.
     const sprints = [
       createSprint({ sprintNumber: 1, backlogAtSprintEnd: 100 }),
       createSprint({ sprintNumber: 2 }), // backlogAtSprintEnd is undefined
+    ]
+    expect(getLastSprintBacklog(sprints)).toBe(100)
+  })
+
+  it('walks back across multiple sprints without backlogs', () => {
+    const sprints = [
+      createSprint({ sprintNumber: 1, backlogAtSprintEnd: 100 }),
+      createSprint({ sprintNumber: 2, backlogAtSprintEnd: 80 }),
+      createSprint({ sprintNumber: 3 }), // no backlog
+      createSprint({ sprintNumber: 4 }), // no backlog
+    ]
+    expect(getLastSprintBacklog(sprints)).toBe(80)
+  })
+
+  it('returns undefined when no sprint has a backlog value recorded', () => {
+    const sprints = [
+      createSprint({ sprintNumber: 1 }),
+      createSprint({ sprintNumber: 2 }),
     ]
     expect(getLastSprintBacklog(sprints)).toBeUndefined()
   })

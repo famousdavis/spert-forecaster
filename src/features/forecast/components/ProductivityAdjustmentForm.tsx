@@ -188,7 +188,7 @@ export function ProductivityAdjustmentForm({
         </div>
 
         {/* Factor */}
-        <div className="flex-[0_0_140px]">
+        <div className="flex-[0_0_220px]">
           <label
             htmlFor="adjFactor"
             className="mb-1 block text-[0.8rem] font-semibold text-spert-text-secondary"
@@ -205,10 +205,14 @@ export function ProductivityAdjustmentForm({
             onChange={(e) => setFactorPercent(Number(e.target.value))}
             className="mt-[0.3rem] w-full"
           />
-          <div className="flex justify-between text-[0.65rem] text-spert-text-helper">
-            <span>0%</span>
-            <span>100%</span>
+          <div className="grid grid-cols-3 text-[0.65rem] text-spert-text-helper">
+            <span className="text-left">0% (no work)</span>
+            <span className="text-center">50% (half velocity)</span>
+            <span className="text-right">100% (full velocity)</span>
           </div>
+          <p className="mt-1 text-[0.7rem] text-spert-text-helper dark:text-gray-400">
+            A factor of 0% means no work is completed; 100% means normal velocity.
+          </p>
         </div>
 
         {/* Memo */}

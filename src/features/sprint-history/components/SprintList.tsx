@@ -87,10 +87,16 @@ export function SprintList({
             >
               Sprint {sortAscending ? '↑' : '↓'}
             </th>
-            <th className="px-4 py-3 text-right text-sm font-medium text-muted-foreground">
+            <th
+              className="px-4 py-3 text-right text-sm font-medium text-muted-foreground"
+              title={`Done this sprint (${unitOfMeasure})`}
+            >
               Done ({unitOfMeasure})
             </th>
-            <th className="px-4 py-3 text-right text-sm font-medium text-muted-foreground">
+            <th
+              className="px-4 py-3 text-right text-sm font-medium text-muted-foreground"
+              title={`Backlog at End (${unitOfMeasure})`}
+            >
               Backlog
             </th>
             <th className="px-4 py-3 text-right text-sm font-medium text-muted-foreground">

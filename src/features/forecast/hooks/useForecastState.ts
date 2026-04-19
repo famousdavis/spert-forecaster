@@ -104,7 +104,9 @@ export function useForecastState() {
 
   // Composed hooks
   const sprintData = useSprintData()
-  const inputs = useForecastInputs(sprintData.calculatedStats, sprintData.includedSprintCount, sprintData.projectSprints)
+  // Use the *included* sprint subset so that toggling a sprint's inclusion updates the
+  // derived backlog value for the Forecast tab's Remaining Backlog field (Item 2 fix).
+  const inputs = useForecastInputs(sprintData.calculatedStats, sprintData.includedSprintCount, sprintData.includedSprints)
   const charts = useChartSettings()
 
   // Forecast mode: auto-detect or user override
@@ -432,12 +434,15 @@ export function useForecastState() {
     // Form state (from useForecastInputs)
     lastSprintBacklog: inputs.lastSprintBacklog,
     remainingBacklog: inputs.remainingBacklog,
+    derivedBacklogFromIncluded: inputs.derivedBacklogFromIncluded,
+    hasBacklogDrift: inputs.hasBacklogDrift,
     velocityMean: inputs.velocityMean,
     velocityStdDev: inputs.velocityStdDev,
     effectiveMean: inputs.effectiveMean,
     effectiveStdDev: inputs.effectiveStdDev,
     includedSprintCount: sprintData.includedSprintCount,
     setRemainingBacklog: inputs.setRemainingBacklog,
+    resetRemainingBacklogToDerived: inputs.resetRemainingBacklogToDerived,
     setVelocityMean: inputs.setVelocityMean,
     setVelocityStdDev: inputs.setVelocityStdDev,
 

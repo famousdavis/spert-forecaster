@@ -53,7 +53,7 @@ export const CV_OPTIONS: CVOption[] = [
   { label: 'Very steady', cv: 0.15 },
   { label: 'Fairly consistent', cv: 0.25 },
   { label: 'Somewhat variable', cv: 0.35 },
-  { label: 'Somewhat volatile', cv: 0.45 },
+  { label: 'Often disrupted', cv: 0.45 },
   { label: 'Quite volatile', cv: 0.55 },
   { label: 'Wildly uncertain', cv: 0.65 },
 ]

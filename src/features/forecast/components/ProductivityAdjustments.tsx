@@ -44,8 +44,8 @@ export function ProductivityAdjustments({ projectId }: ProductivityAdjustmentsPr
 
   return (
     <CollapsibleCrudPanel<ProductivityAdjustment>
-      title="Productivity Adjustments"
-      description="Define periods of reduced productivity (holidays, vacations, events) that will adjust the forecasted velocity. A factor of 50% means the team will complete half their normal velocity during that period."
+      title="Productivity Adjustments (Holidays, Breaks, Events)"
+      description="Define periods of reduced productivity (holidays, vacations, events) that will adjust the forecasted velocity. A factor of 50% means the team will complete half their normal velocity during that period. Because forecasts report sprint finish dates (not intra-sprint completion dates), a small adjustment may not shift the projected end date if work still completes within the same sprint."
       items={adjustments}
       onDelete={handleDelete}
       renderForm={({ editingItem, onSubmitDone, onCancel }) => (

@@ -1,5 +1,31 @@
 # Changelog
 
+## v0.24.0 - 2026-04-18
+
+*Dedicated to the EGS6629 graduate students at the University of Florida, spring 2026 semester — whose careful, hands-on feedback while using SPERT® Forecaster for real project work directly shaped every improvement in this release.*
+
+### Fixed
+
+- **Report and Copy-as-Image dark-mode rendering**: Forecast report and Copy-as-Image captures now render correctly when the app is in dark mode. Previously, captured text was invisible on the forced-white capture background. Applies to the results table, burn-up chart, CDF chart, and histogram captures
+- **Excluded-sprint backlog drift**: Excluding a sprint via the Include toggle no longer causes the Forecast tab's Remaining Backlog field to reflect the excluded sprint's ending value. A small "Reset to N" action now appears next to the Backlog field whenever the stored value differs from the most recent *included* sprint's `backlogAtSprintEnd`, giving the user one-click recovery without destroying manual edits
+
+### Changed
+
+- **Sprint History labels**: `Backlog at End` form label now includes the project's unit of measure. `Done` form label now reads `Done this sprint ({unit})` to clarify per-sprint scope. SprintList column headers remain compact but add full-label tooltips on hover
+- **CV option label**: Renamed `Somewhat volatile` to `Often disrupted` to remove semantic overlap with the adjacent `Somewhat variable` option. CV values are unchanged
+- **Model Scope Growth hint**: Toggle label now includes the parenthetical `(if backlog tends to grow each sprint)` to help new users decide whether the feature applies
+- **Productivity Adjustments section**: Title now reads `Productivity Adjustments (Holidays, Breaks, Events)`. Panel description now includes a note explaining that forecasts report sprint finish dates (not intra-sprint completion dates), so small adjustments may not shift the projected end date if work still falls within the same sprint
+- **Productivity Adjustment factor slider**: Endpoint labels expanded to include a midpoint anchor (`0% (no work) · 50% (half velocity) · 100% (full velocity)`) and a one-line helper text clarifying what the factor means
+- **Auto-recalculate default**: Changed from OFF to ON for new users. Existing users' saved preferences are preserved. A cold-mount gate ensures the simulation still waits for the user's first manual Run Forecast click before auto-recalc engages
+
+### Added
+
+- **Bootstrap availability indicator**: In History mode, a discreet footnote below the results table explains that the Bootstrap distribution unlocks at 5 or more included sprints (showing the current count). The indicator disappears once bootstrap is available
+- **Low sprint count warning**: In History mode with fewer than 4 included sprints, a discreet amber warning near the forecast results notes that the forecast spread may be understated with limited history
+- **Reset overrides link**: When velocity mean, std dev, or volatility multiplier are overridden from their calculated values, a small `Reset overrides` link appears in the Forecast form. Clicking it clears all three values and closes the Volatility Adjuster panel if open
+- **Subjective velocity divergence warning**: In Subjective mode, when the user's velocity estimate is more than 2× or less than 0.5× the historical mean (and 2+ sprints are included), a soft amber warning appears inline asking the user to verify that the estimate is intentional
+- **Recent sprints summary**: When the Add Sprint form is open, a compact read-only summary of the 3 most recent sprints now appears above the form so the user can reference prior entries without closing the form
+
 ## v0.23.6 - 2026-04-10
 
 ### Fixed
