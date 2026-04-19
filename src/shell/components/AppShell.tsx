@@ -88,7 +88,7 @@ export function AppShell() {
           </div>
           <div className="flex items-center gap-2">
             <HeaderThemeToggle />
-            <UserMenu />
+            <UserMenu onSwitchToSettings={() => setActiveTab('settings')} />
           </div>
         </header>
 

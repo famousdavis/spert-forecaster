@@ -8,7 +8,12 @@ import { useRef, useState } from 'react'
 import { useAuth } from '@/shared/providers/AuthProvider'
 import { useStorageMode } from '@/shared/hooks/useStorageMode'
 import { AccountPopover } from './AccountPopover'
+import { AccountPopoverLocal } from './AccountPopoverLocal'
 import { StorageLoginModal } from './StorageLoginModal'
+
+interface UserMenuProps {
+  onSwitchToSettings?: () => void
+}
 
 function CloudIcon() {
   return (
@@ -30,14 +35,16 @@ function LockIcon() {
   )
 }
 
-export function UserMenu() {
+export function UserMenu({ onSwitchToSettings }: UserMenuProps = {}) {
   const { user, signOut } = useAuth()
   const { mode } = useStorageMode()
   const [popoverOpen, setPopoverOpen] = useState(false)
+  const [localPopoverOpen, setLocalPopoverOpen] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
   const wrapperRef = useRef<HTMLDivElement>(null)
 
   const isCloudSignedIn = mode === 'cloud' && !!user
+  const isSignedInLocal = !!user && mode === 'local'
   const rawName = user?.displayName ?? ''
   const firstName = rawName.includes(',')
     ? rawName.split(',')[1]?.trim().split(' ')[0] ?? user?.email ?? ''
@@ -92,6 +99,62 @@ export function UserMenu() {
             user={user}
             onSignOut={signOut}
             onClose={() => setPopoverOpen(false)}
+            anchorRef={wrapperRef}
+          />
+        )}
+      </div>
+    )
+  }
+
+  if (isSignedInLocal && user) {
+    return (
+      <div ref={wrapperRef} className="relative">
+        <button
+          type="button"
+          onClick={() => setLocalPopoverOpen((v) => !v)}
+          aria-haspopup="dialog"
+          aria-expanded={localPopoverOpen}
+          aria-label="Account menu"
+          className="flex items-center rounded-full hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
+          style={{ border: '0.5px solid #D1D5DB' }}
+        >
+          {/* Left segment: avatar + first name */}
+          <div className="flex items-center gap-1.5 py-1 pl-1 pr-2.5">
+            <div
+              className="flex items-center justify-center rounded-full text-white shrink-0"
+              style={{
+                width: 26,
+                height: 26,
+                backgroundColor: '#0070f3',
+                fontSize: 11,
+                fontWeight: 500,
+              }}
+            >
+              {initial}
+            </div>
+            <span
+              style={{ fontSize: 13, fontWeight: 500 }}
+              className="text-gray-900 dark:text-gray-100"
+            >
+              {firstName}
+            </span>
+          </div>
+          {/* Vertical divider */}
+          <div
+            className="self-stretch"
+            style={{ width: '0.5px', backgroundColor: '#D1D5DB' }}
+          />
+          {/* Right segment: lock icon */}
+          <span className="flex items-center justify-center px-2.5 py-1">
+            <LockIcon />
+          </span>
+        </button>
+        {localPopoverOpen && (
+          <AccountPopoverLocal
+            user={user}
+            onSignOut={signOut}
+            onSwitchToCloud={() => onSwitchToSettings?.()}
+            onClose={() => setLocalPopoverOpen(false)}
             anchorRef={wrapperRef}
           />
         )}
