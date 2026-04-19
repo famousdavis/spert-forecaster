@@ -8,6 +8,9 @@ import { createContext, useContext, useEffect, useState, useCallback, type React
 import { onAuthStateChanged, type User } from 'firebase/auth'
 import { auth, isFirebaseAvailable } from '@/shared/firebase/config'
 import { signInWithGoogle, signInWithMicrosoft, signOut, checkRedirectResult } from '@/shared/firebase/auth'
+import { cancelPendingSaves } from '@/shared/firebase/firestore-driver'
+import { useProjectStore } from '@/shared/state/project-store'
+import { useStorageModeStore } from '@/shared/state/storage-mode-store'
 import {
   isTosCached,
   cacheTos,
@@ -54,6 +57,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (firebaseUser) {
         handleAuthenticatedUser(firebaseUser)
       } else {
+        // Sign-out sequence — order matters:
+        //   (a) cancel queued Firestore writes BEFORE credentials are gone
+        //   (b) clear store + persisted localStorage snapshot (privacy)
+        //   (c) reset storage mode to 'local' so next boot does not enter cloud
+        //       mode before auth resolves; broadcasts to all useStorageMode
+        //       consumers via Zustand subscriptions
+        //   (d) flip React auth state, which triggers useCloudSync teardown
+        cancelPendingSaves()
+        useProjectStore.getState().clearProjectsOnSignOut()
+        useStorageModeStore.getState().setMode('local')
         setUser(null)
         setIsLoading(false)
       }

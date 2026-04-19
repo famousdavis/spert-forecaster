@@ -1,5 +1,27 @@
 # Changelog
 
+## v0.24.2 - 2026-04-19
+
+### Fixed
+
+- **Sign-out leaves cloud projects visible to next user (privacy)**: Previously, signing out only cleared the Firebase auth session — the Zustand store and its `spert-data` localStorage snapshot still contained the signed-out user's cloud projects, so the next person to open the same browser saw the previous user's data. `AuthProvider` now runs a four-step sign-out sequence on `onAuthStateChanged(null)`: cancel queued Firestore writes, clear the project store (new `clearProjectsOnSignOut` action that zeros `projects`, `sprints`, `viewingProjectId`, `forecastInputs`, `burnUpConfigs` while preserving the browser-scoped `_originRef` and `_changeLog` identity tokens), reset storage mode to `'local'`, then flip the React auth state. The localStorage snapshot is rewritten by the Zustand persist middleware during the clear.
+
+- **Storage mode stuck at `'cloud'` after sign-out**: The `spert-storage-mode` localStorage key was never reset when the user signed out, so the next page load booted in cloud mode before Firebase had a chance to resolve auth. Sign-out now explicitly resets the mode to `'local'`.
+
+- **Stale `useStorageMode` state across components (root cause of post-migration UI drift)**: Each of the 7 `useStorageMode` consumers had its own independent `useState`, so a `setMode` call in one component (e.g. the v0.24.1 "Upload & Switch to Cloud Storage" modal CTA) did not propagate to `StorageProvider`, `UserMenu`, or any other consumer. Observable consequences this release fixes: after a successful migration the live Firestore sync would not activate without a page refresh; the auth chip would continue to display "Local only / Sign in" after the user was signed in; and `StorageModeSection.handleConfirmLocal` would flip its own radio to local while `StorageProvider` continued syncing to Firestore in the background. Replaced the hook's per-instance `useState` with a shared Zustand store (`src/shared/state/storage-mode-store.ts`) so all consumers subscribe to the same source of truth.
+
+- **Switching to local via Settings did not clear projects (Bug 3)**: `StorageModeSection.handleConfirmLocal` now calls `clearProjectsOnSignOut()` before `setMode('local')`. The confirmation dialog's stated contract ("cloud data will remain in Firebase but won't sync until you switch back") is now honored — local mode starts fresh. Users who want cloud projects available locally should use Export before switching and Import after.
+
+- **`useCloudSync` teardown fired Firestore writes against revoked credentials**: The cleanup return used to call `flushPendingSaves()` unconditionally, which on sign-out attempted to push debounced writes after auth was already revoked, producing noisy permission errors. Teardown now calls `cancelPendingSaves()` instead; the `beforeunload` handler remains the only path that flushes pending writes.
+
+- **Auth redirect fallback fired on user-dismissed popup**: The `catch {}` blocks in `signInWithGoogle` and `signInWithMicrosoft` fell back to `signInWithRedirect` on any error, including `auth/popup-closed-by-user` — so closing the OAuth popup would navigate the user away from the app. The fallback now triggers only for `auth/popup-blocked` and `auth/cancelled-popup-request`; every other error rethrows so the caller can surface it.
+
+### Internal
+
+- New file `src/shared/state/storage-mode-store.ts` — Zustand store that owns the storage mode. Custom persist adapter handles legacy raw-string localStorage format from pre-v0.24.2 installs without a one-shot migration script.
+- `useStorageMode` hook reimplemented as a thin wrapper over the new store. Return shape (`{ mode, setMode, isFirebaseAvailable }`) is preserved so all 7 existing consumers compile unchanged. New `broadcastStorageModeChange(mode)` named export for non-React callers.
+- `clearProjectsOnSignOut` action added to project store — does not emit to `syncBus` (the sign-out path revokes credentials before it fires; a cloud-side delete storm is not the intent).
+
 ## v0.24.1 - 2026-04-19
 
 ### Fixed

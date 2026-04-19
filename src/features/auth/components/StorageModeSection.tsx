@@ -50,6 +50,10 @@ export function StorageModeSection() {
   }
 
   const handleConfirmLocal = () => {
+    // UX intent: switching to local = start fresh local state. Users who
+    // want to keep specific cloud projects locally should Export first,
+    // then Import after the switch. See v0.24.2 release notes.
+    useProjectStore.getState().clearProjectsOnSignOut()
     setMode('local')
     setMigrationResult(null)
     setShowLocalConfirm(false)

@@ -2,7 +2,7 @@
 // Licensed under the GNU General Public License v3.0.
 // See LICENSE file in the project root for full license text.
 
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import {
   useProjectStore,
   selectActiveProject,
@@ -13,6 +13,7 @@ import {
   validateImportData,
 } from './project-store'
 import { DEFAULT_BURN_UP_CONFIG } from '@/shared/types/burn-up'
+import { syncBus } from '@/shared/firebase/sync-bus'
 import type { Project, Sprint } from '@/shared/types'
 
 // Helper: reset store state before each test
@@ -921,5 +922,67 @@ describe('mergeImportData with fingerprinting', () => {
     expect(_changeLog[1].op).toBe('merge-import')
     expect(_changeLog[1].entity).toBe('dataset')
     expect(_changeLog[1].source).toBe('spert-story-map')
+  })
+})
+
+describe('clearProjectsOnSignOut', () => {
+  it('zeros user-scoped data fields', () => {
+    useProjectStore.setState({
+      projects: [makeProject({ id: 'a' }), makeProject({ id: 'b' })],
+      sprints: [
+        makeSprint({ id: 's1', projectId: 'a' }),
+        makeSprint({ id: 's2', projectId: 'a' }),
+        makeSprint({ id: 's3', projectId: 'b' }),
+      ],
+      viewingProjectId: 'b',
+      forecastInputs: {
+        a: { remainingBacklog: '50', velocityMean: '10', velocityStdDev: '2' },
+      },
+      burnUpConfigs: {
+        a: DEFAULT_BURN_UP_CONFIG,
+      },
+    })
+
+    useProjectStore.getState().clearProjectsOnSignOut()
+
+    const state = useProjectStore.getState()
+    expect(state.projects).toEqual([])
+    expect(state.sprints).toEqual([])
+    expect(state.viewingProjectId).toBeNull()
+    expect(state.forecastInputs).toEqual({})
+    expect(state.burnUpConfigs).toEqual({})
+  })
+
+  it('preserves _originRef and _changeLog (browser-scoped identity tokens)', () => {
+    const originalLog = [
+      { t: 1000, op: 'add', entity: 'project', id: 'a' },
+      { t: 2000, op: 'add', entity: 'sprint', id: 's1' },
+    ]
+    useProjectStore.setState({
+      projects: [makeProject({ id: 'a' })],
+      sprints: [makeSprint({ id: 's1', projectId: 'a' })],
+      _originRef: 'abc-123-browser-origin',
+      _changeLog: originalLog,
+    })
+
+    useProjectStore.getState().clearProjectsOnSignOut()
+
+    const state = useProjectStore.getState()
+    expect(state._originRef).toBe('abc-123-browser-origin')
+    expect(state._changeLog).toEqual(originalLog)
+  })
+
+  it('does not emit to syncBus (prevents cloud-side delete storm on sign-out)', () => {
+    useProjectStore.setState({
+      projects: [makeProject({ id: 'a' }), makeProject({ id: 'b' })],
+      sprints: [makeSprint({ id: 's1', projectId: 'a' })],
+    })
+    const spy = vi.fn()
+    const unsubscribe = syncBus.subscribe(spy)
+
+    useProjectStore.getState().clearProjectsOnSignOut()
+
+    unsubscribe()
+    expect(spy).not.toHaveBeenCalled()
   })
 })

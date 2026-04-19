@@ -216,7 +216,10 @@ export function useCloudSync(user: User | null, mode: 'local' | 'cloud') {
       unsubscribeSnapshot?.()
       unsubscribeSyncBus?.()
       window.removeEventListener('beforeunload', handleBeforeUnload)
-      flushPendingSaves()
+      // Teardown fires on sign-out (credentials revoked) and mode switch.
+      // Flushing would send writes against stale auth; cancel instead.
+      // The `beforeunload` handler above remains the only flush path.
+      cancelPendingSaves()
     }
   }, [isActive, user])
 }

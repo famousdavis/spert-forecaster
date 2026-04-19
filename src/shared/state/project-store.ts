@@ -85,6 +85,9 @@ interface ProjectState {
   // Cloud sync actions
   replaceProjectsFromCloud: (projects: Project[], sprints: Sprint[]) => void
 
+  // Sign-out action — zeros user-scoped data, preserves workspace identity tokens
+  clearProjectsOnSignOut: () => void
+
   // Forecast input actions (session only)
   setForecastInput: <K extends keyof ForecastInputs>(projectId: string, field: K, value: ForecastInputs[K]) => void
   getForecastInputs: (projectId: string) => ForecastInputs
@@ -439,6 +442,23 @@ export const useProjectStore = create<ProjectState>()(
         })
         // Defer reset so all synchronous Zustand subscribers see the flag
         queueMicrotask(() => set({ _isCloudUpdate: false }))
+      },
+
+      clearProjectsOnSignOut: () => {
+        // Zero user-scoped data so the next browser user cannot see the
+        // previous user's cloud projects. Preserves _originRef (browser-scoped
+        // workspace identity) and _changeLog (audit trail) — both are
+        // per-browser, not per-user, and documented as persistent across
+        // sessions in the academic integrity spec. Does NOT emit to syncBus:
+        // the sign-out path revokes credentials before this fires, and a
+        // cloud-side 'project:delete' storm is not the intent.
+        set({
+          projects: [],
+          sprints: [],
+          viewingProjectId: null,
+          forecastInputs: {},
+          burnUpConfigs: {},
+        })
       },
 
       setForecastInput: (projectId, field, value) =>

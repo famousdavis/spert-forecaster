@@ -4,36 +4,35 @@
 
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
 import { isFirebaseAvailable } from '@/shared/firebase/config'
 import type { StorageMode } from '@/shared/firebase/types'
 import { STORAGE_MODE_KEY } from '@/shared/state/storage'
+import { useStorageModeStore } from '@/shared/state/storage-mode-store'
 
-function getPersistedMode(): StorageMode {
-  if (typeof window === 'undefined') return 'local'
-  return (localStorage.getItem(STORAGE_MODE_KEY) as StorageMode) || 'local'
-}
-
+/**
+ * Thin React wrapper over `useStorageModeStore` — preserves the legacy
+ * return shape `{ mode, setMode, isFirebaseAvailable }` so all existing
+ * consumers compile without modification. Because every consumer now
+ * subscribes to the same Zustand store, `setMode` in any component
+ * propagates to every other consumer on the same render cycle.
+ */
 export function useStorageMode() {
-  const [mode, setModeState] = useState<StorageMode>(getPersistedMode)
-
-  // Sync on mount (SSR → client hydration)
-  useEffect(() => {
-    setModeState(getPersistedMode())
-  }, [])
-
-  const setMode = useCallback((newMode: StorageMode) => {
-    setModeState(newMode)
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(STORAGE_MODE_KEY, newMode)
-    }
-  }, [])
-
+  const mode = useStorageModeStore((s) => s.mode)
+  const setMode = useStorageModeStore((s) => s.setMode)
   return {
     mode,
     setMode,
     isFirebaseAvailable,
   }
+}
+
+/**
+ * Non-React caller alias. Prefer this over `useStorageModeStore.getState().setMode`
+ * when the call site reads better with an imperative verb (e.g. AuthProvider
+ * sign-out sequence).
+ */
+export function broadcastStorageModeChange(mode: StorageMode): void {
+  useStorageModeStore.getState().setMode(mode)
 }
 
 export { STORAGE_MODE_KEY }

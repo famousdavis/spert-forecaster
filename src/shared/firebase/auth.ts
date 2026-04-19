@@ -17,6 +17,20 @@ import {
 } from 'firebase/auth'
 import { auth } from './config'
 
+// Redirect fallback fires only when the popup was structurally unavailable.
+// All other errors (user-dismissed popup, network failure, etc.) rethrow so
+// the caller can surface them instead of navigating the user away from the app.
+const REDIRECT_FALLBACK_CODES = new Set([
+  'auth/popup-blocked',
+  'auth/cancelled-popup-request',
+])
+
+function isRedirectFallbackError(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false
+  const code = (err as { code?: unknown }).code
+  return typeof code === 'string' && REDIRECT_FALLBACK_CODES.has(code)
+}
+
 export async function signInWithGoogle(): Promise<User | null> {
   if (!auth) throw new Error('Firebase not available')
   const provider = new GoogleAuthProvider()
@@ -26,10 +40,12 @@ export async function signInWithGoogle(): Promise<User | null> {
   try {
     const result = await signInWithPopup(auth, provider)
     return result.user
-  } catch {
-    // Popup blocked or failed — fall back to redirect
-    await signInWithRedirect(auth, provider)
-    return null
+  } catch (err) {
+    if (isRedirectFallbackError(err)) {
+      await signInWithRedirect(auth, provider)
+      return null
+    }
+    throw err
   }
 }
 
@@ -40,10 +56,12 @@ export async function signInWithMicrosoft(): Promise<User | null> {
   try {
     const result = await signInWithPopup(auth, provider)
     return result.user
-  } catch {
-    // Popup blocked or failed — fall back to redirect
-    await signInWithRedirect(auth, provider)
-    return null
+  } catch (err) {
+    if (isRedirectFallbackError(err)) {
+      await signInWithRedirect(auth, provider)
+      return null
+    }
+    throw err
   }
 }
 
