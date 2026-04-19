@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.24.3 - 2026-04-19
+
+### Fixed
+
+- **Auth chip showed "Sign in" for already-authenticated users in local mode**: When a user was signed in but had not switched to cloud storage (signed in + local mode), the auth chip displayed "Local only / Sign in" — implying the user was not authenticated. This state now renders a distinct split-pill (avatar + first name on the left, lock icon on the right) matching the cloud pill layout. Clicking opens a new popover showing the user's display name and email with two actions: "Switch to Cloud Storage" (navigates to the Settings tab) and "Sign Out".
+
 ## v0.24.2 - 2026-04-19
 
 ### Fixed
