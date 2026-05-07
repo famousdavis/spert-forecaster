@@ -4,7 +4,7 @@
 
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { toast } from 'sonner'
 import { useProjectStore, selectActiveProject, type ExportData } from '@/shared/state/project-store'
 import { useSettingsStore } from '@/shared/state/settings-store'
@@ -32,6 +32,8 @@ import { ProjectForm } from './ProjectForm'
 import { exportSingleProject } from '../lib/export-project'
 import { getWorkspaceId, getStorageMode } from '@/shared/state/storage'
 import { auth } from '@/shared/firebase/config'
+import { loadOwnedProjectIds } from '@/shared/firebase/firestore-driver'
+import { useAuth } from '@/shared/providers/AuthProvider'
 import type { Project } from '@/shared/types'
 
 interface ProjectsTabProps {
@@ -72,7 +74,31 @@ export function ProjectsTab({ onViewHistory }: ProjectsTabProps) {
     data: ExportData | null
   }>({ isOpen: false, data: null })
   const { mode } = useStorageMode()
+  const { user } = useAuth()
   const [sharingProject, setSharingProject] = useState<Project | null>(null)
+  const [ownedProjectIds, setOwnedProjectIds] = useState<Set<string>>(new Set())
+
+  // Load the set of project IDs owned by the current user. Used to gate the
+  // Share button so editors and viewers don't see an affordance they can't act
+  // on. Refresh whenever the project list changes (a newly-created project
+  // needs to appear in the owned set immediately) or auth state changes.
+  // In non-cloud mode we leave any prior set in place — the Share button is
+  // already gated upstream on `mode === 'cloud'`, so a stale set is harmless
+  // and skipping the clear avoids a synchronous setState-in-effect.
+  useEffect(() => {
+    if (mode !== 'cloud' || !user) return
+    let cancelled = false
+    loadOwnedProjectIds(user.uid)
+      .then((ids) => {
+        if (!cancelled) setOwnedProjectIds(ids)
+      })
+      .catch(() => {
+        if (!cancelled) setOwnedProjectIds(new Set())
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [mode, user, projects.length])
   const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; projectId: string | null; projectName: string }>({
     isOpen: false,
     projectId: null,
@@ -359,6 +385,7 @@ export function ProjectsTab({ onViewHistory }: ProjectsTabProps) {
         onViewHistory={onViewHistory ?? (() => {})}
         onShare={setSharingProject}
         isCloudMode={mode === 'cloud'}
+        ownedProjectIds={ownedProjectIds}
       />
 
       {/* Sharing panel */}

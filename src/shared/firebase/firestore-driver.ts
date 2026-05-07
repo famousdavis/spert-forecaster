@@ -106,6 +106,21 @@ export async function loadProjects(uid: string): Promise<Map<string, FirestorePr
   return result
 }
 
+/**
+ * Load the set of project IDs owned by `uid`. Used to gate UI affordances
+ * (e.g., the Share button on the Projects tab) that should only appear for
+ * the project owner. One Firestore query, IDs only.
+ */
+export async function loadOwnedProjectIds(uid: string): Promise<Set<string>> {
+  if (!db) return new Set()
+  const ownedQ = query(
+    collection(db, COLLECTIONS.projects),
+    where('owner', '==', uid)
+  )
+  const snap = await getDocs(ownedQ)
+  return new Set(snap.docs.map((d) => d.id))
+}
+
 /** Save a project document (debounced). Uses merge:true to preserve owner/members. */
 export function saveProject(projectId: string, data: FirestoreProjectDoc): void {
   debouncedSave(`project:${projectId}`, async () => {

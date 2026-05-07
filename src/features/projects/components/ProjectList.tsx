@@ -22,6 +22,7 @@ interface ProjectListProps {
   onViewHistory: (projectId: string) => void
   onShare?: (project: Project) => void
   isCloudMode?: boolean
+  ownedProjectIds?: Set<string>
 }
 
 export function ProjectList({
@@ -34,6 +35,7 @@ export function ProjectList({
   onViewHistory,
   onShare,
   isCloudMode,
+  ownedProjectIds,
 }: ProjectListProps) {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
@@ -151,7 +153,7 @@ export function ProjectList({
               >
                 View History
               </button>
-              {isCloudMode && onShare && (
+              {isCloudMode && onShare && ownedProjectIds?.has(project.id) && (
                 <button
                   onClick={() => onShare(project)}
                   className="px-4 py-2 bg-[#f0f0ff] dark:bg-purple-900/30 border border-[#7c3aed] dark:border-purple-500 rounded cursor-pointer text-[0.9rem] text-[#7c3aed] dark:text-purple-300"

@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.27.1 - 2026-05-07
+
+### Fixed
+
+- **Share button on the Projects tab is no longer visible to non-owners.** Editors and viewers (who can't actually share) previously saw the Share button anyway, which was visually misleading and inconsistent with GanttApp/Story Map (where the same affordance is properly gated on `project.owner === user.uid`). The data was always safe — `SharingSection` already gates management UI on the asynchronously-loaded `isOwner` — but the affordance itself shouldn't appear for users who can't act on it.
+  - New helper `loadOwnedProjectIds(uid)` in `src/shared/firebase/firestore-driver.ts` issues one `where('owner', '==', uid)` query and returns a `Set<string>` of project IDs the user owns.
+  - `ProjectsTab` calls it on mount (and refreshes when the project list length changes, so a newly-created project flips into the owned set immediately) and threads the set through as a new `ownedProjectIds` prop on `ProjectList`.
+  - `ProjectList` now gates the Share button on `isCloudMode && onShare && ownedProjectIds?.has(project.id)`. Non-owners see no Share button. The internal `isOwner` check inside `SharingSection` is preserved as a second line of defense.
+
 ## v0.27.0 - 2026-05-05
 
 ### Added
