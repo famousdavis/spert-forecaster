@@ -35,6 +35,26 @@ interface SharingSectionProps {
   projectName: string
 }
 
+/**
+ * Four-state enum for the async ownership check (Lesson 60).
+ *
+ *   'loading'    — getProjectMembers in flight; render nothing visible yet.
+ *   'owner'      — caller is the project owner; render the bulk-invite form
+ *                  and the role/remove controls.
+ *   'not-owner'  — caller is signed in and a member but not the owner;
+ *                  render the members list (read-only role badges) but
+ *                  hide the bulk-invite form.
+ *   'error'      — getProjectMembers rejected (network blip, transient
+ *                  permission). Render a visible error message instead of
+ *                  silently hiding the section, so an owner mid-edit knows
+ *                  to refresh rather than losing context.
+ *
+ * Derived from the async members fetch, NOT synchronously from
+ * `project.owner` (which Forecaster's local Project type doesn't carry —
+ * that's the Scheduler/AHP pattern).
+ */
+type OwnerStatus = 'loading' | 'owner' | 'not-owner' | 'error'
+
 export function SharingSection({ projectId, projectName }: SharingSectionProps) {
   const { user } = useAuth()
   const { mode } = useStorageMode()
@@ -52,8 +72,9 @@ export function SharingSection({ projectId, projectName }: SharingSectionProps) 
   const [sendError, setSendError] = useState('')
   const [actionBusy, setActionBusy] = useState<string | null>(null)
   const [revokeConfirmTokenId, setRevokeConfirmTokenId] = useState<string | null>(null)
+  const [ownerStatus, setOwnerStatus] = useState<OwnerStatus>('loading')
 
-  const isOwner = members.some((m) => m.uid === user?.uid && m.role === 'owner')
+  const isOwner = ownerStatus === 'owner'
 
   const loadMembers = useCallback(async () => {
     if (mode !== 'cloud') return
@@ -71,10 +92,18 @@ export function SharingSection({ projectId, projectName }: SharingSectionProps) 
         : Promise.resolve<PendingInvite[]>([]),
     ])
 
+    // Lesson 60: derive OwnerStatus from the members fetch. The same fetch
+    // populates the members list, so a single Promise drives both states.
     if (memRes.status === 'fulfilled') {
-      setMembers(memRes.value)
+      const fetched = memRes.value
+      setMembers(fetched)
+      const callerIsOwner = fetched.some(
+        (m) => m.uid === user?.uid && m.role === 'owner'
+      )
+      setOwnerStatus(callerIsOwner ? 'owner' : 'not-owner')
     } else {
       console.warn('[SharingSection] member refresh failed:', memRes.reason)
+      setOwnerStatus('error')
     }
 
     if (wantsPending) {
@@ -215,8 +244,15 @@ export function SharingSection({ projectId, projectName }: SharingSectionProps) 
         Sharing: {projectName}
       </h4>
 
+      {/* Lesson 60: visible error state — never hide the section silently. */}
+      {ownerStatus === 'error' && (
+        <p className="text-sm text-red-600 dark:text-red-400">
+          Couldn&apos;t load sharing details. Refresh the page to try again.
+        </p>
+      )}
+
       {/* Member list */}
-      {members.length > 0 && (
+      {ownerStatus !== 'error' && members.length > 0 && (
         <div className="space-y-1">
           {members.map((member) => (
             <div key={member.uid} className="flex items-center gap-2 text-sm py-1">
