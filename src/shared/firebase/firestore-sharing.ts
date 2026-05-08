@@ -12,6 +12,8 @@ import {
   updateDoc,
   query,
   where,
+  runTransaction,
+  deleteField,
   type DocumentReference,
 } from 'firebase/firestore'
 import { db } from './config'
@@ -85,7 +87,27 @@ export async function shareProject(
   return { success: true }
 }
 
-/** Remove a member from a project. Only the owner can remove members. */
+/**
+ * Remove a member from a project. Three-guard transactional pattern (Lesson 50):
+ *
+ *   Guard 1 (pre-tx, fast-fail): caller cannot remove themselves.
+ *   Guard 2 (in-tx, defense-in-depth): caller must still be the owner.
+ *   Guard 3 (in-tx): the project owner cannot be removed (would brick the doc —
+ *                    Firestore `list`/`get` rules require uid in members map +
+ *                    owner field, and removing the owner from the doc passes
+ *                    the `update` rule but produces a permanently-inaccessible
+ *                    project).
+ *
+ * `verifyProjectOwner`'s pre-flight read is intentionally dropped here — Guard 2
+ * inside the transaction provides the same check atomically. The helper remains
+ * for `shareProject` and `updateMemberRole`, which still benefit from the early
+ * return shape.
+ *
+ * Guards throw plain `Error` objects (no `.code` property). The catch block
+ * surfaces `err.message` directly into `SharingResult.error`; UI callers must
+ * NOT route through `mapInvitationError` (that pattern-matches `functions/*`
+ * Cloud Function error codes).
+ */
 export async function removeProjectMember(
   currentUid: string,
   projectId: string,
@@ -93,18 +115,29 @@ export async function removeProjectMember(
 ): Promise<SharingResult> {
   if (!db) return { success: false, error: 'Firestore not available' }
 
-  const verification = await verifyProjectOwner(projectId, currentUid)
-  if (!verification.ok) return verification.result
-  const { projectRef } = verification
+  // Guard 1 — pre-transaction fast-fail. No Firestore read needed.
+  if (targetUid === currentUid) {
+    return { success: false, error: 'Cannot remove yourself from a project.' }
+  }
 
-  // Remove from members map by setting to deleteField
+  const projectRef = doc(db, COLLECTIONS.projects, projectId)
   try {
-    const { deleteField } = await import('firebase/firestore')
-    await updateDoc(projectRef, {
-      [`members.${targetUid}`]: deleteField(),
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(projectRef)
+      if (!snap.exists()) throw new Error('Project not found.')
+      const data = snap.data()
+      // Guard 2 — caller must be owner (defense-in-depth alongside Firestore rules).
+      // UI is owner-gated, so this should never fire in practice.
+      if (data.owner !== currentUid) {
+        console.warn('[firestore-sharing] non-owner attempted remove — UI gating bypass?')
+        throw new Error('Only the project owner can remove members.')
+      }
+      // Guard 3 — cannot remove the project owner.
+      if (data.owner === targetUid) throw new Error('Cannot remove the project owner.')
+      tx.update(projectRef, { [`members.${targetUid}`]: deleteField() })
     })
   } catch (err) {
-    return { success: false, error: `Failed to remove member: ${err}` }
+    return { success: false, error: (err as Error).message }
   }
 
   return { success: true }
