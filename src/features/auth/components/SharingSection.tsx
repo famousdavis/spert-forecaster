@@ -20,7 +20,7 @@ import {
   parseBulkEmails,
   mapInvitationError,
 } from '@/shared/firebase/firestore-invitations'
-import { getSendInvitationEmail } from '@/shared/firebase/config'
+import { callSendInvitationEmail } from '@/shared/firebase/callables'
 import { ConfirmDialog } from '@/shared/components/ConfirmDialog'
 import { INVITATIONS_ENABLED } from '@/lib/feature-flags'
 import type {
@@ -116,7 +116,8 @@ export function SharingSection({ projectId, projectName }: SharingSectionProps) 
   }, [projectId, mode, user])
 
   useEffect(() => {
-    loadMembers()
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Lesson 66 carve-out: this is a state-machine TRANSITION, not initialization. loadMembers is async; all setState calls land AFTER `await Promise.allSettled`, not synchronously in the effect body. The rule traces useCallback bodies transitively, so the disable is required even though the cascade-render concern doesn't apply.
+    void loadMembers()
   }, [loadMembers])
 
   if (mode !== 'cloud' || !user) return null
@@ -180,9 +181,7 @@ export function SharingSection({ projectId, projectName }: SharingSectionProps) 
 
     setIsLoading(true)
     try {
-      const callable = getSendInvitationEmail()
-      if (!callable) throw new Error('Cloud invitations not configured.')
-      const res = await callable({
+      const data = await callSendInvitationEmail({
         appId: 'spertforecaster',
         modelId: projectId,
         emails: valid,
@@ -192,11 +191,11 @@ export function SharingSection({ projectId, projectName }: SharingSectionProps) 
       // Merge client-side invalid-format failures into the CF result so the
       // UI renders them alongside CF-side rejections (uniform red chips).
       const merged: SendInvitationEmailResult = {
-        added: res.data.added,
-        invited: res.data.invited,
+        added: data.added,
+        invited: data.invited,
         failed: [
           ...invalid.map((email) => ({ email, reason: 'invalid-format' })),
-          ...res.data.failed,
+          ...data.failed,
         ],
       }
       setInviteResult(merged)

@@ -15,7 +15,8 @@ import {
 } from 'react'
 import { onAuthStateChanged, type User } from 'firebase/auth'
 import { toast } from 'sonner'
-import { auth, isFirebaseAvailable, getClaimPendingInvitations } from '@/shared/firebase/config'
+import { auth, isFirebaseAvailable, functionsInstance } from '@/shared/firebase/config'
+import { callClaimPendingInvitations } from '@/shared/firebase/callables'
 import { signInWithGoogle, signInWithMicrosoft, signOut, checkRedirectResult } from '@/shared/firebase/auth'
 import { cancelPendingSaves, upsertProfile, upsertSuiteProfile } from '@/shared/firebase/firestore-driver'
 import { useProjectStore } from '@/shared/state/project-store'
@@ -95,11 +96,10 @@ async function writeUserProfile(firebaseUser: User): Promise<void> {
 function claimPendingInvitationsAndNotify(firebaseUser: User): void {
   if (!INVITATIONS_ENABLED) return
   if (!firebaseUser.emailVerified) return
-  const callable = getClaimPendingInvitations()
-  if (!callable) return
-  void callable({})
+  if (!functionsInstance) return
+  void callClaimPendingInvitations()
     .then((res) => {
-      const claimed = res.data?.claimed ?? []
+      const claimed = res?.claimed ?? []
       if (claimed.length > 0 && typeof window !== 'undefined') {
         const detail: SpertModelsChangedDetail = { claimed }
         window.dispatchEvent(new CustomEvent('spert:models-changed', { detail }))

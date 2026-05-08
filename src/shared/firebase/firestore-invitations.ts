@@ -7,7 +7,8 @@
 // reads the spertsuite_invitations collection directly.
 
 import { collection, getDocs, query, where, type Timestamp } from 'firebase/firestore'
-import { db, getRevokeInvite, getResendInvite } from './config'
+import { db } from './config'
+import { callRevokeInvite, callResendInvite } from './callables'
 import type { PendingInvite } from './types'
 
 function tsToMillis(value: unknown): number {
@@ -67,15 +68,11 @@ export async function listPendingInvites(
 }
 
 export async function revokeInviteToken(tokenId: string): Promise<void> {
-  const callable = getRevokeInvite()
-  if (!callable) throw new Error('Cloud invitations not configured.')
-  await callable({ tokenId })
+  await callRevokeInvite(tokenId)
 }
 
 export async function resendInviteToken(tokenId: string): Promise<void> {
-  const callable = getResendInvite()
-  if (!callable) throw new Error('Cloud invitations not configured.')
-  await callable({ tokenId })
+  await callResendInvite(tokenId)
 }
 
 /**
