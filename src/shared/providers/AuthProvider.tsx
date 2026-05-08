@@ -77,19 +77,24 @@ async function writeUserProfile(firebaseUser: User): Promise<void> {
  * Fire `claimPendingInvitations` and dispatch `spert:models-changed` on
  * success so the InvitationBanner can transition to its `claimed` state.
  *
- * No-op when the flag is off or Firebase is unavailable.
+ * No-op when the flag is off, Firebase is unavailable, OR the user's email
+ * is not verified. The `emailVerified` guard (Lesson 26) prevents wasted
+ * round-trips for Microsoft personal accounts (`@outlook.com`,
+ * `@hotmail.com`), which Firebase reports with `emailVerified: false` —
+ * `claimPendingInvitations` would otherwise throw `failed-precondition`
+ * unconditionally for those users on every auth resolution.
  *
- * The `failed-precondition` error (Microsoft personal account) is gated on
- * `sessionStorage.getItem(INVITE_SESSION_KEY)` being truthy: this prevents
- * surfacing the toast on every auth resolution for MS personal-account users
- * who have no pending invitation. The toast only fires when an invite link
- * was actually clicked in this browser session.
+ * The `failed-precondition` toast remains gated on
+ * `sessionStorage.getItem(INVITE_SESSION_KEY)` as a secondary layer for any
+ * residual edge case where the CF still rejects after our guard (e.g., a
+ * verified Google account whose token has been demoted server-side).
  *
  * The event name `spert:models-changed` is a suite-wide contract — do not
  * rename in any SPERT app.
  */
-function claimPendingInvitationsAndNotify(): void {
+function claimPendingInvitationsAndNotify(firebaseUser: User): void {
   if (!INVITATIONS_ENABLED) return
+  if (!firebaseUser.emailVerified) return
   const callable = getClaimPendingInvitations()
   if (!callable) return
   void callable({})
@@ -166,7 +171,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       clearPendingWrite()
       void writeUserProfile(firebaseUser)
-      claimPendingInvitationsAndNotify()
+      claimPendingInvitationsAndNotify(firebaseUser)
       setUser(firebaseUser)
       setIsLoading(false)
       return
@@ -176,7 +181,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (isTosCached()) {
       // localStorage has current version — proceed normally
       void writeUserProfile(firebaseUser)
-      claimPendingInvitationsAndNotify()
+      claimPendingInvitationsAndNotify(firebaseUser)
       setUser(firebaseUser)
       setIsLoading(false)
       return
@@ -188,7 +193,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (status === 'current') {
         cacheTos()
         void writeUserProfile(firebaseUser)
-        claimPendingInvitationsAndNotify()
+        claimPendingInvitationsAndNotify(firebaseUser)
         setUser(firebaseUser)
         setIsLoading(false)
       } else {
@@ -202,7 +207,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error('ToS version check failed:', err)
       // On error, allow through to avoid blocking legitimate users
       void writeUserProfile(firebaseUser)
-      claimPendingInvitationsAndNotify()
+      claimPendingInvitationsAndNotify(firebaseUser)
       setUser(firebaseUser)
       setIsLoading(false)
     }
