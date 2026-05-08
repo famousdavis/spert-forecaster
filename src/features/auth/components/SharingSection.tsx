@@ -57,18 +57,31 @@ export function SharingSection({ projectId, projectName }: SharingSectionProps) 
 
   const loadMembers = useCallback(async () => {
     if (mode !== 'cloud') return
-    try {
-      const result = await getProjectMembers(projectId)
-      setMembers(result)
-    } catch {
-      // silently fail — user may not have access
+
+    // Lesson 64: Promise.allSettled instead of sequential awaits. If
+    // listPendingInvites rejects (transient permission, Firestore rules deny
+    // for non-owners), the member list refresh must still land — and vice
+    // versa. Promise.all is fail-fast and would lose one update on the
+    // other's failure.
+    const wantsPending = INVITATIONS_ENABLED && !!user
+    const [memRes, pendRes] = await Promise.allSettled([
+      getProjectMembers(projectId),
+      wantsPending
+        ? listPendingInvites(user!.uid, projectId)
+        : Promise.resolve<PendingInvite[]>([]),
+    ])
+
+    if (memRes.status === 'fulfilled') {
+      setMembers(memRes.value)
+    } else {
+      console.warn('[SharingSection] member refresh failed:', memRes.reason)
     }
-    if (INVITATIONS_ENABLED && user) {
-      try {
-        const pending = await listPendingInvites(user.uid, projectId)
-        setPendingInvites(pending)
-      } catch {
-        // silently fail — Firestore rules may deny for non-owners
+
+    if (wantsPending) {
+      if (pendRes.status === 'fulfilled') {
+        setPendingInvites(pendRes.value)
+      } else {
+        console.warn('[SharingSection] pending refresh failed:', pendRes.reason)
       }
     }
   }, [projectId, mode, user])
