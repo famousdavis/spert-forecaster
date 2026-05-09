@@ -16,7 +16,7 @@ import type { SpertModelsChangedDetail } from '@/shared/firebase/types'
 // SESSION_KEY (Lessons 58 + 66).
 import { SESSION_KEY } from '@/features/auth/lib/inviteCapture'
 
-const CLAIM_GRACE_MS = 10000
+const CLAIM_GRACE_MS = 30_000
 
 type InvitationState = 'idle' | 'pre_auth' | 'claimed'
 
@@ -52,7 +52,7 @@ interface UseInvitationLandingResult {
  *      when the local store is empty (F4 gate / Lesson 28). `hasRunRef`
  *      guards re-runs after the first execution.
  *
- *   2. 10-second grace timer. When `user` becomes non-null while in pre_auth,
+ *   2. 30-second grace timer. When `user` becomes non-null while in pre_auth,
  *      AuthProvider has already fired claimPendingInvitations. Wait up to
  *      CLAIM_GRACE_MS for the spert:models-changed event; on timeout,
  *      consume SESSION_KEY (Lesson 59) and fall back to idle so the banner
@@ -72,7 +72,7 @@ interface UseInvitationLandingResult {
  *     local content who click an invite link must migrate via Settings →
  *     Storage Mode to see the shared project. The banner shows a hint.
  *   - C3: signed-in user clicks an invite for a different email → banner
- *     auto-dismisses after 10 seconds with no visible error.
+ *     auto-dismisses after 30 seconds with no visible error.
  *   - N9: capture-once design prevents handling a second invite link in the
  *     same session. Workaround: hard refresh.
  */

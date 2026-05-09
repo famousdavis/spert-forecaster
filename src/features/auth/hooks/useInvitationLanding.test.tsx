@@ -235,7 +235,7 @@ describe('useInvitationLanding — dismiss', () => {
   })
 })
 
-describe('useInvitationLanding — 10s grace timer (Effect 2)', () => {
+describe('useInvitationLanding — 30s grace timer (Effect 2)', () => {
   it('happy path: claimed event arrives before timeout, state transitions to claimed (timer cleared)', () => {
     vi.useFakeTimers()
     sessionStorage.setItem(SESSION_KEY, 'tok-abc')
@@ -260,12 +260,12 @@ describe('useInvitationLanding — 10s grace timer (Effect 2)', () => {
 
     // Run remaining timer — must be a no-op (cleanup cleared it)
     act(() => {
-      vi.advanceTimersByTime(10000)
+      vi.advanceTimersByTime(30000)
     })
     expect(result.current.state).toBe('claimed')
   })
 
-  it('timeout path: after CLAIM_GRACE_MS (10s) with no event, falls back to idle', () => {
+  it('timeout path: after CLAIM_GRACE_MS (30s) with no event, falls back to idle', () => {
     vi.useFakeTimers()
     sessionStorage.setItem(SESSION_KEY, 'tok-abc')
 
@@ -274,7 +274,7 @@ describe('useInvitationLanding — 10s grace timer (Effect 2)', () => {
     rerender()
 
     act(() => {
-      vi.advanceTimersByTime(10000)
+      vi.advanceTimersByTime(30000)
     })
 
     expect(result.current.state).toBe('idle')

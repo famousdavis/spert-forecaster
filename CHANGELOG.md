@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.28.1 - 2026-05-09
+
+### Fixed
+
+- **`CLAIM_GRACE_MS` raised from 10s to 30s in `useInvitationLanding`** to match the canonical Lesson 7 value used by the other six SPERT apps. At 10s, a slow-but-valid Cloud Function claim (cold-start p95 5–15s) could time out before the `spert:models-changed` event landed, briefly dropping the user back to `idle` with a misleading "didn't match your account" implication. Companion test-fixture updates: `describe` label and timeout-path `advanceTimersByTime` advanced from 10000 to 30000.
+
 ## v0.28.0 - 2026-05-08
 
 ### Added
