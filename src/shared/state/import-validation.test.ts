@@ -593,3 +593,156 @@ describe('validateImportData – full valid data', () => {
     expect(validateImportData(data)).toBe(true)
   })
 })
+
+// v0.28.3 M1 — field allowlist normalization. Imported JSON must not
+// smuggle unknown keys into the store (and via merge:true into Firestore).
+describe('validateImportData — field allowlist (v0.28.3 M1)', () => {
+  it('strips unknown top-level keys from project objects', () => {
+    const data = makeExportData(
+      [
+        makeProject({
+          owner: 'attacker-uid',
+          members: { 'attacker-uid': 'editor' },
+          __maliciousNote: 'smuggled',
+        }),
+      ],
+      [],
+    )
+    expect(validateImportData(data)).toBe(true)
+    const cleaned = data.projects[0] as Record<string, unknown>
+    expect(cleaned).not.toHaveProperty('owner')
+    expect(cleaned).not.toHaveProperty('members')
+    expect(cleaned).not.toHaveProperty('__maliciousNote')
+    // Schema-defined fields preserved.
+    expect(cleaned.id).toBe('proj-1')
+    expect(cleaned.name).toBe('My Project')
+    expect(cleaned.unitOfMeasure).toBe('story points')
+  })
+
+  it('strips unknown keys from sprint objects', () => {
+    const data = makeExportData(
+      [makeProject()],
+      [
+        makeSprint({
+          owner: 'attacker-uid',
+          actorEmail: 'leak@example.com',
+          internalNote: 'smuggled',
+        }),
+      ],
+    )
+    expect(validateImportData(data)).toBe(true)
+    const cleaned = data.sprints[0] as Record<string, unknown>
+    expect(cleaned).not.toHaveProperty('owner')
+    expect(cleaned).not.toHaveProperty('actorEmail')
+    expect(cleaned).not.toHaveProperty('internalNote')
+    expect(cleaned.id).toBe('sprint-1')
+    expect(cleaned.doneValue).toBe(10)
+  })
+
+  it('strips unknown keys from nested milestone objects', () => {
+    const data = makeExportData(
+      [
+        makeProject({
+          milestones: [
+            {
+              id: 'ms-1',
+              name: 'MVP',
+              backlogSize: 50,
+              color: '#ff0000',
+              showOnChart: true,
+              createdAt: '2026-01-01T00:00:00Z',
+              updatedAt: '2026-01-01T00:00:00Z',
+              attackerUid: 'evil',
+              extra: 'smuggled',
+            },
+          ],
+        }),
+      ],
+      [],
+    )
+    expect(validateImportData(data)).toBe(true)
+    const milestone = (data.projects[0].milestones as Record<string, unknown>[])[0]
+    expect(milestone).not.toHaveProperty('attackerUid')
+    expect(milestone).not.toHaveProperty('extra')
+    expect(milestone.id).toBe('ms-1')
+    expect(milestone.backlogSize).toBe(50)
+  })
+
+  it('strips unknown keys from nested productivityAdjustment objects', () => {
+    const data = makeExportData(
+      [
+        makeProject({
+          productivityAdjustments: [
+            {
+              id: 'pa-1',
+              name: 'Holiday',
+              startDate: '2026-12-20',
+              endDate: '2026-12-31',
+              factor: 0.5,
+              enabled: true,
+              createdAt: '2026-01-01T00:00:00Z',
+              updatedAt: '2026-01-01T00:00:00Z',
+              smuggled: 'value',
+            },
+          ],
+        }),
+      ],
+      [],
+    )
+    expect(validateImportData(data)).toBe(true)
+    const pa = (data.projects[0].productivityAdjustments as Record<string, unknown>[])[0]
+    expect(pa).not.toHaveProperty('smuggled')
+    expect(pa.factor).toBe(0.5)
+    expect(pa.enabled).toBe(true)
+  })
+
+  it('strips unknown keys from _changeLog entries', () => {
+    const data: Record<string, unknown> = {
+      ...makeExportData([makeProject()], []),
+      _changeLog: [
+        {
+          t: 1000,
+          op: 'add',
+          entity: 'project',
+          id: 'proj-1',
+          actorEmail: 'attacker@example.com',
+          forgedSignature: 'xyz',
+        },
+      ],
+    }
+    expect(validateImportData(data)).toBe(true)
+    const entry = (data._changeLog as Record<string, unknown>[])[0]
+    expect(entry).not.toHaveProperty('actorEmail')
+    expect(entry).not.toHaveProperty('forgedSignature')
+    expect(entry.op).toBe('add')
+    expect(entry.t).toBe(1000)
+  })
+
+  it('preserves all schema-defined fields exactly (no field loss)', () => {
+    const data = makeExportData(
+      [
+        makeProject({
+          sprintCadenceWeeks: 2,
+          firstSprintStartDate: '2026-01-06',
+          projectStartDate: '2026-01-01',
+          projectFinishDate: '2026-12-31',
+        }),
+      ],
+      [
+        makeSprint({
+          customFinishDate: '2026-01-20',
+          backlogAtSprintEnd: 75,
+        }),
+      ],
+    )
+    expect(validateImportData(data)).toBe(true)
+    const project = data.projects[0]
+    expect(project.sprintCadenceWeeks).toBe(2)
+    expect(project.firstSprintStartDate).toBe('2026-01-06')
+    expect(project.projectStartDate).toBe('2026-01-01')
+    expect(project.projectFinishDate).toBe('2026-12-31')
+    const sprint = data.sprints[0]
+    expect(sprint.customFinishDate).toBe('2026-01-20')
+    expect(sprint.backlogAtSprintEnd).toBe(75)
+  })
+})

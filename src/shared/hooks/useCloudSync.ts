@@ -21,6 +21,7 @@ import {
   saveSettings,
   flushPendingSaves,
 } from '@/shared/firebase/firestore-driver'
+import { auth } from '@/shared/firebase/config'
 import {
   projectToFirestoreDoc,
   firestoreDocToProject,
@@ -209,8 +210,19 @@ export function useCloudSync(user: User | null, mode: 'local' | 'cloud') {
     })
 
     // --- Flush on beforeunload ---
+    // v0.28.3 L3 (UX): if the user signs out and immediately closes the tab,
+    // the listener can fire AFTER `firebaseSignOut()` has revoked the token
+    // but BEFORE React commits `setUser(null)` and tears down this effect.
+    // Flushing in that window dispatches Firestore writes against a stale
+    // auth context — Firestore rejects them, but the user sees toast errors
+    // on the way out. Gate on `auth.currentUser` so the post-sign-out window
+    // routes to cancel instead.
     function handleBeforeUnload() {
-      flushPendingSaves()
+      if (auth?.currentUser) {
+        flushPendingSaves()
+      } else {
+        cancelPendingSaves()
+      }
     }
     window.addEventListener('beforeunload', handleBeforeUnload)
 

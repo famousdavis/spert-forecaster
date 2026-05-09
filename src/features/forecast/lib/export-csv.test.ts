@@ -294,6 +294,82 @@ describe('generateForecastCsv', () => {
   })
 })
 
+// v0.28.3 L4 — CSV formula injection prevention. Cells whose first character
+// is `=`, `+`, `-`, `@`, or Tab execute as formulas in Excel/Sheets/Numbers
+// (after dismissing the macro warning). Prefix with `'` to force text mode.
+describe('generateForecastCsv — CSV injection prevention (v0.28.3 L4)', () => {
+  it('prefixes a project name starting with = with a single quote', () => {
+    const data = {
+      ...baseExportData,
+      config: { ...baseExportData.config, projectName: '=cmd|\'/c calc\'!A1' },
+    }
+    const csv = generateForecastCsv(data)
+    expect(csv).toContain("'=cmd|'/c calc'!A1")
+    expect(csv).not.toMatch(/^=cmd/m)
+  })
+
+  it('prefixes a project name starting with + with a single quote', () => {
+    const data = {
+      ...baseExportData,
+      config: { ...baseExportData.config, projectName: '+SUM(A1)' },
+    }
+    const csv = generateForecastCsv(data)
+    expect(csv).toContain("'+SUM(A1)")
+  })
+
+  it('prefixes a project name starting with - with a single quote', () => {
+    const data = {
+      ...baseExportData,
+      config: { ...baseExportData.config, projectName: '-1+1' },
+    }
+    const csv = generateForecastCsv(data)
+    expect(csv).toContain("'-1+1")
+  })
+
+  it('prefixes a project name starting with @ with a single quote', () => {
+    const data = {
+      ...baseExportData,
+      config: { ...baseExportData.config, projectName: '@SUM(A1)' },
+    }
+    const csv = generateForecastCsv(data)
+    expect(csv).toContain("'@SUM(A1)")
+  })
+
+  it('does not prefix a normal project name', () => {
+    const data = {
+      ...baseExportData,
+      config: { ...baseExportData.config, projectName: 'Normal Project' },
+    }
+    const csv = generateForecastCsv(data)
+    expect(csv).toContain('Normal Project')
+    expect(csv).not.toContain("'Normal Project")
+  })
+
+  it('prefixes a malicious productivity-adjustment reason with a single quote', () => {
+    const data = {
+      ...baseExportData,
+      config: {
+        ...baseExportData.config,
+        productivityAdjustments: [
+          {
+            id: 'pa-1',
+            name: 'Holiday',
+            startDate: '2024-12-20',
+            endDate: '2024-12-31',
+            factor: 0.5,
+            enabled: true,
+            reason: '=HYPERLINK("http://attacker.com","Click")',
+            createdAt: '2024-01-01T00:00:00Z',
+            updatedAt: '2024-01-01T00:00:00Z',
+          },
+        ],
+      },
+    }
+    const csv = generateForecastCsv(data)
+    expect(csv).toContain('\'=HYPERLINK')
+  })
+})
+
 describe('generateFilename', () => {
   it('generates filename with sanitized project name', () => {
     const filename = generateFilename('My Project!')

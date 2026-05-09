@@ -953,7 +953,19 @@ describe('clearProjectsOnSignOut', () => {
     expect(state.burnUpConfigs).toEqual({})
   })
 
-  it('preserves _originRef and _changeLog (browser-scoped identity tokens)', () => {
+  it('preserves _originRef (browser-scoped workspace identity)', () => {
+    useProjectStore.setState({
+      projects: [makeProject({ id: 'a' })],
+      sprints: [makeSprint({ id: 's1', projectId: 'a' })],
+      _originRef: 'abc-123-browser-origin',
+    })
+
+    useProjectStore.getState().clearProjectsOnSignOut()
+
+    expect(useProjectStore.getState()._originRef).toBe('abc-123-browser-origin')
+  })
+
+  it('clears _changeLog so the prior user\'s activity timeline does not leak across sign-out (v0.28.3 L2)', () => {
     const originalLog = [
       { t: 1000, op: 'add', entity: 'project', id: 'a' },
       { t: 2000, op: 'add', entity: 'sprint', id: 's1' },
@@ -961,15 +973,12 @@ describe('clearProjectsOnSignOut', () => {
     useProjectStore.setState({
       projects: [makeProject({ id: 'a' })],
       sprints: [makeSprint({ id: 's1', projectId: 'a' })],
-      _originRef: 'abc-123-browser-origin',
       _changeLog: originalLog,
     })
 
     useProjectStore.getState().clearProjectsOnSignOut()
 
-    const state = useProjectStore.getState()
-    expect(state._originRef).toBe('abc-123-browser-origin')
-    expect(state._changeLog).toEqual(originalLog)
+    expect(useProjectStore.getState()._changeLog).toEqual([])
   })
 
   it('does not emit to syncBus (prevents cloud-side delete storm on sign-out)', () => {

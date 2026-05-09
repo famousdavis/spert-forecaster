@@ -6,9 +6,17 @@ import type { PercentileResults } from './monte-carlo'
 import type { ProductivityAdjustment, Milestone, ForecastMode } from '@/shared/types'
 import { today } from '@/shared/lib/dates'
 
-/** Escape a string for CSV: double quotes and collapse newlines */
+/**
+ * Escape a string for CSV: double quotes, collapse newlines, and prefix any
+ * cell starting with `=`/`+`/`-`/`@`/Tab with `'` so spreadsheet apps treat
+ * the cell as text, not a formula. Closes a CSV-injection vector (v0.28.3
+ * L4): a project name like `=cmd|'/c calc'!A1` would otherwise execute as
+ * a formula when the exported file is opened in Excel and the macro warning
+ * is dismissed.
+ */
 function escCsv(s: string): string {
-  return s.replace(/"/g, '""').replace(/[\r\n]+/g, ' ')
+  const cleaned = s.replace(/"/g, '""').replace(/[\r\n]+/g, ' ')
+  return /^[=+\-@\t]/.test(cleaned) ? `'${cleaned}` : cleaned
 }
 
 interface ExportConfig {
@@ -120,7 +128,7 @@ export function generateForecastCsv(data: ExportData): string {
   // Section 1: Parameters
   lines.push('SIMULATION PARAMETERS')
   lines.push('Parameter,Value')
-  lines.push(`Project,${data.config.projectName}`)
+  lines.push(`Project,"${escCsv(data.config.projectName)}"`)
   lines.push(`Remaining Backlog,${data.config.remainingBacklog}`)
   lines.push(`Velocity Mean,${data.config.velocityMean}`)
   lines.push(`Velocity Std Dev,${data.config.velocityStdDev}`)

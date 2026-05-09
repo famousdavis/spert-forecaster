@@ -461,18 +461,22 @@ export const useProjectStore = create<ProjectState>()(
 
       clearProjectsOnSignOut: () => {
         // Zero user-scoped data so the next browser user cannot see the
-        // previous user's cloud projects. Preserves _originRef (browser-scoped
-        // workspace identity) and _changeLog (audit trail) — both are
-        // per-browser, not per-user, and documented as persistent across
-        // sessions in the academic integrity spec. Does NOT emit to syncBus:
-        // the sign-out path revokes credentials before this fires, and a
-        // cloud-side 'project:delete' storm is not the intent.
+        // previous user's cloud projects. Preserves _originRef (browser-
+        // scoped workspace identity, used for cross-import reconciliation;
+        // not user-identifying on its own). Clears _changeLog (v0.28.3 L2):
+        // although ChangeLogEntry has no actor field, the timeline of
+        // operations fingerprints the prior user's activity on shared
+        // devices and would otherwise leak into the next user's exports.
+        // Does NOT emit to syncBus: the sign-out path revokes credentials
+        // before this fires, and a cloud-side 'project:delete' storm is
+        // not the intent.
         set({
           projects: [],
           sprints: [],
           viewingProjectId: null,
           forecastInputs: {},
           burnUpConfigs: {},
+          _changeLog: [],
         })
       },
 
