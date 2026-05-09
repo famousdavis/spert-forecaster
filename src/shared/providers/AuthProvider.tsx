@@ -15,9 +15,11 @@ import {
 } from 'react'
 import { onAuthStateChanged, type User } from 'firebase/auth'
 import { toast } from 'sonner'
-import { auth, isFirebaseAvailable, getClaimPendingInvitations } from '@/shared/firebase/config'
+import { auth, isFirebaseAvailable, functionsInstance } from '@/shared/firebase/config'
+import { callClaimPendingInvitations } from '@/shared/firebase/callables'
 import { signInWithGoogle, signInWithMicrosoft, signOut, checkRedirectResult } from '@/shared/firebase/auth'
-import { cancelPendingSaves, upsertProfile, upsertSuiteProfile } from '@/shared/firebase/firestore-driver'
+import { cancelPendingSaves } from '@/shared/firebase/firestore-driver'
+import { writeUserProfile } from '@/shared/firebase/profileWrites'
 import { useProjectStore } from '@/shared/state/project-store'
 import { useStorageModeStore } from '@/shared/state/storage-mode-store'
 import {
@@ -29,49 +31,11 @@ import {
   checkFirestoreTos,
   writeToSAcceptance,
 } from '@/features/auth/lib/tos'
-import { denormalizeLastFirst } from '@/lib/auth-name'
 import { INVITATIONS_ENABLED } from '@/lib/feature-flags'
 import type { SpertModelsChangedDetail } from '@/shared/firebase/types'
 
 /** Must match the SESSION_KEY in useInvitationLanding. */
 const INVITE_SESSION_KEY = 'spert_invite_token'
-
-/**
- * Dual-write the user profile on every auth resolution:
- *   - spertforecaster_profiles/{uid}  — app-specific (lastSignIn lives here)
- *   - spertsuite_profiles/{uid}       — suite-wide (powers cross-app
- *     email→uid resolution for the bulk-invitation system)
- *
- * Fires regardless of storage mode so signed-in-but-local users are still
- * discoverable as invitees from other SPERT apps.
- *
- * displayName is normalized via denormalizeLastFirst so the UI rendering
- * matches the From-line the invitation mailer writes. Email is lowercased so
- * the same identity resolves to the same row regardless of casing.
- *
- * Failure is logged but NOT toasted — this is a background write the user
- * cannot act on; it retries on the next auth resolution.
- */
-async function writeUserProfile(firebaseUser: User): Promise<void> {
-  if (!isFirebaseAvailable) return
-  const displayName = denormalizeLastFirst(firebaseUser.displayName ?? '')
-  const email = (firebaseUser.email ?? '').toLowerCase()
-  const photoURL = firebaseUser.photoURL ?? null
-  try {
-    await Promise.all([
-      upsertProfile(firebaseUser.uid, {
-        displayName,
-        email,
-        photoURL,
-        lastSignIn: new Date().toISOString(),
-      }),
-      upsertSuiteProfile(firebaseUser.uid, { displayName, email, photoURL }),
-    ])
-  } catch (err) {
-    console.error('Profile write failed:', err)
-    // Background write; not user-actionable. Retries on next auth resolution.
-  }
-}
 
 /**
  * Fire `claimPendingInvitations` and dispatch `spert:models-changed` on
@@ -95,11 +59,10 @@ async function writeUserProfile(firebaseUser: User): Promise<void> {
 function claimPendingInvitationsAndNotify(firebaseUser: User): void {
   if (!INVITATIONS_ENABLED) return
   if (!firebaseUser.emailVerified) return
-  const callable = getClaimPendingInvitations()
-  if (!callable) return
-  void callable({})
+  if (!functionsInstance) return
+  void callClaimPendingInvitations()
     .then((res) => {
-      const claimed = res.data?.claimed ?? []
+      const claimed = res?.claimed ?? []
       if (claimed.length > 0 && typeof window !== 'undefined') {
         const detail: SpertModelsChangedDetail = { claimed }
         window.dispatchEvent(new CustomEvent('spert:models-changed', { detail }))

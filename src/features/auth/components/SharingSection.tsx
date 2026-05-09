@@ -20,7 +20,7 @@ import {
   parseBulkEmails,
   mapInvitationError,
 } from '@/shared/firebase/firestore-invitations'
-import { getSendInvitationEmail } from '@/shared/firebase/config'
+import { callSendInvitationEmail } from '@/shared/firebase/callables'
 import { ConfirmDialog } from '@/shared/components/ConfirmDialog'
 import { INVITATIONS_ENABLED } from '@/lib/feature-flags'
 import type {
@@ -34,6 +34,26 @@ interface SharingSectionProps {
   projectId: string
   projectName: string
 }
+
+/**
+ * Four-state enum for the async ownership check (Lesson 60).
+ *
+ *   'loading'    — getProjectMembers in flight; render nothing visible yet.
+ *   'owner'      — caller is the project owner; render the bulk-invite form
+ *                  and the role/remove controls.
+ *   'not-owner'  — caller is signed in and a member but not the owner;
+ *                  render the members list (read-only role badges) but
+ *                  hide the bulk-invite form.
+ *   'error'      — getProjectMembers rejected (network blip, transient
+ *                  permission). Render a visible error message instead of
+ *                  silently hiding the section, so an owner mid-edit knows
+ *                  to refresh rather than losing context.
+ *
+ * Derived from the async members fetch, NOT synchronously from
+ * `project.owner` (which Forecaster's local Project type doesn't carry —
+ * that's the Scheduler/AHP pattern).
+ */
+type OwnerStatus = 'loading' | 'owner' | 'not-owner' | 'error'
 
 export function SharingSection({ projectId, projectName }: SharingSectionProps) {
   const { user } = useAuth()
@@ -52,29 +72,52 @@ export function SharingSection({ projectId, projectName }: SharingSectionProps) 
   const [sendError, setSendError] = useState('')
   const [actionBusy, setActionBusy] = useState<string | null>(null)
   const [revokeConfirmTokenId, setRevokeConfirmTokenId] = useState<string | null>(null)
+  const [ownerStatus, setOwnerStatus] = useState<OwnerStatus>('loading')
 
-  const isOwner = members.some((m) => m.uid === user?.uid && m.role === 'owner')
+  const isOwner = ownerStatus === 'owner'
 
   const loadMembers = useCallback(async () => {
     if (mode !== 'cloud') return
-    try {
-      const result = await getProjectMembers(projectId)
-      setMembers(result)
-    } catch {
-      // silently fail — user may not have access
+
+    // Lesson 64: Promise.allSettled instead of sequential awaits. If
+    // listPendingInvites rejects (transient permission, Firestore rules deny
+    // for non-owners), the member list refresh must still land — and vice
+    // versa. Promise.all is fail-fast and would lose one update on the
+    // other's failure.
+    const wantsPending = INVITATIONS_ENABLED && !!user
+    const [memRes, pendRes] = await Promise.allSettled([
+      getProjectMembers(projectId),
+      wantsPending
+        ? listPendingInvites(user!.uid, projectId)
+        : Promise.resolve<PendingInvite[]>([]),
+    ])
+
+    // Lesson 60: derive OwnerStatus from the members fetch. The same fetch
+    // populates the members list, so a single Promise drives both states.
+    if (memRes.status === 'fulfilled') {
+      const fetched = memRes.value
+      setMembers(fetched)
+      const callerIsOwner = fetched.some(
+        (m) => m.uid === user?.uid && m.role === 'owner'
+      )
+      setOwnerStatus(callerIsOwner ? 'owner' : 'not-owner')
+    } else {
+      console.warn('[SharingSection] member refresh failed:', memRes.reason)
+      setOwnerStatus('error')
     }
-    if (INVITATIONS_ENABLED && user) {
-      try {
-        const pending = await listPendingInvites(user.uid, projectId)
-        setPendingInvites(pending)
-      } catch {
-        // silently fail — Firestore rules may deny for non-owners
+
+    if (wantsPending) {
+      if (pendRes.status === 'fulfilled') {
+        setPendingInvites(pendRes.value)
+      } else {
+        console.warn('[SharingSection] pending refresh failed:', pendRes.reason)
       }
     }
   }, [projectId, mode, user])
 
   useEffect(() => {
-    loadMembers()
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Lesson 66 carve-out: this is a state-machine TRANSITION, not initialization. loadMembers is async; all setState calls land AFTER `await Promise.allSettled`, not synchronously in the effect body. The rule traces useCallback bodies transitively, so the disable is required even though the cascade-render concern doesn't apply.
+    void loadMembers()
   }, [loadMembers])
 
   if (mode !== 'cloud' || !user) return null
@@ -118,23 +161,50 @@ export function SharingSection({ projectId, projectName }: SharingSectionProps) 
   // --- Flag-ON (bulk-invite) handlers ---
 
   const handleBulkInvite = async () => {
-    const emails = parseBulkEmails(bulkEmails)
-    if (emails.length === 0) return
-    setIsLoading(true)
+    const { valid, invalid } = parseBulkEmails(bulkEmails)
+    if (valid.length === 0 && invalid.length === 0) return
+
     setSendError('')
     setInviteResult(null)
+
+    // Lesson 42 + 43: when ALL submitted tokens are invalid-format, do NOT call
+    // the CF and do NOT clear the textarea — surface the invalid chips and let
+    // the user fix and retry.
+    if (valid.length === 0) {
+      setInviteResult({
+        added: [],
+        invited: [],
+        failed: invalid.map((email) => ({ email, reason: 'invalid-format' })),
+      })
+      return
+    }
+
+    setIsLoading(true)
     try {
-      const callable = getSendInvitationEmail()
-      if (!callable) throw new Error('Cloud invitations not configured.')
-      const res = await callable({
+      const data = await callSendInvitationEmail({
         appId: 'spertforecaster',
         modelId: projectId,
-        emails,
+        emails: valid,
         role,
         isVoting: false,
       })
-      setInviteResult(res.data)
-      setBulkEmails('')
+      // Merge client-side invalid-format failures into the CF result so the
+      // UI renders them alongside CF-side rejections (uniform red chips).
+      const merged: SendInvitationEmailResult = {
+        added: data.added,
+        invited: data.invited,
+        failed: [
+          ...invalid.map((email) => ({ email, reason: 'invalid-format' })),
+          ...data.failed,
+        ],
+      }
+      setInviteResult(merged)
+      // Lesson 43: clear the textarea only when at least one address landed
+      // (added or invited). If every valid address was CF-rejected, retain
+      // the textarea content so the user can correct and retry.
+      if (merged.added.length + merged.invited.length > 0) {
+        setBulkEmails('')
+      }
       await loadMembers()
     } catch (err) {
       setSendError(mapInvitationError(err, 'send'))
@@ -173,8 +243,15 @@ export function SharingSection({ projectId, projectName }: SharingSectionProps) 
         Sharing: {projectName}
       </h4>
 
+      {/* Lesson 60: visible error state — never hide the section silently. */}
+      {ownerStatus === 'error' && (
+        <p className="text-sm text-red-600 dark:text-red-400">
+          Couldn&apos;t load sharing details. Refresh the page to try again.
+        </p>
+      )}
+
       {/* Member list */}
-      {members.length > 0 && (
+      {ownerStatus !== 'error' && members.length > 0 && (
         <div className="space-y-1">
           {members.map((member) => (
             <div key={member.uid} className="flex items-center gap-2 text-sm py-1">

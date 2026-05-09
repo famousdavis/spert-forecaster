@@ -1,5 +1,33 @@
 # Changelog
 
+## v0.28.0 - 2026-05-08
+
+### Added
+
+- **`captureInviteTokenFromUrl(enabled)` exported from `src/features/auth/lib/inviteCapture.ts`** so URL-token capture is unit-testable in isolation (Lesson 58). Runs once at module load with the live `INVITATIONS_ENABLED` flag; tests pass `true`/`false` directly without `vi.resetModules()`.
+- **Centralized callable wrappers in `src/shared/firebase/callables.ts`** — `requireFunctions()` guard plus four named wrappers (`callSendInvitationEmail`, `callClaimPendingInvitations`, `callRevokeInvite`, `callResendInvite`) with descriptive errors instead of the SDK's opaque `TypeError: Cannot read properties of null (reading 'name')` on a misconfigured Firebase environment (Lesson 61).
+- **`OwnerStatus` four-state enum** in `SharingSection` — `'loading' | 'owner' | 'not-owner' | 'error'`. Members-fetch failures now surface a visible "Couldn't load sharing details" message instead of silently hiding the section, so owners mid-edit don't lose context (Lesson 60).
+- **Profile-write helpers extracted to `src/shared/firebase/profileWrites.ts`** — `writeUserProfile` plus the underlying `upsertProfile` / `upsertSuiteProfile` upserts. Eight new smoke tests cover field shape, email lowercasing, null-email fallback, the `lastSignIn` asymmetry between app-specific and suite-wide rows, `serverTimestamp()` sentinel survival through the spread (Lesson 29), and the background-write contract that one rejection does NOT throw (Lesson 62).
+
+### Changed
+
+- **`parseBulkEmails` returns `{ valid: string[]; invalid: string[] }`** instead of `string[]`. Malformed tokens used to vanish silently; they now surface as red `(invalid-format)` chips alongside CF-side rejections (Lesson 42).
+- **Bulk-invite textarea-clear is now gated on success.** When all addresses are invalid-format, the textarea retains content and the Cloud Function is not called. When at least one address lands (added or invited), the textarea clears (Lesson 43).
+- **Member + pending refresh in `SharingSection.loadMembers` uses `Promise.allSettled`** instead of sequential awaits with silently-swallowed errors. Each source's failure is logged with a `[SharingSection]` prefix; the other source still updates (Lesson 64).
+- **`useInvitationLanding` initial state is now a lazy `useState` initializer** reading `SESSION_KEY` at mount. The previous `eslint-disable-next-line react-hooks/set-state-in-effect` workaround is gone (Lesson 66). Effect 1's responsibility is now narrowed to URL-strip via `router.replace` and the `localProjectCount === 0` cloud-mode flip.
+- **`InvitationBanner` is now a centered card** (`max-w-lg mx-auto`) with absolute-positioned dismiss button, distinguishing it visually from passive informational banners. Both `pre_auth` and `claimed` branches restyled. Inner `max-w-md` SignInButtons wrapper removed — the outer card already constrains width (Lesson 56).
+
+### Fixed
+
+- **`removeProjectMember` is now a three-guard `runTransaction`** (caller can't remove themselves; caller must still be owner; the project owner cannot be removed). Closes a TOCTOU window where the document could be modified concurrently between the previous `verifyProjectOwner` pre-flight read and the non-transactional `updateDoc(deleteField())` write. The owner-removal block prevents bricking the document — once `members` no longer contains the owner UID, every subsequent `get`/`list` rule check fails and the project becomes permanently inaccessible (Lesson 50).
+- **`claimPendingInvitations` is now gated on `firebaseUser.emailVerified`.** Microsoft personal accounts (`@outlook.com`, `@hotmail.com`) are reported by Firebase with `emailVerified: false`, so the previous code fired a wasted Cloud Function round-trip on every page load by such a user. The user-visible toast was already suppressed via a sessionStorage gate, but the CF call itself still happened (Lesson 26).
+
+### Internal
+
+- New `src/shared/firebase/profileWrites.ts`, `src/shared/firebase/callables.ts`, and `src/features/auth/lib/inviteCapture.ts` modules. `firestore-driver.ts` and `config.ts` shed responsibilities into these new homes; `firestore-migration.ts` now imports `upsertProfile` from `profileWrites`.
+- 98 new tests added across the bulk-sharing audit (615 historical baseline → 713 after this PR): 15 `parseBulkEmails` cases (9 reshape, 6 new), 7 `captureInviteTokenFromUrl` cases, 8 `profileWrites` cases, plus existing test infrastructure adapted for `vi.hoisted` to satisfy module-load-order requirements introduced by the new exports.
+- Test mocking: where direct spy passthrough was applicable, wrappers like `(...args) => spy(...args)` were avoided to head off TypeScript TS2556 spread-tuple violations (Lesson 69).
+
 ## v0.27.1 - 2026-05-07
 
 ### Fixed

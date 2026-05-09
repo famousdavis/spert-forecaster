@@ -7,7 +7,8 @@
 // reads the spertsuite_invitations collection directly.
 
 import { collection, getDocs, query, where, type Timestamp } from 'firebase/firestore'
-import { db, getRevokeInvite, getResendInvite } from './config'
+import { db } from './config'
+import { callRevokeInvite, callResendInvite } from './callables'
 import type { PendingInvite } from './types'
 
 function tsToMillis(value: unknown): number {
@@ -67,27 +68,49 @@ export async function listPendingInvites(
 }
 
 export async function revokeInviteToken(tokenId: string): Promise<void> {
-  const callable = getRevokeInvite()
-  if (!callable) throw new Error('Cloud invitations not configured.')
-  await callable({ tokenId })
+  await callRevokeInvite(tokenId)
 }
 
 export async function resendInviteToken(tokenId: string): Promise<void> {
-  const callable = getResendInvite()
-  if (!callable) throw new Error('Cloud invitations not configured.')
-  await callable({ tokenId })
+  await callResendInvite(tokenId)
 }
 
 /**
- * Parse a bulk-paste email string into a deduplicated, lowercased array.
- * Splits on commas, semicolons, and any whitespace (including newlines).
+ * Basic email-format guard for client-side bulk-input parsing. Not RFC-strict
+ * (the Cloud Function validates authoritatively); just enough to catch obvious
+ * junk so it can be reported back to the user as "invalid format" instead of
+ * silently dropped.
  */
-export function parseBulkEmails(raw: string): string[] {
-  const parts = raw
-    .split(/[,;\s]+/)
-    .map((s) => s.trim().toLowerCase())
-    .filter(Boolean)
-  return [...new Set(parts)]
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+/**
+ * Parse a bulk-paste email string into deduplicated, lowercased valid and
+ * invalid subsets (Lesson 42).
+ *
+ * Splits on commas, semicolons, and any whitespace (including newlines).
+ * Tokens that fail the basic email-format guard are returned in `invalid` so
+ * the UI can render them as red chips with `reason: 'invalid-format'` rather
+ * than silently filtering — silent filtering of user input always looks like
+ * a bug, regardless of what the documentation says.
+ *
+ * Insertion order is preserved across both arrays. Empty input returns
+ * `{ valid: [], invalid: [] }`.
+ */
+export function parseBulkEmails(raw: string): { valid: string[]; invalid: string[] } {
+  const tokens = [
+    ...new Set(
+      raw
+        .split(/[,;\s]+/)
+        .map((s) => s.trim().toLowerCase())
+        .filter(Boolean)
+    ),
+  ]
+  const valid: string[] = []
+  const invalid: string[] = []
+  for (const token of tokens) {
+    ;(EMAIL_RE.test(token) ? valid : invalid).push(token)
+  }
+  return { valid, invalid }
 }
 
 export type InvitationErrorContext = 'send' | 'resend' | 'revoke'

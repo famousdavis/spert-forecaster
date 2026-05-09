@@ -10,23 +10,37 @@ import { act, renderHook } from '@testing-library/react'
 // next/navigation: control searchParams + capture router.replace calls
 // AuthProvider: control user + isFirebaseAvailable per test
 // Zustand stores: minimal stand-ins exposing only the state methods the hook reads
-// feature-flags: hot-swappable via vi.doMock; default to ON for assertion ergonomics
+// feature-flags: hot-swappable via vi.hoisted; default to ON for assertion ergonomics
+//
+// All hot-swap state goes through `vi.hoisted` so it's defined before module
+// graph evaluation (captureInviteTokenFromUrl in inviteCapture.ts runs at
+// module load and reads INVITATIONS_ENABLED — without hoisted state we'd hit
+// the TDZ on the `let` declarations).
 
-const mockReplace = vi.fn()
-const mockSearchParams = new URLSearchParams()
-
-vi.mock('next/navigation', () => ({
-  useSearchParams: () => mockSearchParams,
-  usePathname: () => '/',
-  useRouter: () => ({ replace: mockReplace }),
+const hoisted = vi.hoisted(() => ({
+  mockReplace: vi.fn(),
+  mockSearchParams: new URLSearchParams(),
+  mockUser: null as { uid: string } | null,
+  mockFirebaseAvailable: true,
+  mockProjectCount: 0,
+  mockSetMode: vi.fn(),
+  mockFlag: true,
 }))
 
-let mockUser: { uid: string } | null = null
-let mockFirebaseAvailable = true
+const mockReplace = hoisted.mockReplace
+const mockSearchParams = hoisted.mockSearchParams
+const mockSetMode = hoisted.mockSetMode
+
+vi.mock('next/navigation', () => ({
+  useSearchParams: () => hoisted.mockSearchParams,
+  usePathname: () => '/',
+  useRouter: () => ({ replace: hoisted.mockReplace }),
+}))
+
 vi.mock('@/shared/providers/AuthProvider', () => ({
   useAuth: () => ({
-    user: mockUser,
-    isFirebaseAvailable: mockFirebaseAvailable,
+    user: hoisted.mockUser,
+    isFirebaseAvailable: hoisted.mockFirebaseAvailable,
     isLoading: false,
     signInWithGoogle: vi.fn(),
     signInWithMicrosoft: vi.fn(),
@@ -34,24 +48,23 @@ vi.mock('@/shared/providers/AuthProvider', () => ({
   }),
 }))
 
-let mockProjectCount = 0
 vi.mock('@/shared/state/project-store', () => ({
   useProjectStore: {
-    getState: () => ({ projects: new Array(mockProjectCount).fill({}) }),
+    getState: () => ({
+      projects: new Array(hoisted.mockProjectCount).fill({}),
+    }),
   },
 }))
 
-const mockSetMode = vi.fn()
 vi.mock('@/shared/state/storage-mode-store', () => ({
   useStorageModeStore: {
-    getState: () => ({ setMode: mockSetMode }),
+    getState: () => ({ setMode: hoisted.mockSetMode }),
   },
 }))
 
-let mockFlag = true
 vi.mock('@/lib/feature-flags', () => ({
   get INVITATIONS_ENABLED() {
-    return mockFlag
+    return hoisted.mockFlag
   },
 }))
 
@@ -71,6 +84,16 @@ function setSearchParams(query: string) {
   // Mutate the shared instance in place so the mocked getter returns the new value.
   for (const k of Array.from(mockSearchParams.keys())) mockSearchParams.delete(k)
   for (const [k, v] of next) mockSearchParams.append(k, v)
+  // Sync window.location for captureInviteTokenFromUrl reads (Lesson 58).
+  window.history.replaceState({}, '', query ? `/?${query}` : '/')
+  // Mirror the module-load capture: in production, captureInviteTokenFromUrl
+  // would read window.location.search and write SESSION_KEY here. The hook's
+  // lazy useState initializer (Lesson 66) reads sessionStorage at mount, so
+  // the test setup must populate it before renderHook runs.
+  const inviteToken = next.get('invite')
+  if (inviteToken && hoisted.mockFlag) {
+    sessionStorage.setItem(SESSION_KEY, inviteToken)
+  }
 }
 
 beforeEach(() => {
@@ -78,10 +101,10 @@ beforeEach(() => {
   mockSetMode.mockClear()
   setSearchParams('')
   sessionStorage.clear()
-  mockUser = null
-  mockFirebaseAvailable = true
-  mockProjectCount = 0
-  mockFlag = true
+  hoisted.mockUser = null
+  hoisted.mockFirebaseAvailable = true
+  hoisted.mockProjectCount = 0
+  hoisted.mockFlag = true
 })
 
 afterEach(() => {
@@ -90,7 +113,7 @@ afterEach(() => {
 
 describe('useInvitationLanding — flag off', () => {
   beforeEach(() => {
-    mockFlag = false
+    hoisted.mockFlag = false
   })
 
   it('stays idle and never touches sessionStorage even with ?invite= in URL', () => {
@@ -120,21 +143,21 @@ describe('useInvitationLanding — URL capture (Effect 1)', () => {
 
   it('flips storage mode to cloud when local has zero projects', () => {
     setSearchParams('invite=tok-abc')
-    mockProjectCount = 0
+    hoisted.mockProjectCount = 0
     renderHook(() => useInvitationLanding())
     expect(mockSetMode).toHaveBeenCalledWith('cloud')
   })
 
   it('does NOT flip storage mode when local projects exist (C1 gate)', () => {
     setSearchParams('invite=tok-abc')
-    mockProjectCount = 2
+    hoisted.mockProjectCount = 2
     renderHook(() => useInvitationLanding())
     expect(mockSetMode).not.toHaveBeenCalled()
   })
 
   it('does NOT flip storage mode when Firebase is unavailable', () => {
     setSearchParams('invite=tok-abc')
-    mockFirebaseAvailable = false
+    hoisted.mockFirebaseAvailable = false
     renderHook(() => useInvitationLanding())
     expect(mockSetMode).not.toHaveBeenCalled()
   })
@@ -221,7 +244,7 @@ describe('useInvitationLanding — 10s grace timer (Effect 2)', () => {
     expect(result.current.state).toBe('pre_auth')
 
     // user becomes non-null while in pre_auth — Effect 2 starts the timer
-    mockUser = { uid: 'user-1' }
+    hoisted.mockUser = { uid: 'user-1' }
     rerender()
 
     // Advance 5s — still within grace window
@@ -247,7 +270,7 @@ describe('useInvitationLanding — 10s grace timer (Effect 2)', () => {
     sessionStorage.setItem(SESSION_KEY, 'tok-abc')
 
     const { result, rerender } = renderHook(() => useInvitationLanding())
-    mockUser = { uid: 'user-1' }
+    hoisted.mockUser = { uid: 'user-1' }
     rerender()
 
     act(() => {
@@ -263,11 +286,11 @@ describe('useInvitationLanding — 10s grace timer (Effect 2)', () => {
     sessionStorage.setItem(SESSION_KEY, 'tok-abc')
 
     const { result, rerender } = renderHook(() => useInvitationLanding())
-    mockUser = { uid: 'user-1' }
+    hoisted.mockUser = { uid: 'user-1' }
     rerender()
 
     // Sign out: user goes null, Effect 2 cleanup clears the timer
-    mockUser = null
+    hoisted.mockUser = null
     rerender()
 
     // Advance past 10s — timer must NOT fire (state is not auto-dismissed)

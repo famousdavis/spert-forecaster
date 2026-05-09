@@ -15,8 +15,11 @@ const mockProjectExists = vi.fn()
 vi.mock('./firestore-driver', () => ({
   saveProjectImmediate: (...args: unknown[]) => mockSaveProjectImmediate(...args),
   saveSettingsImmediate: (...args: unknown[]) => mockSaveSettingsImmediate(...args),
-  upsertProfile: (...args: unknown[]) => mockUpsertProfile(...args),
   projectExists: (...args: unknown[]) => mockProjectExists(...args),
+}))
+
+vi.mock('./profileWrites', () => ({
+  upsertProfile: (...args: unknown[]) => mockUpsertProfile(...args),
 }))
 
 const mockProjectToFirestoreDoc = vi.fn().mockReturnValue({ name: 'mock-doc' })

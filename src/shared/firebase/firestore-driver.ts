@@ -16,12 +16,11 @@ import {
   onSnapshot,
   query,
   where,
-  serverTimestamp,
   type Unsubscribe,
 } from 'firebase/firestore'
 import { toast } from 'sonner'
 import { db } from './config'
-import { COLLECTIONS, type FirestoreProjectDoc, type FirestoreSettingsDoc, type FirestoreProfileDoc } from './types'
+import { COLLECTIONS, type FirestoreProjectDoc, type FirestoreSettingsDoc } from './types'
 import { sanitizeForFirestore, stripFirestoreFields } from './firestore-sanitize'
 
 // --- Debounce infrastructure ---
@@ -247,44 +246,11 @@ export async function saveSettingsImmediate(uid: string, data: FirestoreSettings
 }
 
 // --- Profile operations ---
-
-/** Upsert user profile (called on sign-in). */
-export async function upsertProfile(uid: string, data: FirestoreProfileDoc): Promise<void> {
-  if (!db) return
-  const ref = doc(db, COLLECTIONS.profiles, uid)
-  await setDoc(ref, sanitizeForFirestore(data), { merge: true })
-}
-
-/**
- * Upsert user profile in the suite-wide collection (`spertsuite_profiles`).
- *
- * The bulk-invitation `sendInvitationEmail` callable resolves invitee email
- * addresses to UIDs by querying this collection across all SPERT apps. Writing
- * here on every auth resolution makes a Forecaster user discoverable by
- * GanttApp's invitation flow (and vice versa) regardless of which app they
- * happened to sign in to first.
- *
- * The caller must pre-normalize `displayName` (denormalizeLastFirst) and
- * lowercase `email` so the same identity has the same row regardless of
- * which app wrote it.
- *
- * Stamps `updatedAt` server-side via `serverTimestamp()`. Does not write
- * `lastSignIn` — that's app-specific metadata kept in `spertforecaster_profiles`.
- */
-export async function upsertSuiteProfile(
-  uid: string,
-  data: { displayName: string; email: string; photoURL: string | null }
-): Promise<void> {
-  if (!db) return
-  const ref = doc(db, 'spertsuite_profiles', uid)
-  // serverTimestamp() returns a FieldValue sentinel (class instance) that
-  // sanitizeForFirestore would walk and flatten into an empty map. Sanitize
-  // the data first, then attach the sentinel.
-  await setDoc(
-    ref,
-    { ...sanitizeForFirestore(data), updatedAt: serverTimestamp() },
-    { merge: true }
-  )
-}
+//
+// Profile writes were moved to `./profileWrites.ts` (Lesson 62) so the
+// dual-write contract is encapsulated in a unit-testable module. Consumers
+// import `upsertProfile` / `upsertSuiteProfile` / `writeUserProfile` from
+// there, not from this driver. Empty section retained as a navigation
+// landmark.
 
 export { stripFirestoreFields }

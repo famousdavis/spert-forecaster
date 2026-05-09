@@ -32,57 +32,63 @@ function InvitationBannerInner() {
 
   if (state === 'idle') return null
 
+  // Lesson 56: centered-card layout (max-w-lg mx-auto) for both branches —
+  // InvitationBanner is a primary CTA, NOT a passive informational strip
+  // like FirstRunBanner / LocalStorageWarningBanner. Dismiss button is
+  // anchored to the card via absolute positioning; inner content has pr-6
+  // so text doesn't slide under the dismiss target.
   if (state === 'pre_auth') {
     return (
-      <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg">
-        <div className="flex items-start justify-between gap-3 mb-3">
+      <div className="relative max-w-lg mx-auto mb-4 p-5 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg shadow-sm">
+        <button
+          type="button"
+          onClick={dismiss}
+          aria-label="Dismiss invitation banner"
+          className="absolute top-2 right-2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 cursor-pointer"
+        >
+          ✕
+        </button>
+        <div className="space-y-3 pr-6">
           <p className="text-sm text-spert-text dark:text-gray-200">
             You&apos;ve been invited to collaborate on a project. Sign in with the
             email address that received this invitation.
           </p>
-          <button
-            type="button"
-            onClick={dismiss}
-            aria-label="Dismiss invitation banner"
-            className="shrink-0 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 cursor-pointer"
-          >
-            ✕
-          </button>
-        </div>
-        {isFirebaseAvailable ? (
-          <div className="max-w-md">
+          {isFirebaseAvailable ? (
+            // O8 / Lesson 56: no inner max-w-md wrapper — the max-w-lg card
+            // already constrains width; nesting another constraint orphans
+            // the SignInButtons.
             <SignInButtons fullLabel />
-          </div>
-        ) : (
-          <p className="text-sm text-spert-text-muted dark:text-gray-400">
-            Cloud sign-in is unavailable in this build.
-          </p>
-        )}
+          ) : (
+            <p className="text-sm text-spert-text-muted dark:text-gray-400">
+              Cloud sign-in is unavailable in this build.
+            </p>
+          )}
+        </div>
       </div>
     )
   }
 
   // state === 'claimed'
   return (
-    <div className="mb-4 p-3 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-700 rounded-lg flex items-start justify-between gap-3">
-      <div>
-        <p className="text-sm text-spert-text dark:text-gray-200">
-          You&apos;ve been added to: <strong>{claimedNames.join(', ')}</strong>
-        </p>
-        {mode === 'local' && (
-          <p className="text-xs text-spert-text-muted dark:text-gray-400 mt-1">
-            Switch to Cloud Storage in Settings to view this project.
-          </p>
-        )}
-      </div>
+    <div className="relative max-w-lg mx-auto mb-4 p-5 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg shadow-sm">
       <button
         type="button"
         onClick={dismiss}
         aria-label="Dismiss"
-        className="shrink-0 px-3 py-1 text-xs font-medium rounded border border-green-300 dark:border-green-600 text-green-700 dark:text-green-300 hover:bg-green-100 dark:hover:bg-green-800/50 transition-colors cursor-pointer"
+        className="absolute top-2 right-2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 cursor-pointer"
       >
-        Dismiss
+        ✕
       </button>
+      <div className="space-y-2 pr-6">
+        <p className="text-sm text-spert-text dark:text-gray-200">
+          You&apos;ve been added to: <strong>{claimedNames.join(', ')}</strong>
+        </p>
+        {mode === 'local' && (
+          <p className="text-xs text-spert-text-muted dark:text-gray-400">
+            Switch to Cloud Storage in Settings to view this project.
+          </p>
+        )}
+      </div>
     </div>
   )
 }

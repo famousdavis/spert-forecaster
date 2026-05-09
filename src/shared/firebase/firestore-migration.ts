@@ -9,7 +9,8 @@ import { useProjectStore } from '@/shared/state/project-store'
 import { useSettingsStore } from '@/shared/state/settings-store'
 import { getWorkspaceId, appendChangeLogEntry } from '@/shared/state/storage'
 import { projectToFirestoreDoc, settingsToFirestoreDoc } from './firestore-converters'
-import { saveProjectImmediate, saveSettingsImmediate, upsertProfile, projectExists } from './firestore-driver'
+import { saveProjectImmediate, saveSettingsImmediate, projectExists } from './firestore-driver'
+import { upsertProfile } from './profileWrites'
 import type { FirestoreProfileDoc } from './types'
 
 export interface MigrationResult {

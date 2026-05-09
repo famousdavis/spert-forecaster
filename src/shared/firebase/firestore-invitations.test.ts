@@ -6,63 +6,103 @@ import { describe, it, expect } from 'vitest'
 import { parseBulkEmails, mapInvitationError } from './firestore-invitations'
 
 describe('parseBulkEmails', () => {
-  it('returns empty array for empty input', () => {
-    expect(parseBulkEmails('')).toEqual([])
+  it('returns empty {valid, invalid} for empty input', () => {
+    expect(parseBulkEmails('')).toEqual({ valid: [], invalid: [] })
   })
 
-  it('returns empty array for whitespace-only input', () => {
-    expect(parseBulkEmails('   \n\t')).toEqual([])
+  it('returns empty {valid, invalid} for whitespace-only input', () => {
+    expect(parseBulkEmails('   \n\t')).toEqual({ valid: [], invalid: [] })
   })
 
   it('splits on commas', () => {
-    expect(parseBulkEmails('a@x.com,b@x.com,c@x.com')).toEqual([
-      'a@x.com',
-      'b@x.com',
-      'c@x.com',
-    ])
+    expect(parseBulkEmails('a@x.com,b@x.com,c@x.com')).toEqual({
+      valid: ['a@x.com', 'b@x.com', 'c@x.com'],
+      invalid: [],
+    })
   })
 
   it('splits on semicolons', () => {
-    expect(parseBulkEmails('a@x.com;b@x.com;c@x.com')).toEqual([
-      'a@x.com',
-      'b@x.com',
-      'c@x.com',
-    ])
+    expect(parseBulkEmails('a@x.com;b@x.com;c@x.com')).toEqual({
+      valid: ['a@x.com', 'b@x.com', 'c@x.com'],
+      invalid: [],
+    })
   })
 
   it('splits on newlines', () => {
-    expect(parseBulkEmails('a@x.com\nb@x.com\nc@x.com')).toEqual([
-      'a@x.com',
-      'b@x.com',
-      'c@x.com',
-    ])
+    expect(parseBulkEmails('a@x.com\nb@x.com\nc@x.com')).toEqual({
+      valid: ['a@x.com', 'b@x.com', 'c@x.com'],
+      invalid: [],
+    })
   })
 
   it('splits on mixed separators', () => {
-    expect(parseBulkEmails('a@x.com, b@x.com;\nc@x.com\td@x.com')).toEqual([
-      'a@x.com',
-      'b@x.com',
-      'c@x.com',
-      'd@x.com',
-    ])
+    expect(parseBulkEmails('a@x.com, b@x.com;\nc@x.com\td@x.com')).toEqual({
+      valid: ['a@x.com', 'b@x.com', 'c@x.com', 'd@x.com'],
+      invalid: [],
+    })
   })
 
   it('lowercases all addresses', () => {
-    expect(parseBulkEmails('Alice@Example.COM, BOB@x.com')).toEqual([
-      'alice@example.com',
-      'bob@x.com',
-    ])
+    expect(parseBulkEmails('Alice@Example.COM, BOB@x.com')).toEqual({
+      valid: ['alice@example.com', 'bob@x.com'],
+      invalid: [],
+    })
   })
 
   it('deduplicates after lowercasing', () => {
-    expect(parseBulkEmails('a@x.com, A@X.COM, a@x.com')).toEqual(['a@x.com'])
+    expect(parseBulkEmails('a@x.com, A@X.COM, a@x.com')).toEqual({
+      valid: ['a@x.com'],
+      invalid: [],
+    })
   })
 
   it('preserves first-seen order across duplicates', () => {
-    expect(parseBulkEmails('b@x.com, a@x.com, b@x.com')).toEqual([
-      'b@x.com',
-      'a@x.com',
-    ])
+    expect(parseBulkEmails('b@x.com, a@x.com, b@x.com')).toEqual({
+      valid: ['b@x.com', 'a@x.com'],
+      invalid: [],
+    })
+  })
+
+  it('routes malformed tokens to invalid (no @)', () => {
+    expect(parseBulkEmails('alice, bob@x.com')).toEqual({
+      valid: ['bob@x.com'],
+      invalid: ['alice'],
+    })
+  })
+
+  it('routes malformed tokens to invalid (no domain TLD)', () => {
+    expect(parseBulkEmails('a@x, b@x.com')).toEqual({
+      valid: ['b@x.com'],
+      invalid: ['a@x'],
+    })
+  })
+
+  it('routes malformed tokens to invalid (no local part)', () => {
+    expect(parseBulkEmails('@x.com, valid@x.com')).toEqual({
+      valid: ['valid@x.com'],
+      invalid: ['@x.com'],
+    })
+  })
+
+  it('returns all-invalid for entirely-malformed input', () => {
+    expect(parseBulkEmails('alice, bob, charlie')).toEqual({
+      valid: [],
+      invalid: ['alice', 'bob', 'charlie'],
+    })
+  })
+
+  it('preserves insertion order across both buckets', () => {
+    expect(parseBulkEmails('a@x.com, broken, b@x.com, also-broken')).toEqual({
+      valid: ['a@x.com', 'b@x.com'],
+      invalid: ['broken', 'also-broken'],
+    })
+  })
+
+  it('deduplicates invalid tokens too', () => {
+    expect(parseBulkEmails('broken, BROKEN, broken')).toEqual({
+      valid: [],
+      invalid: ['broken'],
+    })
   })
 })
 
