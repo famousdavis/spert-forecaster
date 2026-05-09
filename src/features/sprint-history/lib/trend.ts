@@ -32,14 +32,12 @@ export function linearRegression(
   let sumY = 0
   let sumXY = 0
   let sumX2 = 0
-  let sumY2 = 0
 
   for (const { x, y } of points) {
     sumX += x
     sumY += y
     sumXY += x * y
     sumX2 += x * x
-    sumY2 += y * y
   }
 
   const denominator = n * sumX2 - sumX * sumX

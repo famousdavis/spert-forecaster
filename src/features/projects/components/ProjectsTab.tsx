@@ -6,7 +6,7 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { toast } from 'sonner'
-import { useProjectStore, selectActiveProject, type ExportData } from '@/shared/state/project-store'
+import { useProjectStore, type ExportData } from '@/shared/state/project-store'
 import { useSettingsStore } from '@/shared/state/settings-store'
 import { useIsClient } from '@/shared/hooks'
 import { ConfirmDialog } from '@/shared/components/ConfirmDialog'
@@ -43,7 +43,6 @@ interface ProjectsTabProps {
 export function ProjectsTab({ onViewHistory }: ProjectsTabProps) {
   const isClient = useIsClient()
   const projects = useProjectStore((state) => state.projects)
-  const activeProject = useProjectStore(selectActiveProject)
   const addProject = useProjectStore((state) => state.addProject)
   const updateProject = useProjectStore((state) => state.updateProject)
   const deleteProject = useProjectStore((state) => state.deleteProject)
@@ -377,7 +376,6 @@ export function ProjectsTab({ onViewHistory }: ProjectsTabProps) {
 
       <ProjectList
         projects={projects}
-        activeProjectId={activeProject?.id}
         onEdit={handleEdit}
         onDelete={handleDeleteRequest}
         onExport={handleExportProject}

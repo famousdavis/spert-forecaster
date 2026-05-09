@@ -190,7 +190,6 @@ export function ForecastTab() {
                   startDate={forecastStartDate}
                   milestones={milestones}
                   milestoneResultsState={milestoneResultsState}
-                  cumulativeThresholds={cumulativeThresholds}
                   hasBootstrap={results.bootstrap !== null}
                   forecastMode={forecastMode}
                   modelScopeGrowth={modelScopeGrowth}

@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.28.4 - 2026-05-09
+
+### Internal
+
+- **Lint baseline reset to 0 errors / 0 warnings** (was 0 errors / 15 warnings since v0.25.1). Three categories of cleanup:
+  - **ESLint config — underscore-prefix convention.** New override block in `eslint.config.mjs` adds `varsIgnorePattern: '^_'` (plus `argsIgnorePattern`, `caughtErrorsIgnorePattern`, `destructuredArrayIgnorePattern`) to `@typescript-eslint/no-unused-vars`. Codifies the existing destructure-to-strip idiom used in `firestore-driver.ts` (stripping `owner`/`members` from save payloads — the v0.22.2 C3 protection), `firestore-sanitize.ts`, and `project-store.ts`. Suppresses 7 of the 15 warnings without any code changes.
+  - **Dead-declaration removal.** Deleted unused imports and props: `cumulativeThresholds` from `ForecastSummary` (declared in props but never read inside the component; also dropped from the call-site at `ForecastTab.tsx`); `activeProjectId` from `ProjectList` (same pattern; dropped from the `ProjectsTab.tsx` call-site, plus the now-unused `selectActiveProject` import and `activeProject` selector); `WorkerInput` type import from `useSimulationWorker.ts`; `Project` type import from `firebase/types.ts`; `ExportData` type import from `import-validation.test.ts`; `sumY2` accumulator from `trend.ts` (vestige of an abandoned closed-form R² formulation — the function instead uses the explicit two-pass `ssTot`/`ssRes` loop, which is mathematically equivalent and well-tested by 8 R² test cases).
+  - **React hooks exhaustive-deps fixes.** `useForecastState`'s project-change effect now extracts `resetScopeGrowth` to a local binding (`const { resetScopeGrowth } = scopeGrowth`) and lists it as the dep. The function has stable identity (wrapped in `useCallback([])` inside `useScopeGrowthState`), so this is functionally equivalent to the implicit capture but free of the lint warning. The extraction matters because exhaustive-deps would otherwise demand the whole `scopeGrowth` object — including frequently-changing toggle state — as a dep, which would over-trigger the effect. `useSprintData`'s anchor-date `useMemo` drops `completedSprintCount` from its deps array (it was never referenced in the memo body).
+- No behavioral changes; tests still 731/731 across 35 files.
+
 ## v0.28.3 - 2026-05-09
 
 ### Security
