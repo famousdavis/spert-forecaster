@@ -4,7 +4,7 @@
 
 // Firestore document schemas and Firebase-related types
 
-import type { Project, Sprint, ProductivityAdjustment, Milestone } from '@/shared/types'
+import type { Sprint, ProductivityAdjustment, Milestone } from '@/shared/types'
 import type { ChangeLogEntry } from '@/shared/state/storage'
 
 export type ProjectRole = 'editor' | 'viewer'

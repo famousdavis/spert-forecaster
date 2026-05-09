@@ -3,7 +3,7 @@
 // See LICENSE file in the project root for full license text.
 
 import { describe, it, expect } from 'vitest'
-import { validateImportData, type ExportData } from './import-validation'
+import { validateImportData } from './import-validation'
 
 /** Helper: minimal valid project */
 function makeProject(overrides: Record<string, unknown> = {}) {

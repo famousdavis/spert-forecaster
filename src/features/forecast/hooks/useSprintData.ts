@@ -54,7 +54,7 @@ export function useSprintData() {
       selectedProject.sprintCadenceWeeks,
       projectSprints.map(s => ({ sprintNumber: s.sprintNumber, customFinishDate: s.customFinishDate }))
     )
-  }, [selectedProject, projectSprints, completedSprintCount])
+  }, [selectedProject, projectSprints])
 
   // Resolved sprint dates map for burn-up chart historical points
   const resolvedSprintDates = useMemo(() => {

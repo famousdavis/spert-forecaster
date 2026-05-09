@@ -7,7 +7,6 @@
 import { useRef, useEffect, useCallback, useState } from 'react'
 import type { ForecastConfig } from '@/shared/types'
 import type { PercentileResults, QuadMilestoneForecastResult } from '../lib/monte-carlo'
-import type { WorkerInput } from '../lib/monte-carlo.worker'
 
 export type QuadForecastResult = {
   truncatedNormal: { results: PercentileResults; sprintsRequired: number[] }

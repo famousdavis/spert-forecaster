@@ -154,7 +154,13 @@ export function useForecastState() {
   // Milestone chart selector (which milestone to show on CDF/histogram)
   const [selectedMilestoneIndex, setSelectedMilestoneIndex] = useState(0)
 
-  // Clear results when project changes
+  // Clear results when project changes. `resetScopeGrowth` is extracted to
+  // a local binding so exhaustive-deps sees a plain identifier dep rather
+  // than the `scopeGrowth.*` member access (which would force the whole
+  // `scopeGrowth` object — including frequently-changing toggle state — to
+  // be a dep). The function has stable identity (wrapped in `useCallback([])`
+  // inside useScopeGrowthState), so listing it does not cause re-runs.
+  const { resetScopeGrowth } = scopeGrowth
   useEffect(() => {
     if (prevProjectIdRef.current !== selectedProject?.id) {
       setResults(null)
@@ -164,11 +170,11 @@ export function useForecastState() {
       setCustomResults(EMPTY_CUSTOM_RESULTS)
       setCustomResults2(EMPTY_CUSTOM_RESULTS)
       setSelectedMilestoneIndex(0)
-      scopeGrowth.resetScopeGrowth()
+      resetScopeGrowth()
       hasRunOnceRef.current = false
       prevProjectIdRef.current = selectedProject?.id
     }
-  }, [selectedProject?.id])
+  }, [selectedProject?.id, resetScopeGrowth])
 
   const handleRunForecast = async () => {
     if (!selectedProject || !inputs.remainingBacklog || !selectedProject.sprintCadenceWeeks) return

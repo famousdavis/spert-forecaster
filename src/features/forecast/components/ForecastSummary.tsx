@@ -23,7 +23,6 @@ interface ForecastSummaryProps {
   startDate: string
   milestones?: Milestone[]
   milestoneResultsState?: MilestoneResults | null
-  cumulativeThresholds?: number[]
   hasBootstrap: boolean
   forecastMode: ForecastMode
   modelScopeGrowth?: boolean
@@ -99,7 +98,6 @@ export function ForecastSummary({
   startDate,
   milestones = [],
   milestoneResultsState,
-  cumulativeThresholds = [],
   hasBootstrap,
   forecastMode,
   modelScopeGrowth,

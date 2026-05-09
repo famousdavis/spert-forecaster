@@ -14,7 +14,6 @@ import { ExportIconButton } from '@/shared/components/ExportIconButton'
 
 interface ProjectListProps {
   projects: Project[]
-  activeProjectId?: string
   onEdit: (project: Project) => void
   onDelete: (id: string) => void
   onExport: (id: string) => void
@@ -27,7 +26,6 @@ interface ProjectListProps {
 
 export function ProjectList({
   projects,
-  activeProjectId,
   onEdit,
   onDelete,
   onExport,
