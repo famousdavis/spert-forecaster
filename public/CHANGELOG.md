@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.28.3 - 2026-05-09
+
+### Security
+
+- **M1 — Import field allowlist.** `validateImportData` now strips unknown keys at every nesting level (project, sprint, milestone, productivity adjustment, `_changeLog` entry). Previously, a crafted Story Map or Forecaster export JSON could smuggle arbitrary properties into the Zustand store and — via `setDoc(..., { merge: true })` — into Firestore. The `owner`/`members` keys were already explicitly destructured by `saveProject`, but every OTHER unknown key would have round-tripped to the cloud. No exploit was observed; this is a defense-in-depth improvement.
+- **L2 — Activity-timeline fingerprint cleared on sign-out.** `clearProjectsOnSignOut` now resets `_changeLog: []` in addition to the previously-cleared user-scoped fields. On a shared device, the next user signing in would otherwise inherit the prior user's structural-operation history (timestamps, op types, entity IDs). `_originRef` is intentionally preserved as the per-browser workspace identity used for cross-import reconciliation.
+- **L4 — CSV formula injection prevention.** The CSV escape helper now prefixes any cell whose first character is `=`, `+`, `-`, `@`, or Tab with a single quote. Without this, a project name like `=cmd|'/c calc'!A1` would execute as a formula when the exported CSV is opened in Excel/Sheets/Numbers and the macro warning is dismissed.
+
+### Fixed
+
+- **L3 (UX, not security) — Stale-auth toast spam on sign-out + tab-close.** The `useCloudSync` `beforeunload` handler now checks `auth.currentUser` before flushing pending writes. If the user clicks Sign Out and immediately closes the tab, the listener can fire AFTER `firebaseSignOut()` has revoked the token but BEFORE React commits `setUser(null)`. Flushing in that window dispatched Firestore writes against a stale auth context — Firestore correctly rejected them, but the user saw failed-save toasts on the way out. The post-sign-out window now routes to `cancelPendingSaves()` instead.
+
+### Internal
+
+- 12 new tests added in `import-validation.test.ts` (6) and `export-csv.test.ts` (6) covering the M1 and L4 fixes; one existing `clearProjectsOnSignOut` test split into two to reflect L2's new behavior.
+- Defers L1 (`spertforecaster_profiles` enumeration guard) — applies suite-wide, addressed in a separate canonical-rules PR.
+
 ## v0.28.2 - 2026-05-09
 
 ### Fixed
