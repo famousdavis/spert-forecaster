@@ -143,7 +143,15 @@ export async function removeProjectMember(
   return { success: true }
 }
 
-/** Get all members of a project (including owner). */
+/**
+ * Get all members of a project (including owner).
+ *
+ * Profile reads run in parallel via `Promise.allSettled` (Lesson 64). A single
+ * rejected profile fetch (network blip, transient permission denial) substitutes
+ * a placeholder member rather than throwing out of the whole list — the Sharing
+ * UI must keep rendering the other members in that case. A fulfilled-but-missing
+ * profile doc is the normal "profile not yet written" path and is NOT logged.
+ */
 export async function getProjectMembers(projectId: string): Promise<ProjectMember[]> {
   if (!db) return []
 
@@ -152,30 +160,44 @@ export async function getProjectMembers(projectId: string): Promise<ProjectMembe
   if (!projectSnap.exists()) return []
 
   const projectData = projectSnap.data()
-  const members: ProjectMember[] = []
-
-  // Add owner
-  const ownerProfile = await getDoc(doc(db, COLLECTIONS.profiles, projectData.owner))
-  const ownerData = ownerProfile.exists() ? (ownerProfile.data() as FirestoreProfileDoc) : null
-  members.push({
-    uid: projectData.owner,
-    email: ownerData?.email || '',
-    displayName: ownerData?.displayName || '',
-    role: 'owner',
-  })
-
-  // Add members
+  const ownerUid: string = projectData.owner
   const memberEntries = Object.entries(projectData.members || {}) as [string, ProjectRole][]
-  for (const [uid, role] of memberEntries) {
-    const profileSnap = await getDoc(doc(db, COLLECTIONS.profiles, uid))
-    const profileData = profileSnap.exists() ? (profileSnap.data() as FirestoreProfileDoc) : null
+
+  // Fan out all profile reads in parallel. Order is preserved by index alignment
+  // with `uids` so the final members array stays [owner, ...members in entry order].
+  const uids: string[] = [ownerUid, ...memberEntries.map(([uid]) => uid)]
+  const profileResults = await Promise.allSettled(
+    uids.map((uid) => getDoc(doc(db!, COLLECTIONS.profiles, uid)))
+  )
+
+  const resolveProfile = (uid: string, result: PromiseSettledResult<Awaited<ReturnType<typeof getDoc>>>): FirestoreProfileDoc | null => {
+    if (result.status === 'rejected') {
+      console.warn(`[firestore-sharing] profile fetch failed for ${uid}:`, result.reason)
+      return null
+    }
+    const snap = result.value
+    return snap.exists() ? (snap.data() as FirestoreProfileDoc) : null
+  }
+
+  const ownerProfile = resolveProfile(ownerUid, profileResults[0]!)
+  const members: ProjectMember[] = [
+    {
+      uid: ownerUid,
+      email: ownerProfile?.email || '',
+      displayName: ownerProfile?.displayName || '',
+      role: 'owner',
+    },
+  ]
+
+  memberEntries.forEach(([uid, role], i) => {
+    const profile = resolveProfile(uid, profileResults[i + 1]!)
     members.push({
       uid,
-      email: profileData?.email || '',
-      displayName: profileData?.displayName || '',
+      email: profile?.email || '',
+      displayName: profile?.displayName || '',
       role,
     })
-  }
+  })
 
   return members
 }

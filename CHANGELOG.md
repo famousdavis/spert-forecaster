@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.28.2 - 2026-05-09
+
+### Fixed
+
+- **`getProjectMembers` is now resilient to per-profile fetch failures.** Profile reads now fan out via `Promise.allSettled` (Lesson 64) instead of a sequential `await getDoc()` loop. A single rejected profile fetch — transient network blip or permission denial — used to throw out of the entire function, blanking the Sharing UI's member list for that project. The owner-fetch and each member-fetch are now independent: a rejected read substitutes a placeholder member (empty `email`/`displayName`) and logs `[firestore-sharing] profile fetch failed for {uid}`, while the rest of the list still renders. Fulfilled-but-missing profile docs (the normal "profile not yet written" path) continue to placeholder quietly without a warning.
+
+### Internal
+
+- **`tailwind-merge` 3.4.0 → 3.5.0** — minor bump, well clear of the 60-day rule.
+- 5 new tests in `src/shared/firebase/firestore-sharing.test.ts` covering the happy path, owner-profile rejection, single-member rejection, missing-profile-doc, and missing-project-doc paths for `getProjectMembers`.
+
 ## v0.28.1 - 2026-05-09
 
 ### Fixed
