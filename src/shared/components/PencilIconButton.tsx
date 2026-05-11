@@ -9,14 +9,23 @@ interface PencilIconButtonProps {
   ariaLabel?: string
   title?: string
   disabled?: boolean
+  active?: boolean
 }
 
+// `disabled:bg-transparent disabled:text-gray-400` (non-hover variants) are required
+// in addition to `disabled:hover:*`: the `active` prop applies static (non-hover)
+// blue tint/color classes that `disabled:hover:*` alone cannot strip.
 export function PencilIconButton({
   onClick,
   ariaLabel = 'Edit',
   title = 'Edit',
   disabled = false,
+  active = false,
 }: PencilIconButtonProps) {
+  const isActive = !!active && !disabled
+  const activeClasses = isActive
+    ? ' text-[#0070f3] bg-blue-50 dark:bg-blue-500/15 [box-shadow:0_0_0_1.5px_rgba(0,112,243,0.5)]'
+    : ''
   return (
     <button
       type="button"
@@ -24,7 +33,7 @@ export function PencilIconButton({
       aria-label={ariaLabel}
       title={title}
       disabled={disabled}
-      className="inline-flex items-center justify-center p-1.5 rounded-md leading-none bg-transparent border-none cursor-pointer transition-colors duration-150 text-gray-400 hover:text-[#0070f3] hover:bg-blue-50 dark:hover:bg-blue-500/15 focus:outline-none focus:text-[#0070f3] focus:bg-blue-50 dark:focus:bg-blue-500/15 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-gray-400"
+      className={`inline-flex items-center justify-center p-1.5 rounded-md leading-none bg-transparent border-none cursor-pointer transition-[color,background-color,box-shadow] duration-150 text-gray-400 hover:text-[#0070f3] hover:bg-blue-50 dark:hover:bg-blue-500/15 focus:outline-none focus:text-[#0070f3] focus:bg-blue-50 dark:focus:bg-blue-500/15 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-gray-400 hover:[box-shadow:0_0_0_1.5px_rgba(0,112,243,0.5)] focus:[box-shadow:0_0_0_1.5px_rgba(0,112,243,0.5)] disabled:[box-shadow:none] disabled:bg-transparent disabled:text-gray-400${activeClasses}`}
     >
       <svg
         width="20"

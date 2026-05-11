@@ -6,6 +6,7 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { toast } from 'sonner'
+import { cn } from '@/lib/utils'
 import { useProjectStore, type ExportData } from '@/shared/state/project-store'
 import { useSettingsStore } from '@/shared/state/settings-store'
 import { useIsClient } from '@/shared/hooks'
@@ -349,19 +350,29 @@ export function ProjectsTab({ onViewHistory }: ProjectsTabProps) {
         onCancel={handleFormCancel}
       />
 
-      <div className="flex justify-end gap-2">
+      <div className={cn('flex gap-2', projects.length === 0 ? 'justify-center' : 'justify-end')}>
         {projects.length > 0 && (
           <button
+            type="button"
             onClick={handleExport}
-            className="rounded border border-spert-blue dark:border-blue-500 bg-white dark:bg-gray-800 px-4 py-2 text-[0.9rem] font-semibold text-spert-blue dark:text-blue-400 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
+            aria-label="Export all projects as JSON"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-transparent bg-transparent text-gray-500 text-[0.9rem] font-medium cursor-pointer transition-all duration-[120ms] hover:text-[#10b981] hover:bg-emerald-50 dark:hover:bg-emerald-500/15 hover:border-[#10b981] focus:outline-none focus:text-[#10b981] focus:bg-emerald-50 dark:focus:bg-emerald-500/15 focus:border-[#10b981]"
           >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
             Export All
           </button>
         )}
         <button
+          type="button"
           onClick={handleImportClick}
-          className="rounded border border-spert-blue dark:border-blue-500 bg-white dark:bg-gray-800 px-4 py-2 text-[0.9rem] font-semibold text-spert-blue dark:text-blue-400 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
+          aria-label="Import projects from JSON"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-transparent bg-transparent text-gray-500 text-[0.9rem] font-medium cursor-pointer transition-all duration-[120ms] hover:text-[#0070f3] hover:bg-blue-50 dark:hover:bg-blue-500/15 hover:border-[#0070f3] focus:outline-none focus:text-[#0070f3] focus:bg-blue-50 dark:focus:bg-blue-500/15 focus:border-[#0070f3]"
         >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
           Import
         </button>
         <input
@@ -384,6 +395,7 @@ export function ProjectsTab({ onViewHistory }: ProjectsTabProps) {
         onShare={setSharingProject}
         isCloudMode={mode === 'cloud'}
         ownedProjectIds={ownedProjectIds}
+        editingProjectId={editingProject?.id ?? null}
       />
 
       {/* Sharing panel */}

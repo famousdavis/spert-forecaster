@@ -11,6 +11,8 @@ import { formatDate } from '@/shared/lib/dates'
 import { PencilIconButton } from '@/shared/components/PencilIconButton'
 import { TrashIconButton } from '@/shared/components/TrashIconButton'
 import { ExportIconButton } from '@/shared/components/ExportIconButton'
+import { ShareIconButton } from '@/shared/components/ShareIconButton'
+import { DragHandle } from '@/shared/components/DragHandle'
 
 interface ProjectListProps {
   projects: Project[]
@@ -22,6 +24,7 @@ interface ProjectListProps {
   onShare?: (project: Project) => void
   isCloudMode?: boolean
   ownedProjectIds?: Set<string>
+  editingProjectId?: string | null
 }
 
 export function ProjectList({
@@ -34,6 +37,7 @@ export function ProjectList({
   onShare,
   isCloudMode,
   ownedProjectIds,
+  editingProjectId,
 }: ProjectListProps) {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
@@ -99,12 +103,10 @@ export function ProjectList({
       {projects.map((project, index) => (
         <div
           key={project.id}
-          draggable
-          onDragStart={(e) => handleDragStart(e, index)}
+          data-tile="true"
           onDragOver={(e) => handleDragOver(e, index)}
           onDragLeave={handleDragLeave}
           onDrop={(e) => handleDrop(e, index)}
-          onDragEnd={handleDragEnd}
           className={cn(
             'rounded-lg bg-white dark:bg-gray-800 cursor-default',
             dragOverIndex === index
@@ -113,69 +115,63 @@ export function ProjectList({
             draggedIndex === index ? 'opacity-50' : 'opacity-100'
           )}
         >
-          <div className="flex items-center p-4">
-            {/* Drag handle */}
+          <div className="flex items-center gap-3 p-4">
             <div
-              className="mr-3 cursor-grab active:cursor-grabbing text-spert-text-light"
+              draggable
               title="Drag to reorder"
+              className="flex-shrink-0"
+              onDragStart={(e) => {
+                e.dataTransfer.effectAllowed = 'move'
+                let el: HTMLElement | null = e.currentTarget as HTMLElement
+                while (el && !el.dataset.tile) el = el.parentElement
+                if (el) e.dataTransfer.setDragImage(el, 12, el.getBoundingClientRect().height / 2)
+                handleDragStart(e, index)
+              }}
+              onDragEnd={handleDragEnd}
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="currentColor"
-              >
-                <circle cx="9" cy="6" r="1.5" />
-                <circle cx="15" cy="6" r="1.5" />
-                <circle cx="9" cy="12" r="1.5" />
-                <circle cx="15" cy="12" r="1.5" />
-                <circle cx="9" cy="18" r="1.5" />
-                <circle cx="15" cy="18" r="1.5" />
-              </svg>
+              <DragHandle />
             </div>
 
-            {/* Project info */}
-            <div className="flex-1">
+            <button
+              type="button"
+              onClick={() => onViewHistory(project.id)}
+              title="View history"
+              aria-label={`View history for ${project.name}`}
+              className="flex-1 min-w-0 flex items-center text-left bg-transparent border-none cursor-pointer self-stretch px-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-spert-blue rounded"
+            >
               <span className="font-semibold dark:text-gray-100">{project.name}</span>
               <span className="ml-3 text-sm text-gray-500 dark:text-gray-400">
                 {getProjectSummary(project)}
               </span>
-            </div>
+            </button>
 
-            {/* Action buttons */}
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => onViewHistory(project.id)}
-                className="px-4 py-2 bg-[#e7f3ff] dark:bg-blue-900/30 border border-spert-blue rounded cursor-pointer text-[0.9rem] text-spert-blue dark:text-blue-400"
-              >
-                View History
-              </button>
-              {isCloudMode && onShare && ownedProjectIds?.has(project.id) && (
-                <button
-                  onClick={() => onShare(project)}
-                  className="px-4 py-2 bg-[#f0f0ff] dark:bg-purple-900/30 border border-[#7c3aed] dark:border-purple-500 rounded cursor-pointer text-[0.9rem] text-[#7c3aed] dark:text-purple-300"
-                >
-                  Share
-                </button>
-              )}
-              <div className="flex items-center gap-1 ml-1">
-                <ExportIconButton
-                  onClick={() => onExport(project.id)}
-                  ariaLabel={`Export ${project.name}`}
-                  title="Export project"
-                />
-                <PencilIconButton
-                  onClick={() => onEdit(project)}
-                  ariaLabel={`Edit ${project.name}`}
-                  title="Edit project"
-                />
-                <TrashIconButton
-                  onClick={() => onDelete(project.id)}
-                  ariaLabel={`Delete ${project.name}`}
-                  title="Delete project"
-                />
-              </div>
+            {isCloudMode && onShare && ownedProjectIds?.has(project.id) ? (
+              <ShareIconButton
+                onClick={() => onShare(project)}
+                ariaLabel="Share project"
+                title="Share project"
+              />
+            ) : (
+              <div className="w-8 h-8 flex-shrink-0" aria-hidden="true" />
+            )}
+
+            <div className="flex items-center gap-0.5">
+              <ExportIconButton
+                onClick={() => onExport(project.id)}
+                ariaLabel={`Export ${project.name}`}
+                title="Export project"
+              />
+              <PencilIconButton
+                onClick={() => onEdit(project)}
+                ariaLabel={`Edit ${project.name}`}
+                title="Edit project"
+                active={project.id === editingProjectId}
+              />
+              <TrashIconButton
+                onClick={() => onDelete(project.id)}
+                ariaLabel={`Delete ${project.name}`}
+                title="Delete project"
+              />
             </div>
           </div>
         </div>
