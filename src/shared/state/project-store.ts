@@ -43,6 +43,7 @@ interface ProjectState {
   addProject: (project: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>) => void
   updateProject: (id: string, updates: Partial<Omit<Project, 'id' | 'createdAt'>>) => void
   deleteProject: (id: string) => void
+  cloneProject: (sourceId: string) => string | null
   reorderProjects: (projectIds: string[]) => void
   setViewingProjectId: (id: string | null) => void
 
@@ -153,6 +154,78 @@ export const useProjectStore = create<ProjectState>()(
           ),
         }))
         emitProjectSave(id, get()._isCloudUpdate)
+      },
+
+      cloneProject: (sourceId) => {
+        const state = get()
+        const source = state.projects.find((p) => p.id === sourceId)
+        if (!source) return null
+
+        // Find a non-colliding name following GanttApp's "X - Copy (N)" pattern.
+        // Cap at 99 to match GanttApp; fall back to an 8-char UUID slice on extreme collision.
+        const existingNames = new Set(state.projects.map((p) => p.name))
+        let suffix = 1
+        let newName = `${source.name} - Copy (${suffix})`
+        while (existingNames.has(newName) && suffix < 99) {
+          suffix++
+          newName = `${source.name} - Copy (${suffix})`
+        }
+        if (existingNames.has(newName)) {
+          newName = `${source.name} - Copy (${crypto.randomUUID().slice(0, 8)})`
+        }
+
+        const newProjectId = generateId()
+        const nowTime = now()
+
+        set((s) => {
+          const src = s.projects.find((p) => p.id === sourceId)
+          if (!src) return s
+
+          const clonedMilestones = (src.milestones || []).map((m) => ({
+            ...m,
+            id: generateId(),
+            createdAt: nowTime,
+            updatedAt: nowTime,
+          }))
+          const clonedAdjustments = (src.productivityAdjustments || []).map((a) => ({
+            ...a,
+            id: generateId(),
+            createdAt: nowTime,
+            updatedAt: nowTime,
+          }))
+          const sourceSprints = s.sprints.filter((sp) => sp.projectId === sourceId)
+          const clonedSprints = sourceSprints.map((sp) => ({
+            ...sp,
+            id: generateId(),
+            projectId: newProjectId,
+            createdAt: nowTime,
+            updatedAt: nowTime,
+          }))
+
+          const newProject: Project = {
+            ...src,
+            id: newProjectId,
+            name: newName,
+            milestones: clonedMilestones,
+            productivityAdjustments: clonedAdjustments,
+            createdAt: nowTime,
+            updatedAt: nowTime,
+          }
+
+          const srcIndex = s.projects.findIndex((p) => p.id === sourceId)
+          const newProjects = [...s.projects]
+          newProjects.splice(srcIndex + 1, 0, newProject)
+
+          return {
+            projects: newProjects,
+            sprints: [...s.sprints, ...clonedSprints],
+            _originRef: ensureOriginRef(s),
+            _changeLog: appendChangeLogEntry(s._changeLog, { op: 'add', entity: 'project', id: newProjectId }),
+          }
+        })
+
+        emitProjectSave(newProjectId, get()._isCloudUpdate)
+        return newProjectId
       },
 
       deleteProject: (id) => {

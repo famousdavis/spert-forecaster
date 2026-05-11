@@ -12,6 +12,7 @@ import { PencilIconButton } from '@/shared/components/PencilIconButton'
 import { TrashIconButton } from '@/shared/components/TrashIconButton'
 import { ExportIconButton } from '@/shared/components/ExportIconButton'
 import { ShareIconButton } from '@/shared/components/ShareIconButton'
+import { CloneIconButton } from '@/shared/components/CloneIconButton'
 import { DragHandle } from '@/shared/components/DragHandle'
 
 interface ProjectListProps {
@@ -19,6 +20,7 @@ interface ProjectListProps {
   onEdit: (project: Project) => void
   onDelete: (id: string) => void
   onExport: (id: string) => void
+  onClone: (project: Project) => void
   onReorder: (projectIds: string[]) => void
   onViewHistory: (projectId: string) => void
   onShare?: (project: Project) => void
@@ -32,6 +34,7 @@ export function ProjectList({
   onEdit,
   onDelete,
   onExport,
+  onClone,
   onReorder,
   onViewHistory,
   onShare,
@@ -174,6 +177,11 @@ export function ProjectList({
                 ariaLabel={`Edit ${project.name}`}
                 title="Edit project"
                 active={project.id === editingProjectId}
+              />
+              <CloneIconButton
+                onClick={() => onClone(project)}
+                ariaLabel={`Clone ${project.name}`}
+                title="Clone project"
               />
               <TrashIconButton
                 onClick={() => onDelete(project.id)}

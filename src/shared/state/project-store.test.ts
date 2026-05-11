@@ -271,6 +271,165 @@ describe('deleteProject', () => {
   })
 })
 
+describe('cloneProject', () => {
+  it('returns null when source not found', () => {
+    const { cloneProject } = useProjectStore.getState()
+    const result = cloneProject('nope')
+    expect(result).toBeNull()
+    expect(useProjectStore.getState().projects).toHaveLength(0)
+  })
+
+  it('clones with "X - Copy (1)" name and a fresh id', () => {
+    useProjectStore.setState({ projects: [makeProject({ id: 'proj-1', name: 'Alpha' })] })
+
+    const newId = useProjectStore.getState().cloneProject('proj-1')
+
+    expect(newId).toBeTruthy()
+    const state = useProjectStore.getState()
+    expect(state.projects).toHaveLength(2)
+    expect(state.projects[1].id).toBe(newId)
+    expect(state.projects[1].id).not.toBe('proj-1')
+    expect(state.projects[1].name).toBe('Alpha - Copy (1)')
+  })
+
+  it('inserts the clone immediately after the source', () => {
+    useProjectStore.setState({
+      projects: [
+        makeProject({ id: 'a', name: 'A' }),
+        makeProject({ id: 'b', name: 'B' }),
+        makeProject({ id: 'c', name: 'C' }),
+      ],
+    })
+
+    useProjectStore.getState().cloneProject('b')
+
+    const names = useProjectStore.getState().projects.map((p) => p.name)
+    expect(names).toEqual(['A', 'B', 'B - Copy (1)', 'C'])
+  })
+
+  it('increments the suffix when "X - Copy (N)" already exists', () => {
+    useProjectStore.setState({
+      projects: [
+        makeProject({ id: 'p1', name: 'Source' }),
+        makeProject({ id: 'p2', name: 'Source - Copy (1)' }),
+        makeProject({ id: 'p3', name: 'Source - Copy (2)' }),
+      ],
+    })
+
+    useProjectStore.getState().cloneProject('p1')
+
+    const names = useProjectStore.getState().projects.map((p) => p.name)
+    expect(names).toContain('Source - Copy (3)')
+  })
+
+  it('deep-clones milestones with new ids', () => {
+    useProjectStore.setState({
+      projects: [
+        makeProject({
+          id: 'proj-1',
+          milestones: [
+            { id: 'm1', name: 'MVP', backlogSize: 50, color: '#10b981', createdAt: 'x', updatedAt: 'x' },
+            { id: 'm2', name: 'GA', backlogSize: 120, color: '#0070f3', createdAt: 'x', updatedAt: 'x' },
+          ],
+        }),
+      ],
+    })
+
+    const newId = useProjectStore.getState().cloneProject('proj-1')!
+    const clone = useProjectStore.getState().projects.find((p) => p.id === newId)!
+
+    expect(clone.milestones).toHaveLength(2)
+    expect(clone.milestones![0].id).not.toBe('m1')
+    expect(clone.milestones![1].id).not.toBe('m2')
+    expect(clone.milestones![0].name).toBe('MVP')
+    expect(clone.milestones![0].backlogSize).toBe(50)
+    expect(clone.milestones![0].color).toBe('#10b981')
+    expect(clone.milestones![1].name).toBe('GA')
+  })
+
+  it('deep-clones productivity adjustments with new ids', () => {
+    useProjectStore.setState({
+      projects: [
+        makeProject({
+          id: 'proj-1',
+          productivityAdjustments: [
+            {
+              id: 'a1',
+              name: 'Holidays',
+              startDate: '2026-12-22',
+              endDate: '2027-01-02',
+              factor: 0.5,
+              enabled: true,
+              createdAt: 'x',
+              updatedAt: 'x',
+            },
+          ],
+        }),
+      ],
+    })
+
+    const newId = useProjectStore.getState().cloneProject('proj-1')!
+    const clone = useProjectStore.getState().projects.find((p) => p.id === newId)!
+
+    expect(clone.productivityAdjustments).toHaveLength(1)
+    expect(clone.productivityAdjustments![0].id).not.toBe('a1')
+    expect(clone.productivityAdjustments![0].name).toBe('Holidays')
+    expect(clone.productivityAdjustments![0].factor).toBe(0.5)
+    expect(clone.productivityAdjustments![0].enabled).toBe(true)
+  })
+
+  it('clones sprints with new ids rebound to the new project', () => {
+    useProjectStore.setState({
+      projects: [makeProject({ id: 'proj-1' }), makeProject({ id: 'proj-2' })],
+      sprints: [
+        makeSprint({ id: 's1', projectId: 'proj-1', sprintNumber: 1, doneValue: 8 }),
+        makeSprint({ id: 's2', projectId: 'proj-1', sprintNumber: 2, doneValue: 11, includedInForecast: false }),
+        makeSprint({ id: 's3', projectId: 'proj-2', sprintNumber: 1, doneValue: 7 }),
+      ],
+    })
+
+    const newId = useProjectStore.getState().cloneProject('proj-1')!
+    const state = useProjectStore.getState()
+
+    // Source sprints untouched
+    const sourceSprints = state.sprints.filter((s) => s.projectId === 'proj-1')
+    expect(sourceSprints.map((s) => s.id).sort()).toEqual(['s1', 's2'])
+
+    // Clone sprints exist with new ids
+    const cloneSprints = state.sprints.filter((s) => s.projectId === newId)
+    expect(cloneSprints).toHaveLength(2)
+    expect(cloneSprints.every((s) => s.id !== 's1' && s.id !== 's2')).toBe(true)
+    expect(cloneSprints.map((s) => s.sprintNumber).sort()).toEqual([1, 2])
+    expect(cloneSprints.find((s) => s.sprintNumber === 2)!.includedInForecast).toBe(false)
+
+    // Other project's sprints untouched
+    const otherSprints = state.sprints.filter((s) => s.projectId === 'proj-2')
+    expect(otherSprints.map((s) => s.id)).toEqual(['s3'])
+  })
+
+  it('appends an "add project" entry to the change log', () => {
+    useProjectStore.setState({ projects: [makeProject({ id: 'proj-1' })], _changeLog: [] })
+
+    const newId = useProjectStore.getState().cloneProject('proj-1')!
+
+    const log = useProjectStore.getState()._changeLog
+    expect(log).toHaveLength(1)
+    expect(log[0].op).toBe('add')
+    expect(log[0].entity).toBe('project')
+    expect(log[0].id).toBe(newId)
+  })
+
+  it('emits a project:save sync event for the new project', () => {
+    useProjectStore.setState({ projects: [makeProject({ id: 'proj-1' })] })
+    const spy = vi.spyOn(syncBus, 'emit')
+
+    const newId = useProjectStore.getState().cloneProject('proj-1')!
+
+    expect(spy).toHaveBeenCalledWith({ type: 'project:save', projectId: newId })
+    spy.mockRestore()
+  })
+})
+
 describe('reorderProjects', () => {
   it('reorders projects by id list', () => {
     useProjectStore.setState({

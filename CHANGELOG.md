@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.29.3 - 2026-05-11
+
+### Added
+
+- **Clone project — violet icon button between Edit and Delete.** A new `CloneIconButton` (violet `#8b5cf6` accent, rect-over-rect glyph) sits between the pencil and trash icons on every project row, matching GanttApp v0.25.0. Clicking it creates a full deep-clone of the project and inserts it immediately after the source in the list. Cloned name follows the GanttApp pattern: `"X - Copy (1)"`, `"X - Copy (2)"`, etc., with collision-checking up to `(99)` and a UUID-tagged fallback beyond.
+- **Deep clone scope**: the new project carries forward all embedded milestones, all productivity adjustments, and all sprint history records — every embedded entity gets a fresh ID, sprints get rebound `projectId`. The source project is untouched.
+- **No confirmation dialog** — clone is immediate, with a sonner success toast (`Cloned: <project name>`) for feedback. Matches GanttApp's UX.
+- **Cloud-mode fork pattern**: in cloud mode, the clone button is shown to anyone with access to the project (owner, editor, viewer). The cloned project's `owner` field is set to the current user by `projectToFirestoreDoc` (because the new project has no entry in the cloud-sync doc-meta cache, so the converter falls back to `uid`). This enables forking a shared project to own it — same behavior as GanttApp.
+
+### Internal
+
+- New shared component: `src/shared/components/CloneIconButton.tsx`.
+- New store action `cloneProject(sourceId: string): string | null` in `src/shared/state/project-store.ts`. Returns the new project ID, or `null` if the source is not found.
+- New `onClone` prop on `ProjectList`; new `handleClone` in `ProjectsTab` wires the action and the toast.
+- 9 new tests in `project-store.test.ts` covering: null on missing source, name suffix and collision handling, insertion position, milestone/adjustment/sprint deep-clone with fresh IDs, source untouched, change-log entry, and `project:save` sync event emission. Total now 740 tests / 35 files.
+
 ## v0.29.2 - 2026-05-10
 
 ### Changed

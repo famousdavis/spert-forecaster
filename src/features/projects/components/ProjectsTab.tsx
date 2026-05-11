@@ -47,6 +47,7 @@ export function ProjectsTab({ onViewHistory }: ProjectsTabProps) {
   const addProject = useProjectStore((state) => state.addProject)
   const updateProject = useProjectStore((state) => state.updateProject)
   const deleteProject = useProjectStore((state) => state.deleteProject)
+  const cloneProject = useProjectStore((state) => state.cloneProject)
   const reorderProjects = useProjectStore((state) => state.reorderProjects)
   const sprints = useProjectStore((state) => state.sprints)
   const exportData = useProjectStore((state) => state.exportData)
@@ -136,6 +137,15 @@ export function ProjectsTab({ onViewHistory }: ProjectsTabProps) {
     URL.revokeObjectURL(url)
     toast.success('Project data exported')
   }
+
+  const handleClone = useCallback((project: Project) => {
+    const newId = cloneProject(project.id)
+    if (newId) {
+      toast.success(`Cloned: ${project.name}`)
+    } else {
+      toast.error('Clone failed: project not found')
+    }
+  }, [cloneProject])
 
   const handleExportProject = useCallback((projectId: string) => {
     try {
@@ -390,6 +400,7 @@ export function ProjectsTab({ onViewHistory }: ProjectsTabProps) {
         onEdit={handleEdit}
         onDelete={handleDeleteRequest}
         onExport={handleExportProject}
+        onClone={handleClone}
         onReorder={reorderProjects}
         onViewHistory={onViewHistory ?? (() => {})}
         onShare={setSharingProject}
