@@ -11,6 +11,7 @@ import {
   useState,
   useCallback,
   useSyncExternalStore,
+  useRef,
   type ReactNode,
 } from 'react'
 import { onAuthStateChanged, type User } from 'firebase/auth'
@@ -106,6 +107,13 @@ const noopSubscribe = () => () => {}
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  // Tracks the previous Firebase auth state so the sign-out cleanup branch
+  // runs only on a true User → null transition. The guard is robust under
+  // React StrictMode because Firebase delivers the initial onAuthStateChanged
+  // callback asynchronously (next microtask). StrictMode's synchronous
+  // mount → cleanup → remount completes before Firebase fires, so only the
+  // second subscription receives the callback, with this ref still `undefined`.
+  const previousUserRef = useRef<User | null | undefined>(undefined)
   // `isFirebaseAvailable` is a module-level constant gated on `typeof window`,
   // so SSR reads false and CSR reads the real value. useSyncExternalStore
   // provides a hydration-safe snapshot without a setState-in-effect bridge.
@@ -186,8 +194,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     checkRedirectResult().catch(() => {})
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       if (firebaseUser) {
+        previousUserRef.current = firebaseUser
         handleAuthenticatedUser(firebaseUser)
       } else {
+        // Run sign-out cleanup only on a User → null transition. When
+        // previousUserRef is `undefined` (never received an auth event) or
+        // `null` (already processed a sign-out), skip the cleanup to avoid
+        // wiping localStorage for local-only users on cold page load.
+        //
         // Sign-out sequence — order matters:
         //   (a) cancel queued Firestore writes BEFORE credentials are gone
         //   (b) clear store + persisted localStorage snapshot (privacy)
@@ -195,9 +209,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         //       mode before auth resolves; broadcasts to all useStorageMode
         //       consumers via Zustand subscriptions
         //   (d) flip React auth state, which triggers useCloudSync teardown
-        cancelPendingSaves()
-        useProjectStore.getState().clearProjectsOnSignOut()
-        useStorageModeStore.getState().setMode('local')
+        if (previousUserRef.current !== undefined && previousUserRef.current !== null) {
+          cancelPendingSaves()
+          useProjectStore.getState().clearProjectsOnSignOut()
+          useStorageModeStore.getState().setMode('local')
+        }
+        previousUserRef.current = null
         setUser(null)
         setIsLoading(false)
       }
