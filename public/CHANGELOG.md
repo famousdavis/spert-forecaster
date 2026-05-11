@@ -1,5 +1,26 @@
 # Changelog
 
+## v0.29.0 - 2026-05-10
+
+### Changed
+
+- **Projects tab UI refresh — icon-button parity with GanttApp v0.25.0.** Visual/UX-only update; no data, business, or import/export behavior changes.
+  - **Hover ring on all action icon buttons.** `ExportIconButton`, `PencilIconButton`, and `TrashIconButton` now grow a 1.5px colored glow ring (matching their accent: emerald / blue / red) on hover and focus, in addition to the existing background tint. Transition widened from `transition-colors` to `transition-[color,background-color,box-shadow]` so the ring animates in instead of snapping. Disabled state explicitly strips the ring (`disabled:[box-shadow:none]`).
+  - **`PencilIconButton` gains an `active` prop.** When `active={true}` and `!disabled`, the button renders permanently in its hover state (blue text, blue tint background, blue ring) regardless of cursor position — used to mark the row whose form is currently open above the list. CSS specificity guarantees `disabled` overrides `active`: `disabled:bg-transparent`, `disabled:text-gray-400`, and `disabled:[box-shadow:none]` (added in this release) win via `:disabled` pseudo-class specificity over the static active classes. `ProjectsTab` plumbs `editingProjectId={editingProject?.id ?? null}` into `ProjectList`, which forwards `active={project.id === editingProjectId}` to each pencil.
+  - **New shared component: `ShareIconButton`.** Cyan-accented icon button (person-plus glyph) with the same prop shape, focus/hover/disabled states, and class pattern as the existing trio. Replaces the bordered purple `Share` text button in `ProjectList`.
+  - **New shared component: `DragHandle`.** Six-dot grid (2 columns × 3 rows of 4×4px `bg-gray-400 dark:bg-gray-500` dots, 2px gap) with `cursor-grab active:cursor-grabbing`, `aria-hidden`. Replaces the inline domino-pattern SVG.
+  - **Drag scope: handle-only.** The `draggable` attribute and `onDragStart`/`onDragEnd` handlers moved off the outer tile div onto a new wrapper that holds only the `DragHandle`. The tile keeps `onDragOver`/`onDragLeave`/`onDrop` so the entire row is still a valid drop target. The new `onDragStart` walks up from the handle wrapper to the tile (via `data-tile="true"`) and calls `setDragImage` so the drag preview shows the full rounded tile — matching the GanttApp drag feel.
+  - **Project name area → full-height navigation button.** The project name + summary block became a `<button>` with `onClick={() => onViewHistory(project.id)}`, replacing both the previous `<div>` wrapper and the standalone `View History` text button. `flex-1 min-w-0 flex items-center self-stretch px-0` keeps the visual layout identical (single-line, midline-aligned name + summary) while extending the click target to the full row height. `title="View history"` and `aria-label="View history for {name}"` cover tooltip + screen-reader parity. `focus-visible:ring-2 focus-visible:ring-spert-blue` adds a missing keyboard-focus indicator.
+  - **Share gated → icon button + same-size placeholder.** When the share gate (`isCloudMode && onShare && ownedProjectIds?.has(project.id)`) fails, an empty `w-8 h-8 flex-shrink-0` placeholder div renders in the share slot, holding the icon group's horizontal position so non-owned rows don't visually shift their action cluster.
+  - **Icon group regrouped at 2px gap.** Export / Pencil / Trash now sit inside `flex items-center gap-0.5` (was `gap-1 ml-1`). The Share icon button (or placeholder) sits outside this wrapper as a direct sibling of the inner flex row, with the row's new `gap-3` providing 12px separation between handle, info button, share element, and icon group. The previous `<div className="flex items-center gap-2">` actions wrapper was removed entirely to flatten the row.
+  - **Toolbar Export All / Import → ghost-style buttons.** Above the project list, the bordered blue text buttons became transparent-rest ghost buttons that bloom into colored hover states: green (`#10b981`) for Export All, blue (`#0070f3`) for Import. Each gets a leading 18×18 download/upload-arrow SVG whose `stroke="currentColor"` lets a single text-color class animate both icon and label together. `text-gray-500` rest passes WCAG AA contrast (~4.6:1) for the text + icon. `border border-transparent` at rest avoids a 1px hover layout shift. Wrapper uses `cn('flex gap-2', projects.length === 0 ? 'justify-center' : 'justify-end')` so a lone Import button centers in the empty state.
+
+### Internal
+
+- New shared components: `src/shared/components/ShareIconButton.tsx`, `src/shared/components/DragHandle.tsx`.
+- Modified: `src/shared/components/{Export,Pencil,Trash}IconButton.tsx`, `src/features/projects/components/ProjectList.tsx`, `src/features/projects/components/ProjectsTab.tsx`.
+- Test count unchanged: 731 tests / 35 files passing. Lint baseline preserved at 0/0. No test edits required (no UI tests exist for `ProjectList`/`ProjectsTab`; only data/state tests cover this surface).
+
 ## v0.28.4 - 2026-05-09
 
 ### Internal

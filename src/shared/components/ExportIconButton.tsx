@@ -24,7 +24,7 @@ export function ExportIconButton({
       aria-label={ariaLabel}
       title={title}
       disabled={disabled}
-      className="inline-flex items-center justify-center p-1.5 rounded-md leading-none bg-transparent border-none cursor-pointer transition-colors duration-150 text-gray-400 hover:text-[#10b981] hover:bg-emerald-50 dark:hover:bg-emerald-500/15 focus:outline-none focus:text-[#10b981] focus:bg-emerald-50 dark:focus:bg-emerald-500/15 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-gray-400"
+      className="inline-flex items-center justify-center p-1.5 rounded-md leading-none bg-transparent border-none cursor-pointer transition-[color,background-color,box-shadow] duration-150 text-gray-400 hover:text-[#10b981] hover:bg-emerald-50 dark:hover:bg-emerald-500/15 focus:outline-none focus:text-[#10b981] focus:bg-emerald-50 dark:focus:bg-emerald-500/15 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-gray-400 hover:[box-shadow:0_0_0_1.5px_rgba(16,185,129,0.5)] focus:[box-shadow:0_0_0_1.5px_rgba(16,185,129,0.5)] disabled:[box-shadow:none]"
     >
       <svg
         width="20"
