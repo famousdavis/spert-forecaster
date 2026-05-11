@@ -119,7 +119,7 @@ export function ProjectList({
             draggedIndex === index ? 'opacity-50' : 'opacity-100'
           )}
         >
-          <div className="flex items-center gap-3 p-4">
+          <div className="flex items-center px-4">
             <div
               draggable
               title="Drag to reorder"
@@ -145,7 +145,7 @@ export function ProjectList({
               onBlur={() => setHoveredProjectId((prev) => (prev === project.id ? null : prev))}
               title="View history"
               aria-label={`View history for ${project.name}`}
-              className="flex-1 min-w-0 flex items-center text-left bg-transparent border-none cursor-pointer self-stretch px-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-spert-blue rounded"
+              className="flex-1 min-w-0 flex items-center text-left bg-transparent border-none cursor-pointer self-stretch py-4 px-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-spert-blue rounded"
             >
               <span className="font-semibold dark:text-gray-100">{project.name}</span>
               <span className="ml-3 text-sm text-gray-500 dark:text-gray-400">

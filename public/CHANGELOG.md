@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.29.2 - 2026-05-10
+
+### Changed
+
+- Middle button (project name → Sprint History) hit area now spans the full tile height *and* width between the drag handle and the icon group, matching GanttApp v0.25.0. Padding moved from the inner flex row (`p-4`) onto the button itself (`py-4 px-3`); the row's `gap-3` was removed so children sit edge-to-edge. Visible spacing between the button text and its neighbors (handle, share) stays identical (~12px / ~18px) — what changes is that the cursor remains `pointer` across the whole strip instead of dropping to `default` in the former 12px gap zones. The button now extends from the tile's inner top border to its inner bottom border and from immediately right of the drag handle to immediately left of the share / icon-group cluster.
+
 ## v0.29.1 - 2026-05-10
 
 ### Changed
