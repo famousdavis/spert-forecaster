@@ -41,6 +41,7 @@ export function ProjectList({
 }: ProjectListProps) {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
+  const [hoveredProjectId, setHoveredProjectId] = useState<string | null>(null)
 
   const handleDragStart = (e: React.DragEvent, index: number) => {
     setDraggedIndex(index)
@@ -108,7 +109,10 @@ export function ProjectList({
           onDragLeave={handleDragLeave}
           onDrop={(e) => handleDrop(e, index)}
           className={cn(
-            'rounded-lg bg-white dark:bg-gray-800 cursor-default',
+            'rounded-lg cursor-default transition-colors duration-[120ms]',
+            hoveredProjectId === project.id
+              ? 'bg-blue-50 dark:bg-[rgba(0,112,243,0.10)]'
+              : 'bg-white dark:bg-gray-800',
             dragOverIndex === index
               ? 'border-2 border-spert-blue'
               : 'border border-spert-border-light dark:border-gray-700',
@@ -135,6 +139,10 @@ export function ProjectList({
             <button
               type="button"
               onClick={() => onViewHistory(project.id)}
+              onMouseEnter={() => setHoveredProjectId(project.id)}
+              onMouseLeave={() => setHoveredProjectId((prev) => (prev === project.id ? null : prev))}
+              onFocus={() => setHoveredProjectId(project.id)}
+              onBlur={() => setHoveredProjectId((prev) => (prev === project.id ? null : prev))}
               title="View history"
               aria-label={`View history for ${project.name}`}
               className="flex-1 min-w-0 flex items-center text-left bg-transparent border-none cursor-pointer self-stretch px-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-spert-blue rounded"

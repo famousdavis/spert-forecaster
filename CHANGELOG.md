@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.29.1 - 2026-05-10
+
+### Changed
+
+- Project tiles in the Projects tab now show a faint blue hover shading when the cursor is over the project name area, matching the GanttApp tile-hover pattern. Hover state is tracked by project ID so it survives reorder and delete; mouse-leave and blur use a functional-updater clear to avoid a fast-mouse race between adjacent tiles. The `transition-colors duration-[120ms]` on the tile incidentally smooths the drag-over border-color flip as well — desirable polish.
+
 ## v0.29.0 - 2026-05-10
 
 ### Changed
