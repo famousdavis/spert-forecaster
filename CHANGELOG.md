@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.29.4 - 2026-05-11
+
+### Fixed
+- **Data-loss bug**: Local-only users no longer lose their projects from localStorage
+  on cold page load. `AuthProvider` previously treated the initial
+  `onAuthStateChanged(null)` event — which Firebase fires once on subscribe for any
+  unauthenticated session — as a sign-out, calling `clearProjectsOnSignOut()`
+  unconditionally. A `previousUserRef` guard now ensures sign-out cleanup runs only
+  on a true `User → null` transition. Explicit sign-out, session expiry, and
+  ToS-mismatch forced sign-out are unaffected.
+
 ## v0.29.3 - 2026-05-11
 
 ### Added
