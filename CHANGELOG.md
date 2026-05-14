@@ -4,91 +4,43 @@
 
 ### Added
 
-- **Smart Import (Level 4):** Per-project conflict resolution with an inline preview.
-  When a project-export or Story Map file has conflicts, a review section renders
-  between the project form and the project list with three choices per conflicting
-  project:
-  - **Keep existing, ignore imported** (default for all ID conflicts)
-  - **Add as a copy** (default for same-name, different-origin projects)
-  - **Replace existing with imported** (opt-in; fully substitutes all existing
-    sprints for that project with the incoming file's sprints)
-- Dual conflict detection: ID conflicts ("same project") and name conflicts
-  ("same name, different origin") are surfaced separately with distinct labels.
-- In local mode, zero-conflict project-export and Story Map imports apply
-  immediately without a preview. In cloud mode, all imports show the preview.
-- Legacy full-workspace imports offer a merge-vs-replace-all toggle; existing
-  data is no longer silently overwritten by default.
-- Import results appear as inline banners, e.g. "2 projects added, 1 copied,
-  1 replaced, 1 skipped."
-- Stale-data guard at two layers: hook-level fast early exit, and atomic
-  re-detection inside the Zustand `set()` updater. Cross-tab workspace
-  mutations during a preview are detected and the import is aborted with an
-  error banner rather than silently dropping or duplicating projects.
+- **Smart Import (Level 4) — per-project conflict resolution with an inline preview.** When a project-export or Story Map file contains projects that already exist in the workspace, a "Review import" section now renders between the toolbar and the project list before any data is changed. Each conflicting project shows three radio options: **Keep existing, ignore imported** (default for all same-project ID conflicts), **Add as a copy** (default for same-name, different-origin conflicts), and **Replace existing with imported** (opt-in). Non-conflicting projects are listed in a green "New projects (N)" block for review. The preview section renders as a `role="region"` landmark; the heading receives programmatic focus on mount for screen-reader announcement; radio groups carry `aria-labelledby`; Escape closes the preview. Decisions survive a mode toggle — switching between Merge and Replace-All does not reset per-project choices.
+- **Dual conflict detection.** Incoming projects are checked against the existing workspace on both project ID ("Already exists — same project") and case-insensitive, trimmed project name ("Already exists — same name, different origin"). ID conflicts take precedence when both match. The two labels surface different information: an ID conflict is a definite match; a name conflict is a likely match from a different origin. Known limitation: an incoming project whose ID matches one existing project and whose name matches a different existing project surfaces only the ID conflict — the name collision is silently undetected. Planned for a future release.
+- **Inline result banners.** After every import — fast-path or confirmed — a dismissible banner replaces the preview with a specific count summary: "3 projects added, 1 copied, 1 replaced, 2 skipped." Clauses with zero count are omitted. If no action was taken the banner reads "No projects were imported." instead of a bare period. Success banners use `role="status"`; error banners use `role="alert"`.
+- **Stale-data guard operating at two layers.** If the workspace changes while the conflict preview is open, the import is safely aborted. Layer 1 (hook): immediately before calling the store action, conflicts are re-detected against the current store state and compared to the original preview-time conflicts using full `(incomingId, type, existingId)` tuples — a conflict-type change from `'name'` to `'id'` for the same incoming project is detected as drift. Layer 2 (store): `applySmartImport` re-detects conflicts inside Zustand's `set()` updater against `state.projects` at write time, then compares against the hook's snapshot. If they differ, the updater returns the unchanged state and the action returns `{ ok: false }` — the import is aborted without modifying the store. This closes the concurrent-delete drift window that Layer 1 cannot reach. An error banner asks the user to try again.
 
 ### Changed
 
-- **Breaking (import — sprint history):** 'Replace existing with imported'
-  now fully substitutes all existing sprints for that project with the
-  incoming file's sprints. Previously, project-export merges preserved
-  existing sprint history and only added new sprint numbers. Use 'Keep
-  existing' or 'Add as a copy' to preserve sprint history.
-- **Default conflict resolution changed:** For same-project ID conflicts,
-  the default is now 'Keep existing' (skip) for all cases.
-- **'Replace' effect on per-project data:**
-  - Sprint history, milestones, and productivity adjustments: fully
-    substituted from the file.
-  - Burn-up chart configurations: cleared for replaced projects. Re-open
-    the Forecast tab to reconfigure. Untouched projects' configs preserved.
-  - Forecast inputs (remaining backlog, velocity estimates): carried over
-    for name-conflict replacements; unchanged for ID-conflict replacements
-    (same project ID, no remap needed).
-  - **Copied projects start with blank forecast inputs** — re-enter
-    estimates on the Forecast tab.
-- **Story Map imports now preserve session data for untouched projects.**
-  Previously, every Story Map import zeroed all forecast inputs and burn-up
-  configs workspace-wide and reset the viewed project to none. v0.30.0
-  preserves session data for projects not involved in the import.
-- **Project-export imports now correctly migrate forecast inputs for renamed
-  projects.** Previously, project-export imports left forecast inputs orphaned
-  at the old project ID when a name-conflict project was updated in place.
-- Story Map imports route through the same inline state machine, replacing
-  the former modal dialog.
+- **Breaking — 'Replace existing' now fully substitutes sprint history.** Choosing 'Replace existing with imported' for a conflicting project removes all existing sprints for that project and inserts the incoming file's sprints in their place. Previously, project-export merges and Story Map merges preserved existing sprint history and only added sprint numbers not yet recorded. Use 'Keep existing' or 'Add as a copy' to preserve sprint history.
+- **Default conflict resolution changed for same-project ID conflicts.** The default choice is now 'Keep existing, ignore imported' (skip) for all ID conflicts, regardless of whether the project names match. Previously, when the existing and incoming project shared both ID and name, the default was 'Replace existing with imported'. That default became a data-loss footgun once 'Replace' adopted full sprint-history substitution semantics — a user who imports a prior backup into a workspace with newer sprint data would silently lose those sprints by clicking Confirm without reading. Users who intend to replace must now opt in by selecting the radio explicitly.
+- **'Replace' effect on per-project session data.** Sprint history, milestones, and productivity adjustments: fully substituted from the incoming file. Burn-up chart configurations: cleared for all replaced projects because incoming milestones may carry different IDs, leaving prior configs referencing non-existent milestone IDs. Configurations for projects not involved in the replace are preserved. Forecast inputs (remaining backlog, velocity estimates): carried over from the displaced existing project for name-conflict replacements, where the project ID changes; preserved unchanged for ID-conflict replacements, where the project ID is the same. **Copied projects start with blank forecast inputs** — re-enter estimates on the Forecast tab. A copy is a new planning entity; carrying forward estimates from the source would be misleading if scope or velocity assumptions differ.
+- **Story Map imports now preserve session data for untouched projects.** Previously, every Story Map import called `mergeImportData`, which explicitly set `forecastInputs: {}`, `burnUpConfigs: {}`, and `viewingProjectId: null` for the entire workspace — wiping estimates and chart configurations for every project regardless of whether it appeared in the Story Map file. Story Map imports now route through the same `applySmartImport` path as project-export imports, which clears session data only for the specific projects involved in the import and leaves all others intact.
+- **Project-export imports now correctly migrate forecast inputs for name-conflict updated projects.** Previously, when an incoming project matched an existing project by name (different IDs), the merge applied the incoming project at the existing project's array slot but left `forecastInputs` keyed to the old project ID. The new entry was orphaned — the forecast inputs were never visible because the key no longer matched any project ID. `applySmartImport` now renames the `forecastInputs` entry from `existingId` to `winner.id` as part of the same atomic write.
+- **Story Map imports now route through the inline state machine, replacing the modal dialog.** Previously, detecting a Story Map export (`source: 'spert-story-map'`) opened a `MergeImportDialog` modal showing a per-project plan summary. Story Map files now receive the same full Level 4 flow — inline preview, dual conflict detection, per-project tri-choice, accurate banner counts — and the modal is gone.
+- **Legacy full-workspace imports offer a merge-vs-replace-all toggle.** Importing a native Forecaster export (no `_exportType` or `source` tag) now shows the inline preview in "Replace entire workspace" mode by default, with a radio toggle to switch to "Merge into workspace" mode. In Replace mode, a "Replace All Data" button in the preview opens a `ConfirmDialog` (danger variant) requiring a second deliberate click before the workspace is overwritten. Previously, importing a native Forecaster file showed only a single `ConfirmDialog` with no per-project options.
+- **In cloud mode, all imports show the conflict preview regardless of conflict count.** Zero-conflict project-export and Story Map imports that would normally apply via fast path in local mode instead display the preview with only the "New projects (N)" block — one extra click, no data risk. During the 1–2 seconds after sign-in before the first Firestore snapshot arrives, `projects` is briefly empty and `detectImportConflicts` returns no conflicts for every incoming project. Suppressing the fast paths during this hydration window prevents silent duplicate creation and prevents a Replace-All from overwriting cloud data that has not yet loaded.
 
 ### Fixed
 
-- `isStoryMapExport` now correctly checks `source === 'spert-story-map'`.
-- viewingProjectId reconciliation is atomic with the merge write — eliminates
-  a one-tick flicker when the viewed project was name-conflict-replaced.
+- **`isStoryMapExport` was checking the wrong field and always returning `false`.** The type guard was checking `._exportType === 'spert-story-map'` but Story Map exports set `.source = 'spert-story-map'` — a field defined on `ExportData` itself, not on the Story Map subtype. The guard never matched a real Story Map file; every Story Map import was falling through to the legacy native-export branch and presenting the full-replace confirmation dialog. The guard now checks `.source` to match the actual export format.
+- **`viewingProjectId` was updated in a separate Zustand `set()` call after the merge write, causing a one-tick flicker.** Between the two calls, the store held post-merge `projects` while `viewingProjectId` still pointed at the displaced existing project. `selectViewingProject` resolved to `projects[0]` for one render tick — a visible flash to the wrong project. `viewingProjectId` reconciliation now runs inside `applySmartImport`'s single `set()` updater, atomically with the merge.
 
 ### Internal
 
-- `MergeImportDialog` component removed.
-- `buildMergePlan`, `applyMergePlan`, `buildSubsetMergePlan`, `applySubsetMerge`,
-  `isStoryMapExport`, `isProjectSubsetExport` moved/replaced;
-  `merge-import.ts` deleted.
-- Store actions `mergeImportData`, `mergeProjectSubset`, `importData` removed;
-  replaced by `applySmartImport` (returns `SmartImportOutcome`) and
-  `importDataAndSelectFirst`.
-- Import state machine extracted to `useImportState()` hook in
-  `src/features/projects/hooks/useImportState.ts`.
-- Merge computation now fully atomic inside Zustand's `set()` updater, with
-  conflict re-detection at write time. Prevents both concurrent-add (project
-  preserved) and concurrent-delete (stale conflict aborted safely) drift.
-- `_changeLog` source values now include `'spert-legacy-export'` for legacy
-  imports in Merge mode.
-- 866 tests / 40 files passing (up from 747 / 37 in v0.29.4; `merge-import.test.ts`
-  deleted, new `import-utils.test.ts`, `ImportPreviewSection.test.tsx`,
-  `useImportState.test.ts`, and `ProjectsTab.test.tsx` added).
+- **`MergeImportDialog` component removed** (`src/shared/components/MergeImportDialog.tsx`).
+- **`merge-import.ts` and `merge-import.test.ts` deleted.** `buildMergePlan`, `applyMergePlan`, `buildSubsetMergePlan`, `applySubsetMerge`, `isStoryMapExport`, and `isProjectSubsetExport` have been removed or moved. `isProjectSubsetExport` and `isStoryMapExport` (with corrected field) now live in `src/shared/state/import-utils.ts`.
+- **Store actions `mergeImportData`, `mergeProjectSubset`, and `importData` removed** from `project-store.ts` and the `ProjectState` interface. Replaced by `applySmartImport` and `importDataAndSelectFirst`.
+- **`applySmartImport` returns `SmartImportOutcome` (`{ ok: true; result } | { ok: false; reason }`)** rather than `void`. The hook uses the returned `result` for banner counts, guaranteeing the counts reflect what was actually committed rather than a pre-computed estimate that may have diverged under concurrent drift. `syncBus.emit({ type: 'project:import' })` fires only on `outcome.ok === true`.
+- **Merge computation is fully atomic.** `applySmartImport` calls `applyImportDecisions` inside Zustand's `set()` updater against `state.projects` at write time — not against a snapshot captured in the hook. A project added concurrently by a cross-tab cloud sync between the hook's `getState()` read and the store write is preserved in the merged output.
+- **New files:** `src/shared/state/import-utils.ts` (utility functions and types), `src/features/projects/hooks/useImportState.ts` (state machine hook), `src/features/projects/components/ImportPreviewSection.tsx` (controlled preview UI), and their co-located test files.
+- **`_changeLog` source values** now include `'spert-legacy-export'` for legacy full-workspace imports processed in Merge mode. Previously emitted as `'spert-forecaster-project-export'`, which was incorrect. `ChangeLogEntry.source` is typed `string`; this is a purely additive value.
+- **N new tests** across `import-utils.test.ts` (~57), `ImportPreviewSection.test.tsx` (~22), `useImportState.test.ts` (~27), `ProjectsTab.test.tsx` (~8), and additions to `project-store.test.ts` (~39 new, 8 migrated from deleted blocks). Total: approximately 825 tests / 36 files.
 
 ### Known Limitations
 
-- In cloud mode, all imports show the conflict preview, even for zero-conflict
-  files.
-- Importing the same file twice using 'Add as a copy' produces two identically-
-  named projects.
-- An incoming project whose ID matches one existing project AND whose name
-  matches a different existing project surfaces only the ID conflict.
-  Planned for v0.31.0.
+- In cloud mode, all imports show the conflict preview before applying, even for zero-conflict files. This prevents silent duplicate creation during the Firestore hydration window after sign-in.
+- Importing the same file twice using 'Add as a copy' produces two projects with identical names (e.g., two "Widget Project (2)" entries). The ' (2)' suffix does not iterate — intentional for bulk import ergonomics.
+- An incoming project whose ID matches one existing project and whose name matches a different existing project surfaces only the ID conflict. Choosing 'Replace existing' in this case may produce two projects sharing the same name. Planned: richer conflict model in a future release.
 
 ## v0.29.4 - 2026-05-11
 
