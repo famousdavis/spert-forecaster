@@ -1,5 +1,95 @@
 # Changelog
 
+## v0.30.0 - 2026-05-14
+
+### Added
+
+- **Smart Import (Level 4):** Per-project conflict resolution with an inline preview.
+  When a project-export or Story Map file has conflicts, a review section renders
+  between the project form and the project list with three choices per conflicting
+  project:
+  - **Keep existing, ignore imported** (default for all ID conflicts)
+  - **Add as a copy** (default for same-name, different-origin projects)
+  - **Replace existing with imported** (opt-in; fully substitutes all existing
+    sprints for that project with the incoming file's sprints)
+- Dual conflict detection: ID conflicts ("same project") and name conflicts
+  ("same name, different origin") are surfaced separately with distinct labels.
+- In local mode, zero-conflict project-export and Story Map imports apply
+  immediately without a preview. In cloud mode, all imports show the preview.
+- Legacy full-workspace imports offer a merge-vs-replace-all toggle; existing
+  data is no longer silently overwritten by default.
+- Import results appear as inline banners, e.g. "2 projects added, 1 copied,
+  1 replaced, 1 skipped."
+- Stale-data guard at two layers: hook-level fast early exit, and atomic
+  re-detection inside the Zustand `set()` updater. Cross-tab workspace
+  mutations during a preview are detected and the import is aborted with an
+  error banner rather than silently dropping or duplicating projects.
+
+### Changed
+
+- **Breaking (import — sprint history):** 'Replace existing with imported'
+  now fully substitutes all existing sprints for that project with the
+  incoming file's sprints. Previously, project-export merges preserved
+  existing sprint history and only added new sprint numbers. Use 'Keep
+  existing' or 'Add as a copy' to preserve sprint history.
+- **Default conflict resolution changed:** For same-project ID conflicts,
+  the default is now 'Keep existing' (skip) for all cases.
+- **'Replace' effect on per-project data:**
+  - Sprint history, milestones, and productivity adjustments: fully
+    substituted from the file.
+  - Burn-up chart configurations: cleared for replaced projects. Re-open
+    the Forecast tab to reconfigure. Untouched projects' configs preserved.
+  - Forecast inputs (remaining backlog, velocity estimates): carried over
+    for name-conflict replacements; unchanged for ID-conflict replacements
+    (same project ID, no remap needed).
+  - **Copied projects start with blank forecast inputs** — re-enter
+    estimates on the Forecast tab.
+- **Story Map imports now preserve session data for untouched projects.**
+  Previously, every Story Map import zeroed all forecast inputs and burn-up
+  configs workspace-wide and reset the viewed project to none. v0.30.0
+  preserves session data for projects not involved in the import.
+- **Project-export imports now correctly migrate forecast inputs for renamed
+  projects.** Previously, project-export imports left forecast inputs orphaned
+  at the old project ID when a name-conflict project was updated in place.
+- Story Map imports route through the same inline state machine, replacing
+  the former modal dialog.
+
+### Fixed
+
+- `isStoryMapExport` now correctly checks `source === 'spert-story-map'`.
+- viewingProjectId reconciliation is atomic with the merge write — eliminates
+  a one-tick flicker when the viewed project was name-conflict-replaced.
+
+### Internal
+
+- `MergeImportDialog` component removed.
+- `buildMergePlan`, `applyMergePlan`, `buildSubsetMergePlan`, `applySubsetMerge`,
+  `isStoryMapExport`, `isProjectSubsetExport` moved/replaced;
+  `merge-import.ts` deleted.
+- Store actions `mergeImportData`, `mergeProjectSubset`, `importData` removed;
+  replaced by `applySmartImport` (returns `SmartImportOutcome`) and
+  `importDataAndSelectFirst`.
+- Import state machine extracted to `useImportState()` hook in
+  `src/features/projects/hooks/useImportState.ts`.
+- Merge computation now fully atomic inside Zustand's `set()` updater, with
+  conflict re-detection at write time. Prevents both concurrent-add (project
+  preserved) and concurrent-delete (stale conflict aborted safely) drift.
+- `_changeLog` source values now include `'spert-legacy-export'` for legacy
+  imports in Merge mode.
+- 866 tests / 40 files passing (up from 747 / 37 in v0.29.4; `merge-import.test.ts`
+  deleted, new `import-utils.test.ts`, `ImportPreviewSection.test.tsx`,
+  `useImportState.test.ts`, and `ProjectsTab.test.tsx` added).
+
+### Known Limitations
+
+- In cloud mode, all imports show the conflict preview, even for zero-conflict
+  files.
+- Importing the same file twice using 'Add as a copy' produces two identically-
+  named projects.
+- An incoming project whose ID matches one existing project AND whose name
+  matches a different existing project surfaces only the ID conflict.
+  Planned for v0.31.0.
+
 ## v0.29.4 - 2026-05-11
 
 ### Fixed

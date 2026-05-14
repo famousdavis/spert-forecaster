@@ -4,32 +4,20 @@
 
 'use client'
 
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useId, useState } from 'react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
-import { useProjectStore, type ExportData } from '@/shared/state/project-store'
+import { useProjectStore } from '@/shared/state/project-store'
 import { useSettingsStore } from '@/shared/state/settings-store'
 import { useIsClient } from '@/shared/hooks'
 import { ConfirmDialog } from '@/shared/components/ConfirmDialog'
-import { MergeImportDialog } from '@/shared/components/MergeImportDialog'
-import {
-  isStoryMapExport,
-  isProjectSubsetExport,
-  buildMergePlan,
-  applyMergePlan,
-  buildSubsetMergePlan,
-  applySubsetMerge,
-  type StoryMapExportData,
-  type ProjectSubsetExportData,
-  type MergePlan,
-  type SubsetMergePlan,
-} from '@/shared/state/merge-import'
-import { validateImportData } from '@/shared/state/import-validation'
 import { today } from '@/shared/lib/dates'
 import { useStorageMode } from '@/shared/hooks/useStorageMode'
 import { SharingSection } from '@/features/auth/components/SharingSection'
 import { ProjectList } from './ProjectList'
 import { ProjectForm } from './ProjectForm'
+import { ImportPreviewSection } from './ImportPreviewSection'
+import { useImportState } from '../hooks/useImportState'
 import { exportSingleProject } from '../lib/export-project'
 import { getWorkspaceId, getStorageMode } from '@/shared/state/storage'
 import { auth } from '@/shared/firebase/config'
@@ -43,6 +31,7 @@ interface ProjectsTabProps {
 
 export function ProjectsTab({ onViewHistory }: ProjectsTabProps) {
   const isClient = useIsClient()
+  const idPrefix = useId()
   const projects = useProjectStore((state) => state.projects)
   const addProject = useProjectStore((state) => state.addProject)
   const updateProject = useProjectStore((state) => state.updateProject)
@@ -51,29 +40,27 @@ export function ProjectsTab({ onViewHistory }: ProjectsTabProps) {
   const reorderProjects = useProjectStore((state) => state.reorderProjects)
   const sprints = useProjectStore((state) => state.sprints)
   const exportData = useProjectStore((state) => state.exportData)
-  const importData = useProjectStore((state) => state.importData)
-  const mergeImportData = useProjectStore((state) => state.mergeImportData)
-  const mergeProjectSubset = useProjectStore((state) => state.mergeProjectSubset)
   const originRef = useProjectStore((state) => state._originRef)
   const changeLog = useProjectStore((state) => state._changeLog)
 
+  const {
+    importPreview,
+    importBanner,
+    replaceAllPending,
+    applying,
+    fileInputRef,
+    handleFileChange,
+    handleConfirmMerge,
+    handleImportCancel,
+    onModeChange,
+    onDecisionChange,
+    openReplaceAllConfirm,
+    cancelReplaceAllConfirm,
+    handleConfirmReplaceAll,
+    dismissBanner,
+  } = useImportState()
+
   const [editingProject, setEditingProject] = useState<Project | null>(null)
-  const [importError, setImportError] = useState<string | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const [mergeState, setMergeState] = useState<{
-    isOpen: boolean
-    plan: MergePlan | null
-    data: StoryMapExportData | null
-  }>({ isOpen: false, plan: null, data: null })
-  const [subsetMergeState, setSubsetMergeState] = useState<{
-    isOpen: boolean
-    plan: SubsetMergePlan | null
-    data: ProjectSubsetExportData | null
-  }>({ isOpen: false, plan: null, data: null })
-  const [replaceConfirm, setReplaceConfirm] = useState<{
-    isOpen: boolean
-    data: ExportData | null
-  }>({ isOpen: false, data: null })
   const { mode } = useStorageMode()
   const { user } = useAuth()
   const [sharingProject, setSharingProject] = useState<Project | null>(null)
@@ -100,7 +87,12 @@ export function ProjectsTab({ onViewHistory }: ProjectsTabProps) {
       cancelled = true
     }
   }, [mode, user, projects.length])
-  const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; projectId: string | null; projectName: string }>({
+
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    isOpen: boolean
+    projectId: string | null
+    projectName: string
+  }>({
     isOpen: false,
     projectId: null,
     projectName: '',
@@ -138,117 +130,57 @@ export function ProjectsTab({ onViewHistory }: ProjectsTabProps) {
     toast.success('Project data exported')
   }
 
-  const handleClone = useCallback((project: Project) => {
-    const newId = cloneProject(project.id)
-    if (newId) {
-      toast.success(`Cloned: ${project.name}`)
-    } else {
-      toast.error('Clone failed: project not found')
-    }
-  }, [cloneProject])
+  const handleClone = useCallback(
+    (project: Project) => {
+      const newId = cloneProject(project.id)
+      if (newId) {
+        toast.success(`Cloned: ${project.name}`)
+      } else {
+        toast.error('Clone failed: project not found')
+      }
+    },
+    [cloneProject],
+  )
 
-  const handleExportProject = useCallback((projectId: string) => {
-    try {
-      const settings = useSettingsStore.getState()
-      const storageRef =
-        (getStorageMode() === 'cloud' && auth?.currentUser?.uid) || getWorkspaceId()
-      exportSingleProject(projectId, {
-        projects,
-        sprints,
-        originRef: originRef || getWorkspaceId(),
-        storageRef,
-        changeLog,
-        exportedBy: settings.exportName || undefined,
-        exportedById: settings.exportId || undefined,
-      })
-      toast.success('Project exported')
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown error'
-      toast.error(`Export failed: ${message}`)
-    }
-  }, [projects, sprints, originRef, changeLog])
+  const handleExportProject = useCallback(
+    (projectId: string) => {
+      try {
+        const settings = useSettingsStore.getState()
+        const storageRef =
+          (getStorageMode() === 'cloud' && auth?.currentUser?.uid) || getWorkspaceId()
+        exportSingleProject(projectId, {
+          projects,
+          sprints,
+          originRef: originRef || getWorkspaceId(),
+          storageRef,
+          changeLog,
+          exportedBy: settings.exportName || undefined,
+          exportedById: settings.exportId || undefined,
+        })
+        toast.success('Project exported')
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error'
+        toast.error(`Export failed: ${message}`)
+      }
+    },
+    [projects, sprints, originRef, changeLog],
+  )
 
   const handleImportClick = () => {
     fileInputRef.current?.click()
   }
 
-  const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-
-    setImportError(null)
-
-    // Validate file type
-    if (!file.name.endsWith('.json') && file.type !== 'application/json') {
-      setImportError('Import failed: Please select a JSON file (.json)')
-      e.target.value = ''
-      return
-    }
-
-    // Validate file size
-    if (file.size > MAX_FILE_SIZE) {
-      setImportError(`Import failed: File size exceeds 10MB limit (${(file.size / 1024 / 1024).toFixed(1)}MB)`)
-      e.target.value = ''
-      return
-    }
-
-    const reader = new FileReader()
-    reader.onload = (event) => {
-      const content = event.target?.result as string
-
-      // Parse JSON with better error handling
-      let data: ExportData
-      try {
-        data = JSON.parse(content) as ExportData
-      } catch {
-        setImportError('Import failed: Invalid JSON format. Please check the file is a valid SPERT export.')
-        return
-      }
-
-      // Validate structure (shared validation for both formats)
-      try {
-        validateImportData(data)
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'Unknown validation error'
-        setImportError(`Import failed: ${message}`)
-        return
-      }
-
-      // Detect Forecaster per-project subset export and use additive merge flow
-      if (isProjectSubsetExport(data)) {
-        const plan = buildSubsetMergePlan(projects, sprints, data)
-        setSubsetMergeState({ isOpen: true, plan, data })
-        return
-      }
-
-      // Detect Story Map export and use merge flow
-      if (isStoryMapExport(data)) {
-        const plan = buildMergePlan(projects, sprints, data)
-        setMergeState({ isOpen: true, plan, data })
-        return
-      }
-
-      // Native Forecaster export: show confirmation before full replace
-      setReplaceConfirm({ isOpen: true, data })
-    }
-    reader.onerror = () => {
-      setImportError('Import failed: Could not read file')
-    }
-    reader.readAsText(file)
-    // Reset input so same file can be selected again
-    e.target.value = ''
-  }
-
-  const handleDeleteRequest = useCallback((projectId: string) => {
-    const project = projects.find((p) => p.id === projectId)
-    setDeleteConfirm({
-      isOpen: true,
-      projectId,
-      projectName: project?.name ?? 'Unknown',
-    })
-  }, [projects])
+  const handleDeleteRequest = useCallback(
+    (projectId: string) => {
+      const project = projects.find((p) => p.id === projectId)
+      setDeleteConfirm({
+        isOpen: true,
+        projectId,
+        projectName: project?.name ?? 'Unknown',
+      })
+    },
+    [projects],
+  )
 
   const handleDeleteConfirm = useCallback(() => {
     if (deleteConfirm.projectId) {
@@ -261,75 +193,6 @@ export function ProjectsTab({ onViewHistory }: ProjectsTabProps) {
     setDeleteConfirm({ isOpen: false, projectId: null, projectName: '' })
   }, [])
 
-  const handleMergeConfirm = useCallback(() => {
-    if (!mergeState.plan || !mergeState.data) return
-    try {
-      const result = applyMergePlan(projects, sprints, mergeState.data, mergeState.plan)
-      mergeImportData(result.projects, result.sprints)
-
-      const parts: string[] = []
-      if (mergeState.plan.totalUpdatedProjects > 0) {
-        parts.push(`${mergeState.plan.totalUpdatedProjects} project${mergeState.plan.totalUpdatedProjects !== 1 ? 's' : ''} updated`)
-      }
-      if (mergeState.plan.totalNewProjects > 0) {
-        parts.push(`${mergeState.plan.totalNewProjects} project${mergeState.plan.totalNewProjects !== 1 ? 's' : ''} added`)
-      }
-      toast.success(`Story Map imported: ${parts.join(', ')}`)
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown error'
-      setImportError(`Merge failed: ${message}`)
-    }
-    setMergeState({ isOpen: false, plan: null, data: null })
-  }, [mergeState, projects, sprints, mergeImportData])
-
-  const handleMergeCancel = useCallback(() => {
-    setMergeState({ isOpen: false, plan: null, data: null })
-  }, [])
-
-  const handleSubsetMergeConfirm = useCallback(() => {
-    if (!subsetMergeState.plan || !subsetMergeState.data) return
-    try {
-      const result = applySubsetMerge(projects, sprints, subsetMergeState.data)
-      mergeProjectSubset(result.projects, result.sprints)
-
-      const parts: string[] = []
-      if (subsetMergeState.plan.addedProjects > 0) {
-        parts.push(`${subsetMergeState.plan.addedProjects} added`)
-      }
-      if (subsetMergeState.plan.updatedProjects > 0) {
-        parts.push(`${subsetMergeState.plan.updatedProjects} updated`)
-      }
-      if (subsetMergeState.plan.addedSprints > 0) {
-        parts.push(`${subsetMergeState.plan.addedSprints} new sprint(s)`)
-      }
-      toast.success(`Imported: ${parts.length > 0 ? parts.join(', ') : 'no changes'}`)
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown error'
-      setImportError(`Merge failed: ${message}`)
-    }
-    setSubsetMergeState({ isOpen: false, plan: null, data: null })
-  }, [subsetMergeState, projects, sprints, mergeProjectSubset])
-
-  const handleSubsetMergeCancel = useCallback(() => {
-    setSubsetMergeState({ isOpen: false, plan: null, data: null })
-  }, [])
-
-  const handleReplaceConfirm = useCallback(() => {
-    if (!replaceConfirm.data) return
-    try {
-      importData(replaceConfirm.data)
-      toast.success('Project data imported')
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown validation error'
-      setImportError(`Import failed: ${message}`)
-    }
-    setReplaceConfirm({ isOpen: false, data: null })
-  }, [replaceConfirm.data, importData])
-
-  const handleReplaceCancel = useCallback(() => {
-    setReplaceConfirm({ isOpen: false, data: null })
-  }, [])
-
   if (!isClient) {
     return <div className="text-muted-foreground">Loading...</div>
   }
@@ -338,15 +201,21 @@ export function ProjectsTab({ onViewHistory }: ProjectsTabProps) {
     <div className="space-y-6">
       <h2 className="text-xl font-semibold">Projects</h2>
 
-      {importError && (
+      {importBanner && (
         <div
-          className="flex items-center justify-between rounded border border-[#e53e3e] bg-[#fff3f3] px-4 py-3 text-[0.9rem] text-spert-error-dark"
+          role={importBanner.kind === 'error' ? 'alert' : 'status'}
+          className={cn(
+            'flex items-center justify-between rounded border px-4 py-3 text-sm',
+            importBanner.kind === 'error'
+              ? 'border-[#e53e3e] bg-[#fff3f3] text-spert-error-dark dark:bg-red-900/20 dark:text-red-100'
+              : 'border-green-300 bg-green-50 text-green-900 dark:border-green-700 dark:bg-green-900/30 dark:text-green-100',
+          )}
         >
-          <span>{importError}</span>
+          <span>{importBanner.text}</span>
           <button
-            onClick={() => setImportError(null)}
-            className="border-none bg-transparent cursor-pointer text-spert-error-dark font-bold text-base"
-            aria-label="Dismiss error"
+            onClick={dismissBanner}
+            className="border-none bg-transparent cursor-pointer font-bold text-base"
+            aria-label="Dismiss"
           >
             ×
           </button>
@@ -360,6 +229,22 @@ export function ProjectsTab({ onViewHistory }: ProjectsTabProps) {
         onCancel={handleFormCancel}
       />
 
+      {importPreview && (
+        <ImportPreviewSection
+          imported={importPreview.imported}
+          conflicts={importPreview.conflicts}
+          decisions={importPreview.decisions}
+          mode={importPreview.mode}
+          applying={applying}
+          idPrefix={idPrefix}
+          onModeChange={onModeChange}
+          onDecisionChange={onDecisionChange}
+          onConfirm={handleConfirmMerge}
+          onRequestReplaceAll={openReplaceAllConfirm}
+          onCancel={handleImportCancel}
+        />
+      )}
+
       <div className={cn('flex gap-2', projects.length === 0 ? 'justify-center' : 'justify-end')}>
         {projects.length > 0 && (
           <button
@@ -369,7 +254,13 @@ export function ProjectsTab({ onViewHistory }: ProjectsTabProps) {
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-transparent bg-transparent text-gray-500 text-[0.9rem] font-medium cursor-pointer transition-all duration-[120ms] hover:text-[#10b981] hover:bg-emerald-50 dark:hover:bg-emerald-500/15 hover:border-[#10b981] focus:outline-none focus:text-[#10b981] focus:bg-emerald-50 dark:focus:bg-emerald-500/15 focus:border-[#10b981]"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" />
+              <path
+                d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"
+                stroke="currentColor"
+                strokeWidth="2.25"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
             </svg>
             Export All
           </button>
@@ -377,11 +268,18 @@ export function ProjectsTab({ onViewHistory }: ProjectsTabProps) {
         <button
           type="button"
           onClick={handleImportClick}
+          disabled={applying}
           aria-label="Import projects from JSON"
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-transparent bg-transparent text-gray-500 text-[0.9rem] font-medium cursor-pointer transition-all duration-[120ms] hover:text-[#0070f3] hover:bg-blue-50 dark:hover:bg-blue-500/15 hover:border-[#0070f3] focus:outline-none focus:text-[#0070f3] focus:bg-blue-50 dark:focus:bg-blue-500/15 focus:border-[#0070f3]"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-transparent bg-transparent text-gray-500 text-[0.9rem] font-medium cursor-pointer transition-all duration-[120ms] hover:text-[#0070f3] hover:bg-blue-50 dark:hover:bg-blue-500/15 hover:border-[#0070f3] focus:outline-none focus:text-[#0070f3] focus:bg-blue-50 dark:focus:bg-blue-500/15 focus:border-[#0070f3] disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" />
+            <path
+              d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"
+              stroke="currentColor"
+              strokeWidth="2.25"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
           </svg>
           Import
         </button>
@@ -436,36 +334,15 @@ export function ProjectsTab({ onViewHistory }: ProjectsTabProps) {
         variant="danger"
       />
 
-      <MergeImportDialog
-        isOpen={mergeState.isOpen}
-        plan={mergeState.plan}
-        onConfirm={handleMergeConfirm}
-        onCancel={handleMergeCancel}
-      />
-
       <ConfirmDialog
-        isOpen={replaceConfirm.isOpen}
-        title="Replace All Data"
+        isOpen={replaceAllPending && importPreview !== null}
+        title="Replace all data"
         message="This will replace all existing projects, sprint history, milestones, and productivity adjustments with the contents of this file. This cannot be undone. Export your current data first if you want to keep it."
         confirmLabel="Replace"
         cancelLabel="Cancel"
-        onConfirm={handleReplaceConfirm}
-        onCancel={handleReplaceCancel}
+        onConfirm={handleConfirmReplaceAll}
+        onCancel={cancelReplaceAllConfirm}
         variant="danger"
-      />
-
-      <ConfirmDialog
-        isOpen={subsetMergeState.isOpen}
-        title="Merge Project(s)"
-        message={
-          subsetMergeState.plan
-            ? `This will add ${subsetMergeState.plan.addedProjects} new project(s) and update ${subsetMergeState.plan.updatedProjects} existing project(s). ${subsetMergeState.plan.addedSprints} sprint(s) will be added; ${subsetMergeState.plan.skippedSprints} duplicate sprint(s) will be skipped. Existing projects not in this file are kept unchanged.`
-            : ''
-        }
-        confirmLabel="Merge"
-        cancelLabel="Cancel"
-        onConfirm={handleSubsetMergeConfirm}
-        onCancel={handleSubsetMergeCancel}
       />
     </div>
   )
