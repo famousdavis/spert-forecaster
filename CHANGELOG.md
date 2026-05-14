@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.30.1 - 2026-05-14
+
+### Changed
+
+- **Sprint History Edit/Delete now use the same icon buttons as Projects tab.** The yellow "Edit" pill and red "Delete" pill on each Sprint History row are replaced with the shared `PencilIconButton` and `TrashIconButton` components (subtle gray icons that tint blue/red on hover, with a 1.5px colored focus ring). The pencil shows a persistent blue tint while the row's sprint is being edited, matching the Projects tab's active-state pattern. Confirmation flow, the "only the most recent sprint can be deleted" gate, and all behavior are unchanged — visual change only.
+
 ## v0.30.0 - 2026-05-14
 
 ### Added

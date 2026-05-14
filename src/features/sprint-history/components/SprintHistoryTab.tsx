@@ -214,6 +214,7 @@ export function SprintHistoryTab() {
               sortAscending={sortAscending}
               firstSprintStartDate={selectedProject.firstSprintStartDate}
               sprintCadenceWeeks={selectedProject.sprintCadenceWeeks}
+              editingSprintId={editingSprint?.id ?? null}
               onToggleSortOrder={handleToggleSortOrder}
               onEdit={handleEdit}
               onDelete={handleDeleteRequest}

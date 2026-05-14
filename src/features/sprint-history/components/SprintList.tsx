@@ -5,7 +5,8 @@
 'use client'
 
 import { useMemo } from 'react'
-import { cn } from '@/lib/utils'
+import { PencilIconButton } from '@/shared/components/PencilIconButton'
+import { TrashIconButton } from '@/shared/components/TrashIconButton'
 import type { Sprint } from '@/shared/types'
 import { formatDateRange, resolveAllSprintDates } from '@/shared/lib/dates'
 
@@ -15,6 +16,7 @@ interface SprintListProps {
   sortAscending: boolean
   firstSprintStartDate?: string
   sprintCadenceWeeks?: 1 | 2 | 3 | 4
+  editingSprintId?: string | null
   onToggleSortOrder: () => void
   onEdit: (sprint: Sprint) => void
   onDelete: (id: string) => void
@@ -27,6 +29,7 @@ export function SprintList({
   sortAscending,
   firstSprintStartDate,
   sprintCadenceWeeks,
+  editingSprintId,
   onToggleSortOrder,
   onEdit,
   onDelete,
@@ -148,25 +151,20 @@ export function SprintList({
                   {sprint.backlogAtSprintEnd !== undefined ? sprint.backlogAtSprintEnd : '—'}
                 </td>
                 <td className="px-4 py-3 text-right">
-                  <button
-                    onClick={() => onEdit(sprint)}
-                    className="px-3 py-1.5 bg-spert-bg-warning-light dark:bg-yellow-900/40 border border-spert-warning dark:border-yellow-600 rounded cursor-pointer text-[0.85rem] dark:text-yellow-200"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => canDelete && onDelete(sprint.id)}
-                    disabled={!canDelete}
-                    title={canDelete ? 'Delete sprint' : 'Only the most recent sprint can be deleted'}
-                    className={cn(
-                      'px-3 py-1.5 rounded text-[0.85rem] ml-2',
-                      canDelete
-                        ? 'bg-spert-bg-error-light dark:bg-red-900/40 border border-spert-error dark:border-red-600 cursor-pointer opacity-100 dark:text-red-200'
-                        : 'bg-spert-bg-disabled dark:bg-gray-700 border border-spert-border-medium dark:border-gray-600 cursor-not-allowed opacity-50 dark:text-gray-400'
-                    )}
-                  >
-                    Delete
-                  </button>
+                  <div className="inline-flex items-center gap-0.5">
+                    <PencilIconButton
+                      onClick={() => onEdit(sprint)}
+                      ariaLabel={`Edit Sprint ${sprint.sprintNumber}`}
+                      title="Edit sprint"
+                      active={sprint.id === editingSprintId}
+                    />
+                    <TrashIconButton
+                      onClick={() => onDelete(sprint.id)}
+                      ariaLabel={`Delete Sprint ${sprint.sprintNumber}`}
+                      title={canDelete ? 'Delete sprint' : 'Only the most recent sprint can be deleted'}
+                      disabled={!canDelete}
+                    />
+                  </div>
                 </td>
               </tr>
             )
