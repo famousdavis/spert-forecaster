@@ -12,6 +12,13 @@ import { type BurnUpConfig, DEFAULT_BURN_UP_CONFIG } from '@/shared/types/burn-u
 import { validateImportData, type ExportData } from './import-validation'
 import { useSettingsStore } from './settings-store'
 import { syncBus } from '@/shared/firebase/sync-bus'
+import {
+  applyImportDecisions,
+  conflictsEqual,
+  detectImportConflicts,
+  type ApplySmartImportArgs,
+  type SmartImportOutcome,
+} from './import-utils'
 export { validateImportData, type ExportData } from './import-validation'
 
 // Session-only forecast inputs (per project, not persisted to localStorage)
@@ -80,9 +87,8 @@ interface ProjectState {
 
   // Import/Export actions
   exportData: () => ExportData
-  importData: (data: ExportData) => void
-  mergeImportData: (projects: Project[], sprints: Sprint[]) => void
-  mergeProjectSubset: (projects: Project[], sprints: Sprint[]) => void
+  importDataAndSelectFirst: (data: ExportData, firstProjectId?: string) => void
+  applySmartImport: (args: ApplySmartImportArgs) => SmartImportOutcome
 
   // Cloud sync actions
   replaceProjectsFromCloud: (projects: Project[], sprints: Sprint[]) => void
@@ -462,64 +468,124 @@ export const useProjectStore = create<ProjectState>()(
         }
       },
 
-      importData: (data: ExportData) => {
+      importDataAndSelectFirst: (data, firstProjectId) => {
         validateImportData(data)
-        if (data.version && data.version !== APP_VERSION) {
-          console.info(`Importing data from version ${data.version} (current: ${APP_VERSION})`)
-        }
-
-        // Preserve _originRef from imported data; backfill if missing
         const originRef = data._originRef || getWorkspaceId()
-
-        // Build changelog: preserve imported log, append import event
         const importedLog = Array.isArray(data._changeLog) ? data._changeLog : []
         const newLog = appendChangeLogEntry(importedLog, {
           op: 'import',
           entity: 'dataset',
           source: 'file',
         })
-
         set(() => ({
           projects: data.projects,
           sprints: data.sprints,
           _originRef: originRef,
           _changeLog: newLog,
-          viewingProjectId: null,
+          viewingProjectId: firstProjectId ?? null,
           forecastInputs: {},
           burnUpConfigs: {},
         }))
         syncBus.emit({ type: 'project:import' })
       },
 
-      mergeImportData: (projects, sprints) => {
-        set((state) => ({
-          projects,
-          sprints,
-          _originRef: ensureOriginRef(state),
-          _changeLog: appendChangeLogEntry(state._changeLog, {
-            op: 'merge-import',
-            entity: 'dataset',
-            source: 'spert-story-map',
-          }),
-          viewingProjectId: null,
-          forecastInputs: {},
-          burnUpConfigs: {},
-        }))
-        syncBus.emit({ type: 'project:import' })
-      },
+      applySmartImport: ({ incoming, decisions, freshConflicts, source }) => {
+        // C22: Exhaustive switch. Adding a new exportType to ParsedImportData's
+        // union becomes a compile error. TypeScript enforces exhaustiveness;
+        // no runtime test needed.
+        const changeLogSource = ((): string => {
+          switch (source) {
+            case 'spert-story-map':
+              return 'spert-story-map'
+            case 'spert-forecaster-project-export':
+              return 'spert-forecaster-project-export'
+            case 'legacy':
+              return 'spert-legacy-export'
+            default: {
+              const _exhaustive: never = source
+              return _exhaustive
+            }
+          }
+        })()
 
-      mergeProjectSubset: (projects, sprints) => {
-        set((state) => ({
-          projects,
-          sprints,
-          _originRef: ensureOriginRef(state),
-          _changeLog: appendChangeLogEntry(state._changeLog, {
-            op: 'merge-import',
-            entity: 'dataset',
-            source: 'spert-forecaster-project-export',
-          }),
-        }))
-        syncBus.emit({ type: 'project:import' })
+        // outcome starts as failure; set to success only inside set() if no drift.
+        let outcome: SmartImportOutcome = { ok: false, reason: 'workspace-changed' }
+        set((state) => {
+          // C28/H1: Re-detect conflicts against state.projects AT WRITE TIME.
+          // Closes the concurrent-delete drift window between the hook's
+          // stale-data guard and this write.
+          const currentConflicts = detectImportConflicts(incoming, state.projects)
+          if (!conflictsEqual(currentConflicts, freshConflicts)) {
+            // Workspace changed between hook's guard and this write. No-op.
+            return state
+          }
+          const { mergedProjects, mergedSprints, result } = applyImportDecisions(
+            state.projects,
+            state.sprints,
+            incoming,
+            decisions,
+            currentConflicts,
+          )
+          outcome = { ok: true, result }
+
+          const existingIds = new Set(state.projects.map((p) => p.id))
+          const forecastInputs = { ...state.forecastInputs }
+          const burnUpConfigs = { ...state.burnUpConfigs }
+
+          // N-C-1: Defensive clear for all genuinely-new project IDs. Covers
+          // 'added', 'copy', and name-conflict winner IDs. Runs BEFORE the
+          // forecastInputs rename so the rename target is always clean.
+          //
+          // Per-project entity treatment:
+          //   Sprint history:           substituted from incoming (replace); fresh IDs (copy)
+          //   Milestones:               substituted from incoming (replace); fresh IDs (copy)
+          //   Productivity adjustments: substituted from incoming (replace); fresh IDs (copy)
+          //   Forecast inputs:          RENAMED for name-conflicts; preserved for ID-conflicts
+          //                             (same key); BLANK for copies (deliberate — C11).
+          //   Burn-up configurations:   CLEARED for ALL replaced IDs; untouched preserved.
+          for (const p of mergedProjects) {
+            if (!existingIds.has(p.id)) {
+              delete forecastInputs[p.id]
+              delete burnUpConfigs[p.id]
+            }
+          }
+          // forecastInputs rename for name-conflict displaced projects.
+          for (const [existingId, incomingId] of result.replacedIdMap) {
+            if (existingId in forecastInputs) {
+              forecastInputs[incomingId] = forecastInputs[existingId]
+              delete forecastInputs[existingId]
+            }
+          }
+          // burnUpConfigs selective clear for replaced project slots.
+          for (const existingId of result.replacedExistingIds) {
+            delete burnUpConfigs[existingId]
+          }
+          // C7: viewingProjectId reconciliation — atomic in same set().
+          let newViewingProjectId = state.viewingProjectId
+          if (state.viewingProjectId && result.replacedIdMap.size > 0) {
+            const remapped = result.replacedIdMap.get(state.viewingProjectId)
+            if (remapped !== undefined) newViewingProjectId = remapped
+          }
+          return {
+            projects: mergedProjects,
+            sprints: mergedSprints,
+            _originRef: ensureOriginRef(state),
+            _changeLog: appendChangeLogEntry(state._changeLog, {
+              op: 'merge-import',
+              entity: 'dataset',
+              source: changeLogSource,
+            }),
+            forecastInputs,
+            burnUpConfigs,
+            viewingProjectId: newViewingProjectId,
+          }
+        })
+        // C28: syncBus only fires on success. A no-op set() should not trigger
+        // cloud sync of unchanged data.
+        if (outcome.ok) {
+          syncBus.emit({ type: 'project:import' })
+        }
+        return outcome
       },
 
       replaceProjectsFromCloud: (projects, sprints) => {

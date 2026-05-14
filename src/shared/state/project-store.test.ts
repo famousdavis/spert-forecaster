@@ -11,9 +11,11 @@ import {
   selectIncludedSprints,
   selectProjectAdjustments,
   validateImportData,
+  type ExportData,
 } from './project-store'
 import { DEFAULT_BURN_UP_CONFIG } from '@/shared/types/burn-up'
 import { syncBus } from '@/shared/firebase/sync-bus'
+import type { ChangeLogEntry } from './storage'
 import type { Project, Sprint } from '@/shared/types'
 
 // Helper: reset store state before each test
@@ -650,25 +652,6 @@ describe('exportData', () => {
   })
 })
 
-describe('importData', () => {
-  it('replaces projects and sprints', () => {
-    useProjectStore.setState({ projects: [makeProject({ id: 'old' })], sprints: [] })
-
-    const { importData } = useProjectStore.getState()
-    importData({
-      version: '0.10.0',
-      exportedAt: '2026-01-01T00:00:00Z',
-      projects: [makeProject({ id: 'new', name: 'Imported' })],
-      sprints: [makeSprint({ id: 'new-sprint', projectId: 'new' })],
-    })
-
-    const state = useProjectStore.getState()
-    expect(state.projects).toHaveLength(1)
-    expect(state.projects[0].id).toBe('new')
-    expect(state.sprints).toHaveLength(1)
-  })
-})
-
 // --- validateImportData ---
 
 describe('validateImportData', () => {
@@ -980,110 +963,6 @@ describe('exportData with fingerprinting', () => {
   })
 })
 
-// --- Import with fingerprinting ---
-
-describe('importData with fingerprinting', () => {
-  it('preserves _originRef from imported data', () => {
-    const { importData } = useProjectStore.getState()
-    importData({
-      version: '0.20.0',
-      exportedAt: '2026-01-01T00:00:00Z',
-      projects: [makeProject()],
-      sprints: [],
-      _originRef: 'original-browser-uuid',
-      _changeLog: [{ t: 1000, op: 'add', entity: 'project' }],
-    })
-    expect(useProjectStore.getState()._originRef).toBe('original-browser-uuid')
-  })
-
-  it('backfills _originRef if missing from imported data', () => {
-    const { importData } = useProjectStore.getState()
-    importData({
-      version: '0.19.1',
-      exportedAt: '2026-01-01T00:00:00Z',
-      projects: [makeProject()],
-      sprints: [],
-    })
-    const state = useProjectStore.getState()
-    expect(state._originRef).toBeTruthy()
-    expect(typeof state._originRef).toBe('string')
-  })
-
-  it('preserves and extends _changeLog with import event', () => {
-    const { importData } = useProjectStore.getState()
-    importData({
-      version: '0.20.0',
-      exportedAt: '2026-01-01T00:00:00Z',
-      projects: [makeProject()],
-      sprints: [],
-      _originRef: 'orig',
-      _changeLog: [{ t: 1000, op: 'add', entity: 'project' }],
-    })
-    const { _changeLog } = useProjectStore.getState()
-    expect(_changeLog).toHaveLength(2)
-    expect(_changeLog[0].op).toBe('add')
-    expect(_changeLog[1].op).toBe('import')
-    expect(_changeLog[1].entity).toBe('dataset')
-    expect(_changeLog[1].source).toBe('file')
-  })
-
-  it('creates _changeLog with import event if none existed', () => {
-    const { importData } = useProjectStore.getState()
-    importData({
-      version: '0.19.1',
-      exportedAt: '2026-01-01T00:00:00Z',
-      projects: [makeProject()],
-      sprints: [],
-    })
-    const { _changeLog } = useProjectStore.getState()
-    expect(_changeLog).toHaveLength(1)
-    expect(_changeLog[0].op).toBe('import')
-  })
-
-  it('does not carry _storageRef or attribution into store state', () => {
-    const { importData } = useProjectStore.getState()
-    importData({
-      version: '0.20.0',
-      exportedAt: '2026-01-01T00:00:00Z',
-      projects: [makeProject()],
-      sprints: [],
-      _originRef: 'orig',
-      _storageRef: 'storage-ref',
-      _exportedBy: 'Alice',
-      _exportedById: '12345',
-    })
-    const state = useProjectStore.getState()
-    // These should not exist on the store state
-    expect((state as unknown as Record<string, unknown>)._storageRef).toBeUndefined()
-    expect((state as unknown as Record<string, unknown>)._exportedBy).toBeUndefined()
-    expect((state as unknown as Record<string, unknown>)._exportedById).toBeUndefined()
-  })
-})
-
-// --- Merge import with fingerprinting ---
-
-describe('mergeImportData with fingerprinting', () => {
-  it('preserves existing _originRef', () => {
-    useProjectStore.setState({ _originRef: 'existing-origin' })
-    const { mergeImportData } = useProjectStore.getState()
-    mergeImportData([makeProject()], [makeSprint()])
-    expect(useProjectStore.getState()._originRef).toBe('existing-origin')
-  })
-
-  it('appends merge-import event to _changeLog', () => {
-    useProjectStore.setState({
-      _changeLog: [{ t: 1000, op: 'add', entity: 'project' }],
-    })
-    const { mergeImportData } = useProjectStore.getState()
-    mergeImportData([makeProject()], [makeSprint()])
-    const { _changeLog } = useProjectStore.getState()
-    expect(_changeLog).toHaveLength(2)
-    expect(_changeLog[1].op).toBe('merge-import')
-    expect(_changeLog[1].entity).toBe('dataset')
-    expect(_changeLog[1].source).toBe('spert-story-map')
-  })
-})
-
 describe('clearProjectsOnSignOut', () => {
   it('zeros user-scoped data fields', () => {
     useProjectStore.setState({
@@ -1152,5 +1031,612 @@ describe('clearProjectsOnSignOut', () => {
 
     unsubscribe()
     expect(spy).not.toHaveBeenCalled()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// importDataAndSelectFirst (v0.30.0)
+// ---------------------------------------------------------------------------
+
+describe('importDataAndSelectFirst', () => {
+  function makeExportData(overrides: Partial<ExportData> = {}): ExportData {
+    return {
+      version: '0.30.0',
+      exportedAt: '2026-05-14T00:00:00.000Z',
+      projects: [makeProject({ id: 'p1' })],
+      sprints: [],
+      ...overrides,
+    }
+  }
+
+  it('sets projects, sprints, _originRef, _changeLog in one set() call', () => {
+    const data = makeExportData()
+    useProjectStore.getState().importDataAndSelectFirst(data)
+    const state = useProjectStore.getState()
+    expect(state.projects).toEqual(data.projects)
+    expect(state.sprints).toEqual(data.sprints)
+    expect(state._originRef).toBeTruthy()
+    expect(state._changeLog.length).toBeGreaterThan(0)
+  })
+
+  it('sets viewingProjectId to firstProjectId when provided', () => {
+    const data = makeExportData()
+    useProjectStore.getState().importDataAndSelectFirst(data, 'p1')
+    expect(useProjectStore.getState().viewingProjectId).toBe('p1')
+  })
+
+  it('sets viewingProjectId to null when firstProjectId is undefined', () => {
+    const data = makeExportData()
+    useProjectStore.setState({ viewingProjectId: 'stale' })
+    useProjectStore.getState().importDataAndSelectFirst(data)
+    expect(useProjectStore.getState().viewingProjectId).toBeNull()
+  })
+
+  it('zeros forecastInputs', () => {
+    useProjectStore.setState({
+      forecastInputs: { x: { remainingBacklog: '5', velocityMean: '1', velocityStdDev: '0' } },
+    })
+    useProjectStore.getState().importDataAndSelectFirst(makeExportData())
+    expect(useProjectStore.getState().forecastInputs).toEqual({})
+  })
+
+  it('zeros burnUpConfigs', () => {
+    useProjectStore.setState({ burnUpConfigs: { x: DEFAULT_BURN_UP_CONFIG } })
+    useProjectStore.getState().importDataAndSelectFirst(makeExportData())
+    expect(useProjectStore.getState().burnUpConfigs).toEqual({})
+  })
+
+  it('appends to _changeLog with op:"import", source:"file"', () => {
+    useProjectStore.setState({ _changeLog: [] })
+    useProjectStore.getState().importDataAndSelectFirst(makeExportData())
+    const log = useProjectStore.getState()._changeLog
+    expect(log.at(-1)?.op).toBe('import')
+    expect(log.at(-1)?.source).toBe('file')
+  })
+
+  it('emits project:import on syncBus', () => {
+    const spy = vi.fn()
+    const unsubscribe = syncBus.subscribe(spy)
+    useProjectStore.getState().importDataAndSelectFirst(makeExportData())
+    unsubscribe()
+    const calls = spy.mock.calls.filter(([evt]) => evt?.type === 'project:import')
+    expect(calls.length).toBeGreaterThan(0)
+  })
+
+  it('preserves _originRef from imported data when present', () => {
+    const data = { ...makeExportData(), _originRef: 'imported-origin' }
+    useProjectStore.getState().importDataAndSelectFirst(data)
+    expect(useProjectStore.getState()._originRef).toBe('imported-origin')
+  })
+
+  it('preserves and extends imported _changeLog', () => {
+    const importedLog: ChangeLogEntry[] = [{ t: 1, op: 'add', entity: 'project', id: 'p1' }]
+    const data = { ...makeExportData(), _changeLog: importedLog }
+    useProjectStore.getState().importDataAndSelectFirst(data)
+    const log = useProjectStore.getState()._changeLog
+    expect(log.length).toBeGreaterThan(1)
+    expect(log[0].t).toBe(1)
+  })
+
+  // Migrated from removed `describe('importData with fingerprinting')`:
+  it('backfills _originRef when missing from imported data', () => {
+    useProjectStore.getState().importDataAndSelectFirst(makeExportData())
+    const state = useProjectStore.getState()
+    expect(state._originRef).toBeTruthy()
+    expect(typeof state._originRef).toBe('string')
+  })
+
+  it('creates _changeLog with import event if none existed in the file', () => {
+    useProjectStore.getState().importDataAndSelectFirst(makeExportData())
+    const { _changeLog } = useProjectStore.getState()
+    expect(_changeLog).toHaveLength(1)
+    expect(_changeLog[0].op).toBe('import')
+  })
+
+  it('does not carry _storageRef or attribution fields into store state', () => {
+    const data: ExportData = {
+      ...makeExportData(),
+      _originRef: 'orig',
+      _storageRef: 'storage-ref',
+      _exportedBy: 'Alice',
+      _exportedById: '12345',
+    }
+    useProjectStore.getState().importDataAndSelectFirst(data)
+    const state = useProjectStore.getState()
+    expect((state as unknown as Record<string, unknown>)._storageRef).toBeUndefined()
+    expect((state as unknown as Record<string, unknown>)._exportedBy).toBeUndefined()
+    expect((state as unknown as Record<string, unknown>)._exportedById).toBeUndefined()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// applySmartImport (v0.30.0)
+// ---------------------------------------------------------------------------
+
+describe('applySmartImport', () => {
+  type ParsedImportData =
+    | { exportType: 'spert-forecaster-project-export'; projects: Project[]; sprints: Sprint[] }
+    | { exportType: 'spert-story-map'; projects: Project[]; sprints: Sprint[] }
+    | { exportType: 'legacy'; projects: Project[]; sprints: Sprint[]; _originalExportData: { version: string; exportedAt: string; projects: Project[]; sprints: Sprint[] } }
+
+  function projectExportIn(projects: Project[], sprints: Sprint[] = []): ParsedImportData {
+    return { exportType: 'spert-forecaster-project-export', projects, sprints }
+  }
+  function storyMapIn(projects: Project[], sprints: Sprint[] = []): ParsedImportData {
+    return { exportType: 'spert-story-map', projects, sprints }
+  }
+  function legacyIn(projects: Project[], sprints: Sprint[] = []): ParsedImportData {
+    return {
+      exportType: 'legacy',
+      projects,
+      sprints,
+      _originalExportData: { version: '0.30.0', exportedAt: '2026-05-14', projects, sprints },
+    }
+  }
+
+  it('returns { ok: true, result } on successful merge', () => {
+    const incoming = projectExportIn([makeProject({ id: 'new-1', name: 'New' })])
+    const outcome = useProjectStore.getState().applySmartImport({
+      incoming,
+      decisions: new Map(),
+      freshConflicts: [],
+      source: 'spert-forecaster-project-export',
+    })
+    expect(outcome.ok).toBe(true)
+    if (outcome.ok) {
+      expect(outcome.result.added).toBe(1)
+    }
+  })
+
+  it('appends spert-story-map to _changeLog for story-map source', () => {
+    const incoming = storyMapIn([makeProject({ id: 'a' })])
+    useProjectStore.getState().applySmartImport({
+      incoming,
+      decisions: new Map(),
+      freshConflicts: [],
+      source: 'spert-story-map',
+    })
+    const log = useProjectStore.getState()._changeLog
+    expect(log.at(-1)?.source).toBe('spert-story-map')
+  })
+
+  // Migrated from removed `describe('mergeImportData with fingerprinting')`:
+  it('preserves existing _originRef on a merge-import', () => {
+    useProjectStore.setState({ _originRef: 'existing-origin' })
+    useProjectStore.getState().applySmartImport({
+      incoming: storyMapIn([makeProject({ id: 'a' })]),
+      decisions: new Map(),
+      freshConflicts: [],
+      source: 'spert-story-map',
+    })
+    expect(useProjectStore.getState()._originRef).toBe('existing-origin')
+  })
+
+  it('appends spert-forecaster-project-export to _changeLog for project-export source', () => {
+    const incoming = projectExportIn([makeProject({ id: 'a' })])
+    useProjectStore.getState().applySmartImport({
+      incoming,
+      decisions: new Map(),
+      freshConflicts: [],
+      source: 'spert-forecaster-project-export',
+    })
+    expect(useProjectStore.getState()._changeLog.at(-1)?.source).toBe('spert-forecaster-project-export')
+  })
+
+  it('appends spert-legacy-export to _changeLog for legacy source (C12)', () => {
+    const incoming = legacyIn([makeProject({ id: 'a' })])
+    useProjectStore.getState().applySmartImport({
+      incoming,
+      decisions: new Map(),
+      freshConflicts: [],
+      source: 'legacy',
+    })
+    expect(useProjectStore.getState()._changeLog.at(-1)?.source).toBe('spert-legacy-export')
+  })
+
+  it('emits project:import on syncBus ONLY on ok:true (C28)', () => {
+    const spy = vi.fn()
+    const unsubscribe = syncBus.subscribe(spy)
+    useProjectStore.getState().applySmartImport({
+      incoming: projectExportIn([makeProject({ id: 'a' })]),
+      decisions: new Map(),
+      freshConflicts: [],
+      source: 'spert-forecaster-project-export',
+    })
+    unsubscribe()
+    const calls = spy.mock.calls.filter(([evt]) => evt?.type === 'project:import')
+    expect(calls.length).toBeGreaterThan(0)
+  })
+
+  it('does NOT emit project:import on syncBus when drift detected (C28)', () => {
+    // Setup: existing project with id 'old'. freshConflicts asserts there's a conflict.
+    useProjectStore.setState({ projects: [makeProject({ id: 'old' })] })
+    const inc = makeProject({ id: 'in' })
+    const incoming = projectExportIn([inc])
+    // freshConflicts claims an id-conflict that doesn't actually exist in current state.
+    const fakeConflict = {
+      type: 'id' as const,
+      incomingProject: inc,
+      existingProject: makeProject({ id: 'in' }),
+    }
+    const spy = vi.fn()
+    const unsubscribe = syncBus.subscribe(spy)
+    const outcome = useProjectStore.getState().applySmartImport({
+      incoming,
+      decisions: new Map([['in', 'replace']]),
+      freshConflicts: [fakeConflict],
+      source: 'spert-forecaster-project-export',
+    })
+    unsubscribe()
+    expect(outcome.ok).toBe(false)
+    expect(spy.mock.calls.filter(([evt]) => evt?.type === 'project:import')).toHaveLength(0)
+  })
+
+  describe('C28: concurrent-delete drift protection (H1)', () => {
+    it('returns { ok: false } when conflicts change between hook check and set() write', () => {
+      useProjectStore.setState({ projects: [makeProject({ id: 'A' })] })
+      // freshConflicts asserts id-conflict on A, but if A is deleted before set(),
+      // re-detection will find no conflict → drift.
+      // Simulate by passing freshConflicts that does NOT match current state (A missing).
+      const inc = makeProject({ id: 'A', name: 'New' })
+      useProjectStore.setState({ projects: [] }) // simulate concurrent delete
+      const outcome = useProjectStore.getState().applySmartImport({
+        incoming: projectExportIn([inc]),
+        decisions: new Map([['A', 'replace']]),
+        freshConflicts: [
+          {
+            type: 'id',
+            incomingProject: inc,
+            existingProject: makeProject({ id: 'A' }),
+          },
+        ],
+        source: 'spert-forecaster-project-export',
+      })
+      expect(outcome.ok).toBe(false)
+      // State should be unchanged.
+      expect(useProjectStore.getState().projects).toEqual([])
+    })
+
+    it('returns { ok: true } and preserves a concurrently-added project in merged output', () => {
+      // Start with [A]. Hook reads, sees [A], freshConflicts=[]. Then D is added concurrently.
+      useProjectStore.setState({ projects: [makeProject({ id: 'A' })] })
+      // Simulate concurrent add of D BEFORE the set() updater fires.
+      useProjectStore.setState({ projects: [makeProject({ id: 'A' }), makeProject({ id: 'D' })] })
+
+      const C = makeProject({ id: 'C', name: 'C' })
+      const outcome = useProjectStore.getState().applySmartImport({
+        incoming: projectExportIn([C]),
+        decisions: new Map(),
+        freshConflicts: [],
+        source: 'spert-forecaster-project-export',
+      })
+      expect(outcome.ok).toBe(true)
+      const ids = useProjectStore.getState().projects.map((p) => p.id).sort()
+      expect(ids).toEqual(['A', 'C', 'D'])
+    })
+
+    it('does not drop incoming replace-target on concurrent delete', () => {
+      // Two-pass: first set up [A]; record freshConflicts as id-conflict on A.
+      // Then delete A. The set() updater should no-op rather than write a phantom replace.
+      useProjectStore.setState({ projects: [makeProject({ id: 'A' })] })
+      const inc = makeProject({ id: 'A', name: 'New-A' })
+      const freshConflicts = [
+        {
+          type: 'id' as const,
+          incomingProject: inc,
+          existingProject: makeProject({ id: 'A' }),
+        },
+      ]
+      // Concurrent delete:
+      useProjectStore.setState({ projects: [] })
+      const outcome = useProjectStore.getState().applySmartImport({
+        incoming: projectExportIn([inc]),
+        decisions: new Map([['A', 'replace']]),
+        freshConflicts,
+        source: 'spert-forecaster-project-export',
+      })
+      expect(outcome.ok).toBe(false)
+      // The phantom "replaced" project must NOT silently appear.
+      expect(useProjectStore.getState().projects).toEqual([])
+    })
+  })
+
+  describe('C28: banner accuracy (H2)', () => {
+    it('outcome.result counts match the actual state written to the store', () => {
+      useProjectStore.setState({ projects: [makeProject({ id: 'existing-1' })] })
+      const inc = makeProject({ id: 'new-1', name: 'New' })
+      const outcome = useProjectStore.getState().applySmartImport({
+        incoming: projectExportIn([inc]),
+        decisions: new Map(),
+        freshConflicts: [],
+        source: 'spert-forecaster-project-export',
+      })
+      expect(outcome.ok).toBe(true)
+      if (outcome.ok) {
+        const finalIds = useProjectStore.getState().projects.map((p) => p.id)
+        expect(outcome.result.added).toBe(1)
+        expect(finalIds).toContain('new-1')
+        expect(finalIds).toContain('existing-1')
+      }
+    })
+  })
+
+  describe('viewingProjectId reconciliation (C7 / C30)', () => {
+    it('remaps viewingProjectId for name-conflict replace atomically', () => {
+      // Subscribe to every Zustand state transition to verify the atomicity
+      // invariant: no transition has state.projects ≠ prevState.projects while
+      // state.viewingProjectId points to an ID absent from state.projects.
+      useProjectStore.setState({
+        projects: [makeProject({ id: 'old-id', name: 'Shared' })],
+        viewingProjectId: 'old-id',
+      })
+      const inc = makeProject({ id: 'new-id', name: 'shared' })
+      const conflicts = [{ type: 'name' as const, incomingProject: inc, existingProject: makeProject({ id: 'old-id', name: 'Shared' }) }]
+
+      const violations: string[] = []
+      const unsubscribe = useProjectStore.subscribe((state, prevState) => {
+        if (state.projects !== prevState.projects) {
+          const ids = new Set(state.projects.map((p) => p.id))
+          if (state.viewingProjectId !== null && !ids.has(state.viewingProjectId)) {
+            violations.push(`viewing ${state.viewingProjectId} absent from projects`)
+          }
+        }
+      })
+
+      useProjectStore.getState().applySmartImport({
+        incoming: projectExportIn([inc]),
+        decisions: new Map([['new-id', 'replace']]),
+        freshConflicts: conflicts,
+        source: 'spert-forecaster-project-export',
+      })
+      unsubscribe()
+
+      expect(violations).toEqual([])
+      expect(useProjectStore.getState().viewingProjectId).toBe('new-id')
+    })
+
+    it('leaves viewingProjectId unchanged for ID-conflict replace', () => {
+      useProjectStore.setState({
+        projects: [makeProject({ id: 'shared', name: 'Old' })],
+        viewingProjectId: 'shared',
+      })
+      const inc = makeProject({ id: 'shared', name: 'New' })
+      const conflicts = [{ type: 'id' as const, incomingProject: inc, existingProject: makeProject({ id: 'shared', name: 'Old' }) }]
+      useProjectStore.getState().applySmartImport({
+        incoming: projectExportIn([inc]),
+        decisions: new Map([['shared', 'replace']]),
+        freshConflicts: conflicts,
+        source: 'spert-forecaster-project-export',
+      })
+      expect(useProjectStore.getState().viewingProjectId).toBe('shared')
+    })
+
+    it('leaves viewingProjectId unchanged when not in replacedIdMap', () => {
+      useProjectStore.setState({
+        projects: [makeProject({ id: 'a' }), makeProject({ id: 'b', name: 'Shared' })],
+        viewingProjectId: 'a',
+      })
+      const inc = makeProject({ id: 'c', name: 'shared' })
+      const conflicts = [{ type: 'name' as const, incomingProject: inc, existingProject: makeProject({ id: 'b', name: 'Shared' }) }]
+      useProjectStore.getState().applySmartImport({
+        incoming: projectExportIn([inc]),
+        decisions: new Map([['c', 'replace']]),
+        freshConflicts: conflicts,
+        source: 'spert-forecaster-project-export',
+      })
+      expect(useProjectStore.getState().viewingProjectId).toBe('a')
+    })
+  })
+
+  describe('forecastInputs handling', () => {
+    it('renames forecastInputs[existingId] to forecastInputs[winner.id] for name-conflict replace', () => {
+      useProjectStore.setState({
+        projects: [makeProject({ id: 'old', name: 'Shared' })],
+        forecastInputs: { old: { remainingBacklog: '99', velocityMean: '5', velocityStdDev: '1' } },
+      })
+      const inc = makeProject({ id: 'new', name: 'shared' })
+      const conflicts = [{ type: 'name' as const, incomingProject: inc, existingProject: makeProject({ id: 'old', name: 'Shared' }) }]
+      useProjectStore.getState().applySmartImport({
+        incoming: projectExportIn([inc]),
+        decisions: new Map([['new', 'replace']]),
+        freshConflicts: conflicts,
+        source: 'spert-forecaster-project-export',
+      })
+      const fi = useProjectStore.getState().forecastInputs
+      expect(fi.old).toBeUndefined()
+      expect(fi.new?.remainingBacklog).toBe('99')
+    })
+
+    it('rename target is clean before rename (N-C-1 ordering regression guard)', () => {
+      // A zombie at winner.id ('new') would corrupt the rename target.
+      useProjectStore.setState({
+        projects: [makeProject({ id: 'old', name: 'Shared' })],
+        forecastInputs: {
+          old: { remainingBacklog: 'correct', velocityMean: '5', velocityStdDev: '1' },
+          new: { remainingBacklog: 'ZOMBIE', velocityMean: '0', velocityStdDev: '0' },
+        },
+      })
+      const inc = makeProject({ id: 'new', name: 'shared' })
+      const conflicts = [{ type: 'name' as const, incomingProject: inc, existingProject: makeProject({ id: 'old', name: 'Shared' }) }]
+      useProjectStore.getState().applySmartImport({
+        incoming: projectExportIn([inc]),
+        decisions: new Map([['new', 'replace']]),
+        freshConflicts: conflicts,
+        source: 'spert-forecaster-project-export',
+      })
+      const fi = useProjectStore.getState().forecastInputs
+      // Wait — 'new' was a genuinely-new winner ID in mergedProjects (not in
+      // pre-import existingIds set). N-C-1 clears it. Then rename moves 'old'
+      // into 'new'. So fi.new === 'correct', not 'ZOMBIE'.
+      expect(fi.new?.remainingBacklog).toBe('correct')
+    })
+
+    it('preserves forecastInputs for ID-conflict replace (same key)', () => {
+      useProjectStore.setState({
+        projects: [makeProject({ id: 'shared' })],
+        forecastInputs: { shared: { remainingBacklog: '42', velocityMean: '3', velocityStdDev: '1' } },
+      })
+      const inc = makeProject({ id: 'shared', name: 'New' })
+      const conflicts = [{ type: 'id' as const, incomingProject: inc, existingProject: makeProject({ id: 'shared' }) }]
+      useProjectStore.getState().applySmartImport({
+        incoming: projectExportIn([inc]),
+        decisions: new Map([['shared', 'replace']]),
+        freshConflicts: conflicts,
+        source: 'spert-forecaster-project-export',
+      })
+      expect(useProjectStore.getState().forecastInputs.shared?.remainingBacklog).toBe('42')
+    })
+
+    it('leaves forecastInputs untouched when replacedIdMap is empty', () => {
+      useProjectStore.setState({
+        projects: [makeProject({ id: 'untouched' })],
+        forecastInputs: { untouched: { remainingBacklog: '7', velocityMean: '1', velocityStdDev: '0' } },
+      })
+      useProjectStore.getState().applySmartImport({
+        incoming: projectExportIn([makeProject({ id: 'new', name: 'New' })]),
+        decisions: new Map(),
+        freshConflicts: [],
+        source: 'spert-forecaster-project-export',
+      })
+      expect(useProjectStore.getState().forecastInputs.untouched?.remainingBacklog).toBe('7')
+    })
+
+    it('copies start with blank forecastInputs (N-C-1, deliberate — C11)', () => {
+      // A copy gets a fresh UUID. forecastInputs at that UUID could only exist
+      // as a zombie; N-C-1 clears it. Verify by hand-seeding a fake "zombie"
+      // at an unused id is not practical here (we don't know the UUID up front).
+      // Just verify the post-import forecastInputs for the copy's UUID is missing.
+      useProjectStore.setState({
+        projects: [makeProject({ id: 'existing', name: 'Shared' })],
+        forecastInputs: { existing: { remainingBacklog: '7', velocityMean: '1', velocityStdDev: '0' } },
+      })
+      const inc = makeProject({ id: 'incoming', name: 'shared' })
+      const conflicts = [{ type: 'name' as const, incomingProject: inc, existingProject: makeProject({ id: 'existing', name: 'Shared' }) }]
+      useProjectStore.getState().applySmartImport({
+        incoming: projectExportIn([inc]),
+        decisions: new Map([['incoming', 'copy']]),
+        freshConflicts: conflicts,
+        source: 'spert-forecaster-project-export',
+      })
+      const state = useProjectStore.getState()
+      // The copy is the project whose id is neither 'existing' nor 'incoming'.
+      const copy = state.projects.find((p) => p.id !== 'existing' && p.id !== 'incoming')!
+      expect(copy).toBeDefined()
+      expect(state.forecastInputs[copy.id]).toBeUndefined()
+    })
+  })
+
+  describe('burnUpConfigs handling', () => {
+    it('selectively clears only replaced project IDs — untouched retain configs', () => {
+      useProjectStore.setState({
+        projects: [makeProject({ id: 'a' }), makeProject({ id: 'b' })],
+        burnUpConfigs: { a: DEFAULT_BURN_UP_CONFIG, b: DEFAULT_BURN_UP_CONFIG },
+      })
+      const inc = makeProject({ id: 'a', name: 'New A' })
+      const conflicts = [{ type: 'id' as const, incomingProject: inc, existingProject: makeProject({ id: 'a' }) }]
+      useProjectStore.getState().applySmartImport({
+        incoming: projectExportIn([inc]),
+        decisions: new Map([['a', 'replace']]),
+        freshConflicts: conflicts,
+        source: 'spert-forecaster-project-export',
+      })
+      const cfg = useProjectStore.getState().burnUpConfigs
+      expect(cfg.a).toBeUndefined()
+      expect(cfg.b).toEqual(DEFAULT_BURN_UP_CONFIG)
+    })
+
+    it('leaves burnUpConfigs untouched when replacedExistingIds is empty', () => {
+      useProjectStore.setState({
+        projects: [makeProject({ id: 'a' })],
+        burnUpConfigs: { a: DEFAULT_BURN_UP_CONFIG },
+      })
+      useProjectStore.getState().applySmartImport({
+        incoming: projectExportIn([makeProject({ id: 'b', name: 'B' })]),
+        decisions: new Map(),
+        freshConflicts: [],
+        source: 'spert-forecaster-project-export',
+      })
+      expect(useProjectStore.getState().burnUpConfigs.a).toEqual(DEFAULT_BURN_UP_CONFIG)
+    })
+
+    it('clears burnUpConfigs for name-conflict replaced existing ID (not winner.id)', () => {
+      useProjectStore.setState({
+        projects: [makeProject({ id: 'old', name: 'X' })],
+        burnUpConfigs: { old: DEFAULT_BURN_UP_CONFIG },
+      })
+      const inc = makeProject({ id: 'new', name: 'x' })
+      const conflicts = [{ type: 'name' as const, incomingProject: inc, existingProject: makeProject({ id: 'old', name: 'X' }) }]
+      useProjectStore.getState().applySmartImport({
+        incoming: projectExportIn([inc]),
+        decisions: new Map([['new', 'replace']]),
+        freshConflicts: conflicts,
+        source: 'spert-forecaster-project-export',
+      })
+      expect(useProjectStore.getState().burnUpConfigs.old).toBeUndefined()
+    })
+  })
+
+  describe('Story Map source path (C14)', () => {
+    it('source:spert-story-map emits correct _changeLog entry', () => {
+      useProjectStore.getState().applySmartImport({
+        incoming: storyMapIn([makeProject({ id: 'a' })]),
+        decisions: new Map(),
+        freshConflicts: [],
+        source: 'spert-story-map',
+      })
+      expect(useProjectStore.getState()._changeLog.at(-1)?.source).toBe('spert-story-map')
+    })
+
+    it('viewingProjectId preserved when no replacedIdMap entries', () => {
+      useProjectStore.setState({
+        projects: [makeProject({ id: 'keep' })],
+        viewingProjectId: 'keep',
+      })
+      useProjectStore.getState().applySmartImport({
+        incoming: storyMapIn([makeProject({ id: 'add', name: 'New' })]),
+        decisions: new Map(),
+        freshConflicts: [],
+        source: 'spert-story-map',
+      })
+      expect(useProjectStore.getState().viewingProjectId).toBe('keep')
+    })
+
+    it('forecastInputs preserved for untouched projects on Story Map path', () => {
+      useProjectStore.setState({
+        projects: [makeProject({ id: 'keep' })],
+        forecastInputs: { keep: { remainingBacklog: '11', velocityMean: '1', velocityStdDev: '0' } },
+      })
+      useProjectStore.getState().applySmartImport({
+        incoming: storyMapIn([makeProject({ id: 'new', name: 'New' })]),
+        decisions: new Map(),
+        freshConflicts: [],
+        source: 'spert-story-map',
+      })
+      expect(useProjectStore.getState().forecastInputs.keep?.remainingBacklog).toBe('11')
+    })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// deleteProject — regression lock for the import invariant
+// ---------------------------------------------------------------------------
+
+describe('deleteProject — import-invariant regression lock', () => {
+  it('clears forecastInputs entry for the deleted project', () => {
+    useProjectStore.setState({
+      projects: [makeProject({ id: 'a' })],
+      forecastInputs: { a: { remainingBacklog: '1', velocityMean: '1', velocityStdDev: '0' } },
+    })
+    useProjectStore.getState().deleteProject('a')
+    expect(useProjectStore.getState().forecastInputs.a).toBeUndefined()
+  })
+
+  it('clears burnUpConfigs entry for the deleted project', () => {
+    useProjectStore.setState({
+      projects: [makeProject({ id: 'a' })],
+      burnUpConfigs: { a: DEFAULT_BURN_UP_CONFIG },
+    })
+    useProjectStore.getState().deleteProject('a')
+    expect(useProjectStore.getState().burnUpConfigs.a).toBeUndefined()
   })
 })
