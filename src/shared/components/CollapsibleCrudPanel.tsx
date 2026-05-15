@@ -27,6 +27,7 @@ interface CollapsibleCrudPanelProps<T extends CrudItem> {
     items: T[]
     onEdit: (item: T) => void
     onDelete: (id: string) => void
+    editingItem: T | null
   }) => ReactNode
   addButtonLabel?: string
   deleteDialogTitle?: string
@@ -144,6 +145,7 @@ export function CollapsibleCrudPanel<T extends CrudItem>({
             items,
             onEdit: handleEdit,
             onDelete: handleDeleteRequest,
+            editingItem,
           })}
 
           {/* Add button — below list */}

@@ -67,7 +67,7 @@ export function Milestones({ projectId, unitOfMeasure }: MilestonesProps) {
           onCancel={onCancel}
         />
       )}
-      renderList={({ items, onEdit, onDelete }) => (
+      renderList={({ items, onEdit, onDelete, editingItem }) => (
         <MilestoneList
           milestones={items}
           unitOfMeasure={unitOfMeasure}
@@ -75,6 +75,7 @@ export function Milestones({ projectId, unitOfMeasure }: MilestonesProps) {
           onDelete={onDelete}
           onToggleChart={handleToggleChart}
           onReorder={handleReorder}
+          editingId={editingItem?.id ?? null}
         />
       )}
       addButtonLabel="+ Add Milestone"

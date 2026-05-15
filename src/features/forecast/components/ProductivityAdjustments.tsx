@@ -62,12 +62,13 @@ export function ProductivityAdjustments({ projectId }: ProductivityAdjustmentsPr
           onCancel={onCancel}
         />
       )}
-      renderList={({ items, onEdit, onDelete }) => (
+      renderList={({ items, onEdit, onDelete, editingItem }) => (
         <ProductivityAdjustmentList
           adjustments={items}
           onEdit={onEdit}
           onDelete={onDelete}
           onToggleEnabled={handleToggleEnabled}
+          editingId={editingItem?.id ?? null}
         />
       )}
       addButtonLabel="+ Add Adjustment"
