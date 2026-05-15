@@ -16,6 +16,7 @@ interface MilestoneListProps {
   onDelete: (id: string) => void
   onToggleChart?: (id: string, showOnChart: boolean) => void
   onReorder?: (milestoneIds: string[]) => void
+  editingId?: string | null
 }
 
 export function MilestoneList({
@@ -25,6 +26,7 @@ export function MilestoneList({
   onDelete,
   onToggleChart,
   onReorder,
+  editingId,
 }: MilestoneListProps) {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
@@ -179,7 +181,13 @@ export function MilestoneList({
                   aria-label={`Show ${m.name} on chart`}
                 />
               </td>
-              <ListRowActions onEdit={() => onEdit(m)} onDelete={() => onDelete(m.id)} />
+              <ListRowActions
+                onEdit={() => onEdit(m)}
+                onDelete={() => onDelete(m.id)}
+                isEditing={m.id === editingId}
+                editLabel={`Edit ${m.name}`}
+                deleteLabel={`Delete ${m.name}`}
+              />
             </tr>
           ))}
         </tbody>

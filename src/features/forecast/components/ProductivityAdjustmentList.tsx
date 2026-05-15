@@ -14,6 +14,7 @@ interface ProductivityAdjustmentListProps {
   onEdit: (adjustment: ProductivityAdjustment) => void
   onDelete: (id: string) => void
   onToggleEnabled: (id: string) => void
+  editingId?: string | null
 }
 
 export function ProductivityAdjustmentList({
@@ -21,6 +22,7 @@ export function ProductivityAdjustmentList({
   onEdit,
   onDelete,
   onToggleEnabled,
+  editingId,
 }: ProductivityAdjustmentListProps) {
   if (adjustments.length === 0) {
     return (
@@ -103,7 +105,13 @@ export function ProductivityAdjustmentList({
                   </span>
                 </td>
                 <td className="p-2 text-spert-text-muted">{adj.reason || '—'}</td>
-                <ListRowActions onEdit={() => onEdit(adj)} onDelete={() => onDelete(adj.id)} />
+                <ListRowActions
+                  onEdit={() => onEdit(adj)}
+                  onDelete={() => onDelete(adj.id)}
+                  isEditing={adj.id === editingId}
+                  editLabel={`Edit ${adj.name}`}
+                  deleteLabel={`Delete ${adj.name}`}
+                />
               </tr>
             )
           })}

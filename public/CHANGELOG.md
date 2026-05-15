@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.30.2 - 2026-05-15
+
+### Changed
+
+- **Productivity Adjustments Edit/Delete now use icon buttons.** The yellow "Edit" pill and red "Delete" pill on each Productivity Adjustments row (Forecast tab) are replaced with the shared `PencilIconButton` and `TrashIconButton` components introduced in v0.29.x. The pencil shows a persistent blue active tint while that adjustment is being edited.
+- **Milestones Edit/Delete updated by the same change.** The shared `ListRowActions` component powers both Productivity Adjustments and Milestones rows, so Milestones receive the identical icon-button treatment in this release. After v0.30.2, every Edit/Delete control in the app — Projects tab, Sprint History, Productivity Adjustments, and Milestones — uses the same icon-button vocabulary.
+
+### Internal
+
+- **`ListRowActions` accepts an `isEditing` prop** that drives `PencilIconButton`'s `active` state. The host list passes `adj.id === editingId` (or `m.id === editingId` for milestones).
+- **`CollapsibleCrudPanel.renderList` callback** now also receives the panel's current `editingItem`, so list components can compute per-row editing state without duplicating the editing-state store. No behavior change for existing callers that ignore the new field.
+
 ## v0.30.1 - 2026-05-14
 
 ### Changed
