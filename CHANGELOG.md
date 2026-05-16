@@ -1,36 +1,5 @@
 # Changelog
 
-## v0.31.1 - 2026-05-16
-
-### Added
-
-- **"Load Sample Project" CTA on both empty states.** New users can now seed a runnable example with one click — eight sprints of history (variable velocity ending at 200 remaining), one milestone ("MVP Release"), and one productivity adjustment ("Holiday Week"). The seeded project lands on a clean burn-up + plain-language hero sentence so the demo writes itself. The CTA appears as the right-hand button on a twin-button empty-state ("Create New Project" + "Load Sample Project") that shows on both the Projects tab (Welcome variant) and the Forecast tab ("You'll need a project to forecast"). The sample is idempotent against double-clicks via name-guard; if a project named "Sample: Mobile App Launch" already exists, the seeder silently no-ops with a friendly toast.
-- **Custom Percentile section is now collapsible.** The custom-percentile sliders + result cards on the Forecast tab default to collapsed under the label *"Explore a custom percentile."* Click once to expand; functionality unchanged. One fewer wall of controls on first load.
-- **Jargon relabel: "Std Dev" / "Standard Deviation" → "Variability."** The Forecast form and the Sprint History velocity stats card now read "Variability" with an info-tooltip explaining the stats meaning: *"Standard deviation — how much velocity varies sprint to sprint."*
-- **History / Subjective mode tooltip.** The forecast-mode toggle now has an info-tooltip: *"History uses your sprint data; Subjective uses your judgment."*
-
-### Internal
-
-- **shadcn `tooltip` component installed** (first Radix-backed component in the codebase). Imports the unified `radix-ui` package; named exports `Tooltip`, `TooltipTrigger`, `TooltipContent`, `TooltipProvider`. New `HelpTooltip` wrapper at [src/shared/components/HelpTooltip.tsx](src/shared/components/HelpTooltip.tsx) renders an ⓘ info chip with Radix tooltip content. `TooltipProvider` wraps the entire `AppShell` render tree — without it, Radix throws "TooltipProvider is missing" at runtime.
-- **Sample project seeder** at [src/features/projects/lib/sample-project.ts](src/features/projects/lib/sample-project.ts). Plain module function using `useProjectStore.getState()` (not hooks). All sprint dates computed via the shared `calculateSprintStartDate` / `calculateSprintFinishDate` helpers — never hand-rolled — so every finish date lands on a business day. The "200 pre-fill backlog" promise is locked by a contract test in [sample-project.test.ts](src/features/projects/lib/sample-project.test.ts) that mirrors the full auto-derivation chain (project sprint filter → `includedInForecast` filter → `getLastSprintBacklog`). If `useSprintData`'s filter ever changes semantics, this test breaks loudly.
-- **Tab-switch focus handoff.** `useProjectStore` gains a session-only `shouldFocusNewProjectForm` flag (not in `partialize`, no cloud sync). `ProjectForm` now uses `forwardRef` + `useImperativeHandle` to expose a `focusNameInput()` method (named `ProjectFormHandle`). The Forecast empty-state "Create New Project" CTA sets the flag and switches tabs; ProjectsTab's mount effect reads the flag, focuses the name field via the ref, and immediately resets the flag.
-- **`AppShell` passes `onTabChange` to `ForecastTab`** as an optional prop so the empty-state CTA can request a tab switch without coupling the component to AppShell.
-
-## v0.31.0 - 2026-05-16
-
-### Added
-
-- **Single-distribution default — Settings → "Statistical methods to show."** A new section in Settings exposes one checkbox per distribution (Truncated Normal, Lognormal, Gamma, Bootstrap, Triangular, Uniform), each with a one-line plain-language description. New installs and upgraded installs default to **Truncated Normal only** — the cleanest first-touch view for new users. Re-enable any combination at any time; at least one must remain checked (the last enabled checkbox is locked). Bootstrap continues to be shown only on projects with 5+ sprints of history regardless of this setting. The setting round-trips through Firestore for cloud-mode users with two-layer defensive coercion (`Array.isArray` guard plus per-value `DistributionType` filter) so corrupted or forward-migrated documents fall back to `['truncatedNormal']` instead of breaking the load.
-- **"Your forecast" hero callout.** The Forecast Summary panel now leads with a plain-language sentence — *"Based on your team's pace, you have an 80% chance of finishing by [date]."* — dynamic against the percentile selector and adapted to subjective mode (*"Based on your estimates,..."*). The existing detailed paragraph stays below as supporting detail and the Copy Summary button continues to copy that paragraph.
-
-### Internal
-
-- **`getVisibleDistributions` chokepoint gained a third parameter** (`enabledDistributions?: readonly DistributionType[]`) that intersects with the mode-visible set. Order matters: the mode/bootstrap set is computed first, then intersected with the enabled set — never the reverse. All three call sites (`ForecastSummary`, `PercentileSelector`, `ResultsTable` via `ForecastResults`) now pass through the Settings value.
-- **Chart input arrays widened to `number[] | null`.** `DistributionChart` and `HistogramChart` props for `truncatedNormal`, `lognormal`, `gamma`, `triangular`, and `uniform` now accept null; the corresponding `<Line>`/`<Bar>` gates render only when the input is non-null. `mergeDistributions` and `buildHistogramBins` skip null inputs (rather than throwing on `null.length` / `null[0]`) and `CdfDataPoint`/`HistogramBin` fields are now optional.
-- **State-fallback `useEffect`s in `ForecastSummary` and `BurnUpConfigUI`.** When a user disables the currently-selected distribution via Settings, both components reset their selection to the first available option. Both effects depend on a `useMemo`'d availability set with explicit stability comments — array reference stability is load-bearing.
-- **`DISTRIBUTION_TYPES` runtime constant** added to `src/shared/types/burn-up.ts` as the single source of truth for iteration (Settings UI, defensive coercion, tests).
-- **BurnUpConfig reads Settings directly** via `useSettingsStore` rather than receiving a new prop. Triangular and Uniform are intentionally available in both forecast modes from this dropdown — the hardcoded availability list is intersected with the user's Settings, not driven by `getVisibleDistributions`.
-
 ## v0.30.2 - 2026-05-15
 
 ### Changed

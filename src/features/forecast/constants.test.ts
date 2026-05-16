@@ -214,45 +214,4 @@ describe('getVisibleDistributions', () => {
       expect(dists).toContain('triangular')
     }
   })
-
-  describe('enabledDistributions intersection (v0.31.0)', () => {
-    it('returns the mode-visible set unchanged when third argument is omitted', () => {
-      expect(getVisibleDistributions('subjective', false)).toEqual([
-        'truncatedNormal', 'lognormal', 'gamma', 'triangular', 'uniform',
-      ])
-      expect(getVisibleDistributions('history', true)).toEqual([
-        'truncatedNormal', 'lognormal', 'gamma', 'triangular', 'bootstrap',
-      ])
-    })
-
-    it("returns just ['truncatedNormal'] when only T-Normal is enabled", () => {
-      expect(getVisibleDistributions('history', true, ['truncatedNormal'])).toEqual(['truncatedNormal'])
-      expect(getVisibleDistributions('subjective', false, ['truncatedNormal'])).toEqual(['truncatedNormal'])
-    })
-
-    it('intersects mode-visible set with enabled set; never returns distributions outside the mode set', () => {
-      // Enabled set includes bootstrap, but history mode without hasBootstrap excludes it
-      const result = getVisibleDistributions('history', false, ['truncatedNormal', 'bootstrap'])
-      expect(result).toEqual(['truncatedNormal'])
-      expect(result).not.toContain('bootstrap')
-    })
-
-    it('intersection order: subjective mode excludes bootstrap even when enabled', () => {
-      // Subjective mode never includes bootstrap regardless of mode rules
-      const result = getVisibleDistributions('subjective', true, ['truncatedNormal', 'bootstrap', 'uniform'])
-      expect(result).toEqual(['truncatedNormal', 'uniform'])
-      expect(result).not.toContain('bootstrap')
-    })
-
-    it('intersection preserves mode-set ordering (not enabled-array ordering)', () => {
-      // T-Normal comes first in the mode set; should still come first in the result.
-      const result = getVisibleDistributions('history', true, ['bootstrap', 'truncatedNormal', 'gamma'])
-      expect(result).toEqual(['truncatedNormal', 'gamma', 'bootstrap'])
-    })
-
-    it('returns empty array when no overlap', () => {
-      // history mode without bootstrap has [tNormal, lognormal, gamma, triangular]; enabled only has uniform
-      expect(getVisibleDistributions('history', false, ['uniform'])).toEqual([])
-    })
-  })
 })

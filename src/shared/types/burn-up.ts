@@ -9,18 +9,6 @@ import { COLORS } from '@/shared/lib/colors'
 
 export type DistributionType = 'truncatedNormal' | 'lognormal' | 'gamma' | 'bootstrap' | 'triangular' | 'uniform'
 
-// Runtime list of all DistributionType values. Single source of truth for: Settings checkbox UI,
-// firestoreDocToSettings defensive coercion, and any test that needs to iterate all distributions.
-// Keep in sync with DistributionType above.
-export const DISTRIBUTION_TYPES: readonly DistributionType[] = [
-  'truncatedNormal',
-  'lognormal',
-  'gamma',
-  'bootstrap',
-  'triangular',
-  'uniform',
-] as const
-
 export interface ForecastLineConfig {
   label: string
   percentile: number // 1-99

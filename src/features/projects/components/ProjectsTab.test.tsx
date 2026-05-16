@@ -49,7 +49,6 @@ function resetStore() {
     viewingProjectId: null,
     forecastInputs: {},
     burnUpConfigs: {},
-    shouldFocusNewProjectForm: false,
     _originRef: '',
     _changeLog: [],
   })

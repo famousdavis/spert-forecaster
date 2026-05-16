@@ -5,7 +5,6 @@
 'use client'
 
 import { cn } from '@/lib/utils'
-import { HelpTooltip } from '@/shared/components/HelpTooltip'
 import type { ForecastMode } from '@/shared/types'
 
 interface ForecastModeToggleProps {
@@ -26,10 +25,7 @@ export function ForecastModeToggle({
 
   return (
     <div className="flex items-center gap-2 mb-3">
-      <span className="text-xs font-medium text-spert-text-muted inline-flex items-center">
-        Mode:
-        <HelpTooltip content="History uses your sprint data; Subjective uses your judgment." />
-      </span>
+      <span className="text-xs font-medium text-spert-text-muted">Mode:</span>
       <div className="inline-flex rounded-full border border-spert-border dark:border-gray-600 overflow-hidden">
         <button
           type="button"

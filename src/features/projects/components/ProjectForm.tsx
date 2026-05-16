@@ -4,7 +4,7 @@
 
 'use client'
 
-import { forwardRef, useImperativeHandle, useRef, useState } from 'react'
+import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import type { Project } from '@/shared/types'
 import { DEFAULT_UNIT_OF_MEASURE } from '../constants'
@@ -16,27 +16,7 @@ interface ProjectFormProps {
   onCancel: () => void
 }
 
-/**
- * Imperative handle exposed via forwardRef. Callers in v0.31.1 use this to focus the
- * name field when the user clicks "Create New Project" from a sibling tab's empty state
- * (see useProjectStore.shouldFocusNewProjectForm handoff).
- */
-export interface ProjectFormHandle {
-  focusNameInput: () => void
-}
-
-export const ProjectForm = forwardRef<ProjectFormHandle, ProjectFormProps>(function ProjectForm(
-  { project, onSubmit, onCancel },
-  ref,
-) {
-  const nameInputRef = useRef<HTMLInputElement | null>(null)
-
-  useImperativeHandle(ref, () => ({
-    focusNameInput: () => {
-      nameInputRef.current?.focus()
-    },
-  }), [])
-
+export function ProjectForm({ project, onSubmit, onCancel }: ProjectFormProps) {
   const [name, setName] = useState(project?.name ?? '')
   const [projectStartDate, setProjectStartDate] = useState(project?.projectStartDate ?? '')
   const [projectFinishDate, setProjectFinishDate] = useState(project?.projectFinishDate ?? '')
@@ -155,7 +135,6 @@ export const ProjectForm = forwardRef<ProjectFormHandle, ProjectFormProps>(funct
           </label>
           <input
             id="name"
-            ref={nameInputRef}
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -276,4 +255,4 @@ export const ProjectForm = forwardRef<ProjectFormHandle, ProjectFormProps>(funct
       )}
     </form>
   )
-})
+}

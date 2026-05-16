@@ -24,14 +24,12 @@ import type { Milestone, ForecastMode } from '@/shared/types'
 import { ChartToolbar } from './ChartToolbar'
 
 interface HistogramChartProps {
-  // null when the user has disabled the distribution via Settings ("Statistical methods to show").
-  // The chart silently drops the corresponding <Bar> in that case.
-  truncatedNormal: number[] | null
-  lognormal: number[] | null
-  gamma: number[] | null
+  truncatedNormal: number[]
+  lognormal: number[]
+  gamma: number[]
   bootstrap: number[] | null
-  triangular: number[] | null
-  uniform: number[] | null
+  triangular: number[]
+  uniform: number[]
   forecastMode: ForecastMode
   startDate: string
   sprintCadenceWeeks: number
@@ -69,18 +67,7 @@ export function HistogramChart({
   const isSubjective = forecastMode === 'subjective'
 
   const chartData = useMemo(
-    () => buildHistogramBins(
-      truncatedNormal,
-      lognormal,
-      gamma,
-      bootstrap,
-      startDate,
-      sprintCadenceWeeks,
-      15,
-      // triangular/uniform are optional (undefined) in buildHistogramBins; coerce null to undefined
-      triangular ?? undefined,
-      uniform ?? undefined,
-    ),
+    () => buildHistogramBins(truncatedNormal, lognormal, gamma, bootstrap, startDate, sprintCadenceWeeks, 15, triangular, uniform),
     [truncatedNormal, lognormal, gamma, bootstrap, triangular, uniform, startDate, sprintCadenceWeeks]
   )
 
@@ -180,33 +167,24 @@ export function HistogramChart({
                   wrapperStyle={{ fontSize: fontSizes.legend, paddingTop: 20 }}
                   verticalAlign="bottom"
                 />
-                {/* Don't remove these `!= null` gates — Recharts treats missing data fields as
-                    zero values, which would draw a zero-height bar (still legend-visible) for
-                    any distribution the user has disabled in Settings. */}
-                {truncatedNormal != null && (
-                  <Bar
-                    dataKey="tNormal"
-                    name="T-Normal"
-                    fill={CHART_COLORS.tNormal}
-                    opacity={0.8}
-                  />
-                )}
-                {lognormal != null && (
-                  <Bar
-                    dataKey="lognormal"
-                    name="Lognorm"
-                    fill={CHART_COLORS.lognormal}
-                    opacity={0.8}
-                  />
-                )}
-                {gamma != null && (
-                  <Bar
-                    dataKey="gamma"
-                    name="Gamma"
-                    fill={CHART_COLORS.gamma}
-                    opacity={0.8}
-                  />
-                )}
+                <Bar
+                  dataKey="tNormal"
+                  name="T-Normal"
+                  fill={CHART_COLORS.tNormal}
+                  opacity={0.8}
+                />
+                <Bar
+                  dataKey="lognormal"
+                  name="Lognorm"
+                  fill={CHART_COLORS.lognormal}
+                  opacity={0.8}
+                />
+                <Bar
+                  dataKey="gamma"
+                  name="Gamma"
+                  fill={CHART_COLORS.gamma}
+                  opacity={0.8}
+                />
                 {!isSubjective && hasBootstrap && (
                   <Bar
                     dataKey="bootstrap"
@@ -215,15 +193,13 @@ export function HistogramChart({
                     opacity={0.8}
                   />
                 )}
-                {triangular != null && (
-                  <Bar
-                    dataKey="triangular"
-                    name="Triangular"
-                    fill={CHART_COLORS.triangular}
-                    opacity={0.8}
-                  />
-                )}
-                {isSubjective && uniform != null && (
+                <Bar
+                  dataKey="triangular"
+                  name="Triangular"
+                  fill={CHART_COLORS.triangular}
+                  opacity={0.8}
+                />
+                {isSubjective && (
                   <Bar
                     dataKey="uniform"
                     name="Uniform"

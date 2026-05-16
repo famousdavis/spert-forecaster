@@ -6,7 +6,6 @@
 
 import type { Sprint } from '@/shared/types'
 import { calculateVelocityStats } from '@/features/forecast/lib/statistics'
-import { HelpTooltip } from '@/shared/components/HelpTooltip'
 
 interface VelocityStatsProps {
   sprints: Sprint[]
@@ -31,10 +30,7 @@ export function VelocityStats({ sprints, unitOfMeasure }: VelocityStatsProps) {
         </p>
       </div>
       <div className="rounded-lg border border-border dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
-        <p className="text-sm text-muted-foreground">
-          Variability
-          <HelpTooltip content="Standard deviation — how much velocity varies sprint to sprint." />
-        </p>
+        <p className="text-sm text-muted-foreground">Standard Deviation</p>
         <p className="text-2xl font-semibold dark:text-gray-100">
           {stats.count > 1 ? stats.standardDeviation.toFixed(1) : '—'}
         </p>

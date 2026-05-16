@@ -4,7 +4,7 @@
 
 'use client'
 
-import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useState } from 'react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/shared/state/project-store'
@@ -15,10 +15,8 @@ import { today } from '@/shared/lib/dates'
 import { useStorageMode } from '@/shared/hooks/useStorageMode'
 import { SharingSection } from '@/features/auth/components/SharingSection'
 import { ProjectList } from './ProjectList'
-import { ProjectForm, type ProjectFormHandle } from './ProjectForm'
+import { ProjectForm } from './ProjectForm'
 import { ImportPreviewSection } from './ImportPreviewSection'
-import { ProjectsEmptyState } from '@/shared/components/ProjectsEmptyState'
-import { loadSampleProject } from '../lib/sample-project'
 import { useImportState } from '../hooks/useImportState'
 import { exportSingleProject } from '../lib/export-project'
 import { getWorkspaceId, getStorageMode } from '@/shared/state/storage'
@@ -63,9 +61,6 @@ export function ProjectsTab({ onViewHistory }: ProjectsTabProps) {
   } = useImportState()
 
   const [editingProject, setEditingProject] = useState<Project | null>(null)
-  const projectFormRef = useRef<ProjectFormHandle>(null)
-  const shouldFocusNewProjectForm = useProjectStore((s) => s.shouldFocusNewProjectForm)
-  const setShouldFocusNewProjectForm = useProjectStore((s) => s.setShouldFocusNewProjectForm)
   const { mode } = useStorageMode()
   const { user } = useAuth()
   const [sharingProject, setSharingProject] = useState<Project | null>(null)
@@ -198,26 +193,6 @@ export function ProjectsTab({ onViewHistory }: ProjectsTabProps) {
     setDeleteConfirm({ isOpen: false, projectId: null, projectName: '' })
   }, [])
 
-  // Tab-switch focus handoff: when a sibling tab's empty-state CTA fires, it sets the
-  // shouldFocusNewProjectForm flag and switches to this tab. On mount/render, if the
-  // flag is true, focus the name field via the ProjectForm imperative handle and
-  // immediately reset the flag (so subsequent tab navigations don't refocus).
-  // Strict Mode double-fires this in dev; the flag-reset makes the second fire a no-op.
-  useEffect(() => {
-    if (shouldFocusNewProjectForm) {
-      projectFormRef.current?.focusNameInput()
-      setShouldFocusNewProjectForm(false)
-    }
-  }, [shouldFocusNewProjectForm, setShouldFocusNewProjectForm])
-
-  // Empty-state callbacks: same handlers on both tabs and on this tab's own empty state.
-  const handleCreateNewFromEmptyState = useCallback(() => {
-    projectFormRef.current?.focusNameInput()
-  }, [])
-  const handleLoadSample = useCallback(() => {
-    loadSampleProject()
-  }, [])
-
   if (!isClient) {
     return <div className="text-muted-foreground">Loading...</div>
   }
@@ -249,20 +224,10 @@ export function ProjectsTab({ onViewHistory }: ProjectsTabProps) {
 
       <ProjectForm
         key={editingProject?.id ?? 'new'}
-        ref={projectFormRef}
         project={editingProject}
         onSubmit={handleFormSubmit}
         onCancel={handleFormCancel}
       />
-
-      {/* Welcome empty-state — only when the user has no projects yet. */}
-      {projects.length === 0 && !importPreview && (
-        <ProjectsEmptyState
-          variant="welcome"
-          onCreateNew={handleCreateNewFromEmptyState}
-          onLoadSample={handleLoadSample}
-        />
-      )}
 
       {importPreview && (
         <ImportPreviewSection

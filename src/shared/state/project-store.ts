@@ -39,12 +39,6 @@ interface ProjectState {
   forecastInputs: Record<string, ForecastInputs> // projectId -> inputs (session only)
   burnUpConfigs: Record<string, BurnUpConfig> // projectId -> config (session only)
 
-  // Session-only handoff: when set true, the next ProjectsTab mount/render focuses the
-  // new-project name input and immediately resets this flag. Used by the empty-state
-  // "Create New Project" CTA on the Forecast tab to switch tabs AND focus the form.
-  // Not persisted; not part of cloud sync.
-  shouldFocusNewProjectForm: boolean
-
   // Workspace reconciliation tokens (persisted)
   _originRef: string
   _changeLog: ChangeLogEntry[]
@@ -109,9 +103,6 @@ interface ProjectState {
   // Burn-up config actions (session only)
   setBurnUpConfig: (projectId: string, config: BurnUpConfig) => void
   getBurnUpConfig: (projectId: string) => BurnUpConfig
-
-  // Tab-switch focus handoff (session only — no cloud sync, not in partialize)
-  setShouldFocusNewProjectForm: (value: boolean) => void
 }
 
 const generateId = () => crypto.randomUUID()
@@ -145,7 +136,6 @@ export const useProjectStore = create<ProjectState>()(
       viewingProjectId: null as string | null,
       forecastInputs: {} as Record<string, ForecastInputs>,
       burnUpConfigs: {} as Record<string, BurnUpConfig>,
-      shouldFocusNewProjectForm: false,
       _originRef: '' as string,
       _changeLog: [] as ChangeLogEntry[],
       _isCloudUpdate: false,
@@ -657,9 +647,6 @@ export const useProjectStore = create<ProjectState>()(
         const state = get()
         return state.burnUpConfigs[projectId] || DEFAULT_BURN_UP_CONFIG
       },
-
-      // Pure session-state setter — does NOT emit to syncBus (no cloud round-trip for UI flags).
-      setShouldFocusNewProjectForm: (value) => set({ shouldFocusNewProjectForm: value }),
     }),
     {
       name: STORAGE_KEY,

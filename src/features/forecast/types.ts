@@ -28,21 +28,12 @@ import type { ForecastMode } from '@/shared/types'
  */
 export function getVisibleDistributions(
   forecastMode: ForecastMode,
-  hasBootstrap: boolean,
-  enabledDistributions?: readonly DistributionType[]
+  hasBootstrap: boolean
 ): DistributionType[] {
-  // Compute the mode/bootstrap-appropriate set first, THEN intersect with enabledDistributions
-  // if provided. Order matters: filtering enabledDistributions by mode rules first would change
-  // the result when, e.g., a user has ['bootstrap', 'lognormal'] enabled in subjective mode.
-  let dists: DistributionType[]
   if (forecastMode === 'subjective') {
-    dists = ['truncatedNormal', 'lognormal', 'gamma', 'triangular', 'uniform']
-  } else {
-    dists = ['truncatedNormal', 'lognormal', 'gamma', 'triangular']
-    if (hasBootstrap) dists.push('bootstrap')
+    return ['truncatedNormal', 'lognormal', 'gamma', 'triangular', 'uniform']
   }
-  if (enabledDistributions) {
-    return dists.filter((d) => enabledDistributions.includes(d))
-  }
+  const dists: DistributionType[] = ['truncatedNormal', 'lognormal', 'gamma', 'triangular']
+  if (hasBootstrap) dists.push('bootstrap')
   return dists
 }

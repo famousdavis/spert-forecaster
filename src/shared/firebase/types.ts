@@ -46,9 +46,6 @@ export interface FirestoreSettingsDoc {
   defaultCustomPercentile: number
   defaultCustomPercentile2: number
   defaultResultsPercentiles: number[]
-  // Optional for backward compatibility — pre-v0.31.0 docs won't have this field.
-  // firestoreDocToSettings coerces missing/empty/invalid to ['truncatedNormal'].
-  distributionsEnabled?: string[]
   // exportName/exportId NOT synced (local-only, per-device)
   // theme NOT synced (per-device preference)
 }

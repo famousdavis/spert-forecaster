@@ -11,7 +11,6 @@ import type { MilestoneResults } from '../hooks/useForecastState'
 import { formatDateLong } from '@/shared/lib/dates'
 import type { Milestone, ForecastMode } from '@/shared/types'
 import { type DistributionType, DISTRIBUTION_LABELS, getVisibleDistributions } from '../types'
-import { useSettingsStore } from '@/shared/state/settings-store'
 
 interface ForecastSummaryProps {
   results: QuadResults
@@ -110,31 +109,19 @@ export function ForecastSummary({
 }: ForecastSummaryProps) {
   const [selectedDistribution, setSelectedDistribution] = useState<DistributionType>('truncatedNormal')
   const [selectedPercentile, setSelectedPercentile] = useState(80)
-  const distributionsEnabled = useSettingsStore((s) => s.distributionsEnabled)
 
   const distributionOptions = useMemo(
-    () => getVisibleDistributions(forecastMode, hasBootstrap, distributionsEnabled),
-    // do not drop distributionsEnabled — array reference stability is provided by Zustand
-    // (same array identity until setDistributionsEnabled fires). Dropping it would freeze
-    // the visible set against Settings changes within a single render session.
-    [hasBootstrap, forecastMode, distributionsEnabled]
+    () => getVisibleDistributions(forecastMode, hasBootstrap),
+    [hasBootstrap, forecastMode]
   )
-
-  // Derive the "effective" distribution: if the user's selectedDistribution is still in the
-  // visible set, use it; otherwise fall back to the first visible option. Computed at render
-  // time rather than via a state-fallback useEffect — this avoids cascading renders entirely
-  // and the value naturally tracks Settings changes without state synchronization.
-  const effectiveDistribution: DistributionType = distributionOptions.includes(selectedDistribution)
-    ? selectedDistribution
-    : (distributionOptions[0] ?? selectedDistribution)
 
   // Get the result for the selected distribution and percentile
   const selectedResult = useMemo(() => {
-    const distResults = results[effectiveDistribution]
-    const distSimData = simulationData[effectiveDistribution]
+    const distResults = results[selectedDistribution]
+    const distSimData = simulationData[selectedDistribution]
     if (!distResults || !distSimData) return null
     return getResultForPercentile(distResults, distSimData, selectedPercentile, startDate, sprintCadenceWeeks)
-  }, [results, simulationData, effectiveDistribution, selectedPercentile, startDate, sprintCadenceWeeks])
+  }, [results, simulationData, selectedDistribution, selectedPercentile, startDate, sprintCadenceWeeks])
 
   const summaryText = useMemo(() => {
     if (!selectedResult) return ''
@@ -146,12 +133,12 @@ export function ForecastSummary({
       selectedResult.sprintsRequired,
       selectedResult.finishDate,
       completedSprintCount,
-      DISTRIBUTION_LABELS[effectiveDistribution],
+      DISTRIBUTION_LABELS[selectedDistribution],
       modelScopeGrowth,
       scopeGrowthPerSprint,
       scopeGrowthMode
     )
-  }, [selectedResult, projectName, remainingBacklog, unitOfMeasure, selectedPercentile, completedSprintCount, effectiveDistribution, modelScopeGrowth, scopeGrowthPerSprint, scopeGrowthMode])
+  }, [selectedResult, projectName, remainingBacklog, unitOfMeasure, selectedPercentile, completedSprintCount, selectedDistribution, modelScopeGrowth, scopeGrowthPerSprint, scopeGrowthMode])
 
   const visibleMilestones = useMemo(
     () => milestones
@@ -166,8 +153,8 @@ export function ForecastSummary({
       const msResults = milestoneResultsState.milestoneResults[originalIndex]
       const msSimData = milestoneResultsState.milestoneSimulationData[originalIndex]
       if (!msResults || !msSimData) return null
-      const distResults = msResults[effectiveDistribution]
-      const distSimData = msSimData[effectiveDistribution]
+      const distResults = msResults[selectedDistribution]
+      const distSimData = msSimData[selectedDistribution]
       if (!distResults || !distSimData) return null
       const result = getResultForPercentile(distResults, distSimData, selectedPercentile, startDate, sprintCadenceWeeks)
       return buildMilestoneSummaryText(
@@ -177,7 +164,7 @@ export function ForecastSummary({
         completedSprintCount
       )
     }).filter(Boolean) as string[]
-  }, [milestoneResultsState, visibleMilestones, effectiveDistribution, selectedPercentile, startDate, sprintCadenceWeeks, completedSprintCount])
+  }, [milestoneResultsState, visibleMilestones, selectedDistribution, selectedPercentile, startDate, sprintCadenceWeeks, completedSprintCount])
 
   const handleCopy = () => {
     let fullText = summaryText
@@ -193,35 +180,12 @@ export function ForecastSummary({
 
   if (!selectedResult) return null
 
-  // Hero lead: plain-language summary of the forecast. Dynamic against selectedPercentile.
-  // Mode-aware phrasing — history mode references team pace, subjective references estimates.
-  const heroLead = forecastMode === 'subjective'
-    ? `Based on your estimates,`
-    : `Based on your team's pace,`
-
   return (
-    <>
-      <section
-        aria-labelledby="forecast-hero-heading"
-        className="mt-4 bg-spert-blue/5 dark:bg-spert-blue/20 border-l-4 border-spert-blue rounded-r-lg p-5"
-      >
-        <h2
-          id="forecast-hero-heading"
-          className="text-sm font-semibold uppercase tracking-wide text-spert-text-muted dark:text-gray-300 mb-2"
-        >
-          Your forecast
-        </h2>
-        <p className="text-lg leading-relaxed text-spert-text dark:text-gray-100">
-          {heroLead} you have an{' '}
-          <strong className="text-spert-blue">{selectedPercentile}%</strong> chance of finishing by{' '}
-          <strong className="text-spert-blue">{formatDateLong(selectedResult.finishDate)}</strong>.
-        </p>
-      </section>
     <div className="mt-4 bg-blue-50 dark:bg-blue-900/20 border-l-4 border-spert-blue rounded-r-lg p-4">
       <div className="flex items-center gap-3 mb-3">
         <select
           name="summaryDistribution"
-          value={effectiveDistribution}
+          value={selectedDistribution}
           onChange={(e) => setSelectedDistribution(e.target.value as DistributionType)}
           className="text-sm border border-spert-border dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 dark:text-gray-100"
           aria-label="Distribution"
@@ -292,6 +256,5 @@ export function ForecastSummary({
         </div>
       )}
     </div>
-    </>
   )
 }

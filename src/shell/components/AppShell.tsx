@@ -22,7 +22,6 @@ import { useTheme } from '@/shared/hooks/useTheme'
 import { KeyboardShortcutsHelp } from '@/shared/components/KeyboardShortcutsHelp'
 import { useKeyboardShortcuts, type KeyboardShortcut } from '@/shared/hooks'
 import { Toaster } from 'sonner'
-import { TooltipProvider } from '@/components/ui/tooltip'
 import { FirstRunBanner } from './FirstRunBanner'
 import { InvitationBanner } from './InvitationBanner'
 import { LocalStorageWarningBanner } from './LocalStorageWarningBanner'
@@ -79,7 +78,6 @@ export function AppShell() {
   useKeyboardShortcuts(shortcuts)
 
   return (
-    <TooltipProvider>
     <div className="min-h-screen bg-white dark:bg-gray-900 transition-colors flex flex-col">
       <div className="max-w-[1200px] w-full mx-auto px-2 sm:px-4 md:px-8 p-4 sm:p-6 md:p-8 flex-1 flex flex-col">
         <header className="mb-6 flex items-start justify-between">
@@ -118,7 +116,7 @@ export function AppShell() {
         <main className="mt-8 flex-1">
           {activeTab === 'projects' && <ErrorBoundary><ProjectsTab onViewHistory={handleViewHistory} /></ErrorBoundary>}
           {activeTab === 'sprint-history' && <ErrorBoundary><SprintHistoryTab /></ErrorBoundary>}
-          {activeTab === 'forecast' && <ErrorBoundary><ForecastTab onTabChange={setActiveTab} /></ErrorBoundary>}
+          {activeTab === 'forecast' && <ErrorBoundary><ForecastTab /></ErrorBoundary>}
           {activeTab === 'about' && <ErrorBoundary><AboutTab /></ErrorBoundary>}
           {activeTab === 'settings' && <ErrorBoundary><SettingsTab /></ErrorBoundary>}
         </main>
@@ -136,6 +134,5 @@ export function AppShell() {
         onClose={() => setCloudModalOpen(false)}
       />
     </div>
-    </TooltipProvider>
   )
 }
