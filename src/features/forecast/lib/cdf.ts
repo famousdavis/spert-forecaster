@@ -7,9 +7,12 @@ import { calculateSprintStartDate, calculateSprintFinishDate, formatDateCompact 
 export interface CdfDataPoint {
   sprints: number
   dateLabel: string
-  tNormal: number
-  lognormal: number
-  gamma: number
+  // All distribution fields are optional — when a distribution is disabled via Settings
+  // ("Statistical methods to show"), its input array arrives as null and the corresponding
+  // field is omitted from the point. Recharts skips missing dataKeys naturally.
+  tNormal?: number
+  lognormal?: number
+  gamma?: number
   bootstrap?: number
   triangular?: number
   uniform?: number
@@ -20,9 +23,10 @@ export interface HistogramBin {
   sprintMax: number
   sprintLabel: string
   dateLabel: string
-  tNormal: number
-  lognormal: number
-  gamma: number
+  // Optional for the same reason as CdfDataPoint above.
+  tNormal?: number
+  lognormal?: number
+  gamma?: number
   bootstrap?: number
   triangular?: number
   uniform?: number
@@ -66,30 +70,34 @@ export function calculateCumulativePercentage(sortedData: number[], sprints: num
 }
 
 /**
- * Merge CDF data from all distributions into unified chart data
+ * Merge CDF data from all distributions into unified chart data.
+ *
+ * Any of the six distribution inputs may be null/undefined when the user has disabled
+ * the distribution via Settings ("Statistical methods to show") — the corresponding field
+ * is omitted from each CdfDataPoint and Recharts naturally skips the missing dataKey.
  */
 export function mergeDistributions(
-  tNormal: number[],
-  lognormal: number[],
-  gamma: number[],
+  tNormal: number[] | null,
+  lognormal: number[] | null,
+  gamma: number[] | null,
   bootstrap: number[] | null,
   startDate: string,
   sprintCadenceWeeks: number,
   triangular?: number[],
   uniform?: number[]
 ): CdfDataPoint[] {
-  const tNormalCdf = buildCdfPoints(tNormal)
-  const lognormalCdf = buildCdfPoints(lognormal)
-  const gammaCdf = buildCdfPoints(gamma)
+  const tNormalCdf = tNormal ? buildCdfPoints(tNormal) : null
+  const lognormalCdf = lognormal ? buildCdfPoints(lognormal) : null
+  const gammaCdf = gamma ? buildCdfPoints(gamma) : null
   const bootstrapCdf = bootstrap ? buildCdfPoints(bootstrap) : null
   const triangularCdf = triangular ? buildCdfPoints(triangular) : null
   const uniformCdf = uniform ? buildCdfPoints(uniform) : null
 
   // Get all unique sprint values
   const allSprints = new Set<number>()
-  tNormalCdf.forEach((_, sprints) => allSprints.add(sprints))
-  lognormalCdf.forEach((_, sprints) => allSprints.add(sprints))
-  gammaCdf.forEach((_, sprints) => allSprints.add(sprints))
+  if (tNormalCdf) tNormalCdf.forEach((_, sprints) => allSprints.add(sprints))
+  if (lognormalCdf) lognormalCdf.forEach((_, sprints) => allSprints.add(sprints))
+  if (gammaCdf) gammaCdf.forEach((_, sprints) => allSprints.add(sprints))
   if (bootstrapCdf) bootstrapCdf.forEach((_, sprints) => allSprints.add(sprints))
   if (triangularCdf) triangularCdf.forEach((_, sprints) => allSprints.add(sprints))
   if (uniformCdf) uniformCdf.forEach((_, sprints) => allSprints.add(sprints))
@@ -102,10 +110,10 @@ export function mergeDistributions(
     const point: CdfDataPoint = {
       sprints,
       dateLabel: formatDateCompact(finishDate),
-      tNormal: calculateCumulativePercentage(tNormal, sprints),
-      lognormal: calculateCumulativePercentage(lognormal, sprints),
-      gamma: calculateCumulativePercentage(gamma, sprints),
     }
+    if (tNormal) point.tNormal = calculateCumulativePercentage(tNormal, sprints)
+    if (lognormal) point.lognormal = calculateCumulativePercentage(lognormal, sprints)
+    if (gamma) point.gamma = calculateCumulativePercentage(gamma, sprints)
     if (bootstrap) point.bootstrap = calculateCumulativePercentage(bootstrap, sprints)
     if (triangular) point.triangular = calculateCumulativePercentage(triangular, sprints)
     if (uniform) point.uniform = calculateCumulativePercentage(uniform, sprints)
@@ -152,9 +160,9 @@ function countInRange(sortedData: number[], min: number, max: number): number {
  * Bins are calculated as equal-width intervals across the range of sprints.
  */
 export function buildHistogramBins(
-  tNormal: number[],
-  lognormal: number[],
-  gamma: number[],
+  tNormal: number[] | null,
+  lognormal: number[] | null,
+  gamma: number[] | null,
   bootstrap: number[] | null,
   startDate: string,
   sprintCadenceWeeks: number,
@@ -162,10 +170,22 @@ export function buildHistogramBins(
   triangular?: number[],
   uniform?: number[]
 ): HistogramBin[] {
-  // Find global min and max across all distributions
-  const allData = [tNormal, lognormal, gamma, ...(bootstrap ? [bootstrap] : []), ...(triangular ? [triangular] : []), ...(uniform ? [uniform] : [])]
-  const globalMin = Math.min(...allData.map(d => d[0]))
-  const globalMax = Math.max(...allData.map(d => d[d.length - 1]))
+  // Find global min and max across all enabled distributions. When a distribution is null
+  // (user disabled in Settings), it's excluded from the range calculation.
+  const allData: number[][] = []
+  if (tNormal) allData.push(tNormal)
+  if (lognormal) allData.push(lognormal)
+  if (gamma) allData.push(gamma)
+  if (bootstrap) allData.push(bootstrap)
+  if (triangular) allData.push(triangular)
+  if (uniform) allData.push(uniform)
+
+  // No enabled distributions — return empty bins. Caller (HistogramChart) should
+  // also gate rendering on this case, but defensive empty return prevents NaN propagation.
+  if (allData.length === 0) return []
+
+  const globalMin = Math.min(...allData.map((d) => d[0]))
+  const globalMax = Math.max(...allData.map((d) => d[d.length - 1]))
 
   // Calculate bin width (minimum 1 sprint per bin)
   const range = globalMax - globalMin
@@ -176,7 +196,9 @@ export function buildHistogramBins(
   const actualBinCount = range === 0 ? 1 : Math.ceil(range / binWidth)
 
   const bins: HistogramBin[] = []
-  const trialCount = tNormal.length
+  // Trial count derived from the first available distribution (all distributions are
+  // simulated with the same trial count, so this is safe regardless of which is enabled).
+  const trialCount = allData[0].length
 
   for (let i = 0; i < actualBinCount; i++) {
     const sprintMin = globalMin + i * binWidth
@@ -192,11 +214,11 @@ export function buildHistogramBins(
       sprintMax,
       sprintLabel: sprintMin === sprintMax ? `${sprintMin}` : `${sprintMin}-${sprintMax}`,
       dateLabel: formatDateCompact(finishDate),
-      tNormal: (countInRange(tNormal, sprintMin, sprintMax) / trialCount) * 100,
-      lognormal: (countInRange(lognormal, sprintMin, sprintMax) / trialCount) * 100,
-      gamma: (countInRange(gamma, sprintMin, sprintMax) / trialCount) * 100,
     }
 
+    if (tNormal) bin.tNormal = (countInRange(tNormal, sprintMin, sprintMax) / trialCount) * 100
+    if (lognormal) bin.lognormal = (countInRange(lognormal, sprintMin, sprintMax) / trialCount) * 100
+    if (gamma) bin.gamma = (countInRange(gamma, sprintMin, sprintMax) / trialCount) * 100
     if (bootstrap) bin.bootstrap = (countInRange(bootstrap, sprintMin, sprintMax) / trialCount) * 100
     if (triangular) bin.triangular = (countInRange(triangular, sprintMin, sprintMax) / trialCount) * 100
     if (uniform) bin.uniform = (countInRange(uniform, sprintMin, sprintMax) / trialCount) * 100

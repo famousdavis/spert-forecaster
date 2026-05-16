@@ -17,8 +17,12 @@ export interface DistColumn {
   label: string
 }
 
-export function getDistributionColumns(forecastMode: ForecastMode, hasBootstrap: boolean): DistColumn[] {
-  return getVisibleDistributions(forecastMode, hasBootstrap).map((key) => ({
+export function getDistributionColumns(
+  forecastMode: ForecastMode,
+  hasBootstrap: boolean,
+  enabledDistributions?: readonly DistributionType[]
+): DistColumn[] {
+  return getVisibleDistributions(forecastMode, hasBootstrap, enabledDistributions).map((key) => ({
     key,
     label: DISTRIBUTION_LABELS[key],
   }))

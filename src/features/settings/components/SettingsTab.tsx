@@ -5,7 +5,7 @@
 'use client'
 
 import { useSettingsStore, TRIAL_COUNT_OPTIONS, type TrialCount } from '@/shared/state/settings-store'
-import { CHART_FONT_SIZE_LABELS, type ChartFontSize } from '@/shared/types/burn-up'
+import { CHART_FONT_SIZE_LABELS, type ChartFontSize, DISTRIBUTION_TYPES, DISTRIBUTION_LABELS, type DistributionType } from '@/shared/types/burn-up'
 import { useTheme, type Theme } from '@/shared/hooks/useTheme'
 import { MIN_PERCENTILE, MAX_PERCENTILE, SELECTABLE_PERCENTILES } from '@/features/forecast/constants'
 import { cn } from '@/lib/utils'
@@ -30,6 +30,17 @@ const FONT_SIZE_OPTIONS: { value: ChartFontSize; label: string }[] = [
   { value: 'large', label: CHART_FONT_SIZE_LABELS.large },
 ]
 
+// One-line description per distribution for the "Statistical methods to show" section.
+// Refine wording as needed; keep terse.
+const DISTRIBUTION_DESCRIPTIONS: Record<DistributionType, string> = {
+  truncatedNormal: 'Bell-curve velocity assumption; the standard PERT default.',
+  lognormal: 'For teams whose velocity has occasional big-positive outliers.',
+  gamma: 'Similar shape to Lognormal but with a different tail.',
+  bootstrap: 'Resamples your actual sprint history (needs 5+ sprints).',
+  triangular: 'Simple low/most-likely/high estimate, no statistical assumption.',
+  uniform: 'All velocities equally likely; the most conservative assumption.',
+}
+
 export function SettingsTab() {
   const {
     autoRecalculate,
@@ -44,6 +55,8 @@ export function SettingsTab() {
     setDefaultCustomPercentile2,
     defaultResultsPercentiles,
     setDefaultResultsPercentiles,
+    distributionsEnabled,
+    setDistributionsEnabled,
     exportName,
     setExportName,
     exportId,
@@ -62,6 +75,21 @@ export function SettingsTab() {
       setDefaultResultsPercentiles(defaultResultsPercentiles.filter((v) => v !== p))
     } else {
       setDefaultResultsPercentiles([...defaultResultsPercentiles, p])
+    }
+  }
+
+  const handleToggleDistribution = (d: DistributionType) => {
+    const isSelected = distributionsEnabled.includes(d)
+    if (isSelected) {
+      // Validation: must keep at least one enabled
+      if (distributionsEnabled.length <= 1) return
+      setDistributionsEnabled(distributionsEnabled.filter((v) => v !== d))
+    } else {
+      // Preserve canonical order (DISTRIBUTION_TYPES) when adding
+      const next = DISTRIBUTION_TYPES.filter(
+        (t) => t === d || distributionsEnabled.includes(t)
+      )
+      setDistributionsEnabled([...next])
     }
   }
 
@@ -254,6 +282,49 @@ export function SettingsTab() {
               }}
               className={`${inputClass} ml-auto flex-shrink-0`}
             />
+          </div>
+
+          {/* Statistical methods to show */}
+          <div>
+            <span className={labelClass}>
+              Statistical methods to show
+            </span>
+            <p className={descriptionClass}>
+              Which simulation methods to include in the forecast. At least one must remain enabled.
+            </p>
+            <div className="mt-3 space-y-2">
+              {DISTRIBUTION_TYPES.map((d) => {
+                const isChecked = distributionsEnabled.includes(d)
+                const isLastChecked = isChecked && distributionsEnabled.length === 1
+                const checkboxId = `distribution-${d}`
+                return (
+                  <div key={d} className="flex items-start gap-3">
+                    <input
+                      type="checkbox"
+                      id={checkboxId}
+                      checked={isChecked}
+                      disabled={isLastChecked}
+                      onChange={() => handleToggleDistribution(d)}
+                      className="mt-1 rounded border-gray-300 dark:border-gray-500 cursor-pointer disabled:cursor-not-allowed"
+                    />
+                    <div>
+                      <label
+                        htmlFor={checkboxId}
+                        className={cn(
+                          `${labelClass} cursor-pointer`,
+                          isLastChecked && 'cursor-not-allowed opacity-80'
+                        )}
+                      >
+                        {DISTRIBUTION_LABELS[d]}
+                      </label>
+                      <p className={descriptionClass}>
+                        {DISTRIBUTION_DESCRIPTIONS[d]}
+                      </p>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
           </div>
         </div>
       </section>

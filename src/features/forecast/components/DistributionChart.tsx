@@ -25,12 +25,14 @@ import type { Milestone, ForecastMode } from '@/shared/types'
 import { ChartToolbar } from './ChartToolbar'
 
 interface DistributionChartProps {
-  truncatedNormal: number[]
-  lognormal: number[]
-  gamma: number[]
+  // null when the user has disabled the distribution via Settings ("Statistical methods to show").
+  // The chart silently drops the corresponding <Line> in that case.
+  truncatedNormal: number[] | null
+  lognormal: number[] | null
+  gamma: number[] | null
   bootstrap: number[] | null
-  triangular: number[]
-  uniform: number[]
+  triangular: number[] | null
+  uniform: number[] | null
   forecastMode: ForecastMode
   customPercentile: number
   startDate: string
@@ -70,7 +72,17 @@ export function DistributionChart({
   const isSubjective = forecastMode === 'subjective'
 
   const chartData = useMemo(
-    () => mergeDistributions(truncatedNormal, lognormal, gamma, bootstrap, startDate, sprintCadenceWeeks, triangular, uniform),
+    () => mergeDistributions(
+      truncatedNormal,
+      lognormal,
+      gamma,
+      bootstrap,
+      startDate,
+      sprintCadenceWeeks,
+      // triangular/uniform are optional (undefined) in mergeDistributions; coerce null to undefined
+      triangular ?? undefined,
+      uniform ?? undefined,
+    ),
     [truncatedNormal, lognormal, gamma, bootstrap, triangular, uniform, startDate, sprintCadenceWeeks]
   )
 
@@ -172,30 +184,39 @@ export function DistributionChart({
                 strokeDasharray="5 5"
                 label={{ value: `P${customPercentile}`, position: 'right', fontSize: fontSizes.axisTick }}
               />
-              <Line
-                type="stepAfter"
-                dataKey="tNormal"
-                name="T-Normal"
-                stroke={CHART_COLORS.tNormal}
-                dot={false}
-                strokeWidth={2.5}
-              />
-              <Line
-                type="stepAfter"
-                dataKey="lognormal"
-                name="Lognorm"
-                stroke={CHART_COLORS.lognormal}
-                dot={false}
-                strokeWidth={2.5}
-              />
-              <Line
-                type="stepAfter"
-                dataKey="gamma"
-                name="Gamma"
-                stroke={CHART_COLORS.gamma}
-                dot={false}
-                strokeWidth={2.5}
-              />
+              {/* Don't remove these `!= null` gates — Recharts treats missing data fields as
+                  zero values, which would draw a flat line at 0% for any distribution the user
+                  has disabled in Settings ("Statistical methods to show"). */}
+              {truncatedNormal != null && (
+                <Line
+                  type="stepAfter"
+                  dataKey="tNormal"
+                  name="T-Normal"
+                  stroke={CHART_COLORS.tNormal}
+                  dot={false}
+                  strokeWidth={2.5}
+                />
+              )}
+              {lognormal != null && (
+                <Line
+                  type="stepAfter"
+                  dataKey="lognormal"
+                  name="Lognorm"
+                  stroke={CHART_COLORS.lognormal}
+                  dot={false}
+                  strokeWidth={2.5}
+                />
+              )}
+              {gamma != null && (
+                <Line
+                  type="stepAfter"
+                  dataKey="gamma"
+                  name="Gamma"
+                  stroke={CHART_COLORS.gamma}
+                  dot={false}
+                  strokeWidth={2.5}
+                />
+              )}
               {!isSubjective && hasBootstrap && (
                 <Line
                   type="stepAfter"
@@ -206,15 +227,17 @@ export function DistributionChart({
                   strokeWidth={2.5}
                 />
               )}
-              <Line
-                type="stepAfter"
-                dataKey="triangular"
-                name="Triangular"
-                stroke={CHART_COLORS.triangular}
-                dot={false}
-                strokeWidth={2.5}
-              />
-              {isSubjective && (
+              {triangular != null && (
+                <Line
+                  type="stepAfter"
+                  dataKey="triangular"
+                  name="Triangular"
+                  stroke={CHART_COLORS.triangular}
+                  dot={false}
+                  strokeWidth={2.5}
+                />
+              )}
+              {isSubjective && uniform != null && (
                 <Line
                   type="stepAfter"
                   dataKey="uniform"

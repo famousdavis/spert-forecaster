@@ -16,6 +16,9 @@ import { ProductivityAdjustments } from './ProductivityAdjustments'
 import { Milestones } from './Milestones'
 import { BurnUpChart } from './BurnUpChart'
 import { CopyImageButton } from '@/shared/components/CopyImageButton'
+import { useSettingsStore } from '@/shared/state/settings-store'
+import { useMemo } from 'react'
+import type { DistributionType } from '@/shared/types/burn-up'
 
 export function ForecastTab() {
   const {
@@ -91,6 +94,26 @@ export function ForecastTab() {
     handleExportCsv,
     handleProjectChange,
   } = useForecastState()
+
+  const distributionsEnabled = useSettingsStore((s) => s.distributionsEnabled)
+
+  // Filter chart input arrays based on Settings "Statistical methods to show".
+  // Pass null for any distribution the user has disabled — the chart components silently drop
+  // the corresponding <Line>/<Bar>, and mergeDistributions/buildHistogramBins skip null inputs.
+  // Bootstrap is also gated on having a non-null simulation result (per-project ≥5-sprint guard).
+  //
+  // Hook must be called before any early return below — React requires unconditional hook order.
+  const chartSeries = useMemo(() => {
+    const has = (d: DistributionType) => distributionsEnabled.includes(d)
+    return {
+      truncatedNormal: has('truncatedNormal') ? simulationData?.truncatedNormal ?? null : null,
+      lognormal: has('lognormal') ? simulationData?.lognormal ?? null : null,
+      gamma: has('gamma') ? simulationData?.gamma ?? null : null,
+      bootstrap: has('bootstrap') ? simulationData?.bootstrap ?? null : null,
+      triangular: has('triangular') ? simulationData?.triangular ?? null : null,
+      uniform: has('uniform') ? simulationData?.uniform ?? null : null,
+    }
+  }, [distributionsEnabled, simulationData])
 
   if (!isClient) {
     return <div className="text-muted-foreground">Loading...</div>
@@ -294,12 +317,12 @@ export function ForecastTab() {
 
           {/* Cumulative Probability Distribution */}
           <DistributionChart
-            truncatedNormal={simulationData.truncatedNormal}
-            lognormal={simulationData.lognormal}
-            gamma={simulationData.gamma}
-            bootstrap={simulationData.bootstrap}
-            triangular={simulationData.triangular}
-            uniform={simulationData.uniform}
+            truncatedNormal={chartSeries.truncatedNormal}
+            lognormal={chartSeries.lognormal}
+            gamma={chartSeries.gamma}
+            bootstrap={chartSeries.bootstrap}
+            triangular={chartSeries.triangular}
+            uniform={chartSeries.uniform}
             forecastMode={forecastMode}
             customPercentile={customPercentile}
             startDate={forecastStartDate}
@@ -316,12 +339,12 @@ export function ForecastTab() {
 
           {/* Probability Distribution Histogram */}
           <HistogramChart
-            truncatedNormal={simulationData.truncatedNormal}
-            lognormal={simulationData.lognormal}
-            gamma={simulationData.gamma}
-            bootstrap={simulationData.bootstrap}
-            triangular={simulationData.triangular}
-            uniform={simulationData.uniform}
+            truncatedNormal={chartSeries.truncatedNormal}
+            lognormal={chartSeries.lognormal}
+            gamma={chartSeries.gamma}
+            bootstrap={chartSeries.bootstrap}
+            triangular={chartSeries.triangular}
+            uniform={chartSeries.uniform}
             forecastMode={forecastMode}
             startDate={forecastStartDate}
             sprintCadenceWeeks={selectedProject!.sprintCadenceWeeks!}

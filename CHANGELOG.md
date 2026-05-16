@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.31.0 - 2026-05-16
+
+### Added
+
+- **Single-distribution default — Settings → "Statistical methods to show."** A new section in Settings exposes one checkbox per distribution (Truncated Normal, Lognormal, Gamma, Bootstrap, Triangular, Uniform), each with a one-line plain-language description. New installs and upgraded installs default to **Truncated Normal only** — the cleanest first-touch view for new users. Re-enable any combination at any time; at least one must remain checked (the last enabled checkbox is locked). Bootstrap continues to be shown only on projects with 5+ sprints of history regardless of this setting. The setting round-trips through Firestore for cloud-mode users with two-layer defensive coercion (`Array.isArray` guard plus per-value `DistributionType` filter) so corrupted or forward-migrated documents fall back to `['truncatedNormal']` instead of breaking the load.
+- **"Your forecast" hero callout.** The Forecast Summary panel now leads with a plain-language sentence — *"Based on your team's pace, you have an 80% chance of finishing by [date]."* — dynamic against the percentile selector and adapted to subjective mode (*"Based on your estimates,..."*). The existing detailed paragraph stays below as supporting detail and the Copy Summary button continues to copy that paragraph.
+
+### Internal
+
+- **`getVisibleDistributions` chokepoint gained a third parameter** (`enabledDistributions?: readonly DistributionType[]`) that intersects with the mode-visible set. Order matters: the mode/bootstrap set is computed first, then intersected with the enabled set — never the reverse. All three call sites (`ForecastSummary`, `PercentileSelector`, `ResultsTable` via `ForecastResults`) now pass through the Settings value.
+- **Chart input arrays widened to `number[] | null`.** `DistributionChart` and `HistogramChart` props for `truncatedNormal`, `lognormal`, `gamma`, `triangular`, and `uniform` now accept null; the corresponding `<Line>`/`<Bar>` gates render only when the input is non-null. `mergeDistributions` and `buildHistogramBins` skip null inputs (rather than throwing on `null.length` / `null[0]`) and `CdfDataPoint`/`HistogramBin` fields are now optional.
+- **State-fallback `useEffect`s in `ForecastSummary` and `BurnUpConfigUI`.** When a user disables the currently-selected distribution via Settings, both components reset their selection to the first available option. Both effects depend on a `useMemo`'d availability set with explicit stability comments — array reference stability is load-bearing.
+- **`DISTRIBUTION_TYPES` runtime constant** added to `src/shared/types/burn-up.ts` as the single source of truth for iteration (Settings UI, defensive coercion, tests).
+- **BurnUpConfig reads Settings directly** via `useSettingsStore` rather than receiving a new prop. Triangular and Uniform are intentionally available in both forecast modes from this dropdown — the hardcoded availability list is intersected with the user's Settings, not driven by `getVisibleDistributions`.
+
 ## v0.30.2 - 2026-05-15
 
 ### Changed

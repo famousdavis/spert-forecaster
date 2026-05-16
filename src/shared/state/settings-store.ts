@@ -5,7 +5,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { storage } from './storage'
-import { type ChartFontSize, DEFAULT_CHART_FONT_SIZE } from '@/shared/types/burn-up'
+import { type ChartFontSize, DEFAULT_CHART_FONT_SIZE, type DistributionType } from '@/shared/types/burn-up'
 import { DEFAULT_TRIAL_COUNT, DEFAULT_SELECTED_PERCENTILES, SELECTABLE_PERCENTILES } from '@/features/forecast/constants'
 import { syncBus } from '@/shared/firebase/sync-bus'
 
@@ -32,6 +32,10 @@ interface SettingsState {
   defaultCustomPercentile2: number // 1-99
   defaultResultsPercentiles: number[] // subset of [10,20,...,90]
 
+  // Statistical methods to show — at least one must remain enabled.
+  // Bootstrap inclusion is also gated per-project at render time on ≥5 sprints of history.
+  distributionsEnabled: DistributionType[]
+
   // Export attribution
   exportName: string
   exportId: string
@@ -49,6 +53,7 @@ interface SettingsState {
   setDefaultCustomPercentile: (value: number) => void
   setDefaultCustomPercentile2: (value: number) => void
   setDefaultResultsPercentiles: (value: number[]) => void
+  setDistributionsEnabled: (value: DistributionType[]) => void
   setExportName: (value: string) => void
   setExportId: (value: string) => void
   setSuppressLocalStorageWarning: (value: boolean) => void
@@ -61,6 +66,7 @@ interface SettingsState {
     defaultCustomPercentile: number
     defaultCustomPercentile2: number
     defaultResultsPercentiles: number[]
+    distributionsEnabled: DistributionType[]
   }) => void
 }
 
@@ -80,6 +86,11 @@ export const useSettingsStore = create<SettingsState>()(
       defaultCustomPercentile: 85,
       defaultCustomPercentile2: 50,
       defaultResultsPercentiles: [...DEFAULT_SELECTED_PERCENTILES],
+
+      // Statistical methods to show — default to T-Normal only for the cleanest first-touch view.
+      // Existing users default to T-Normal-only on upgrade (no migration: Firestore round-trip
+      // coerces missing/empty to ['truncatedNormal'] in firestoreDocToSettings).
+      distributionsEnabled: ['truncatedNormal'],
 
       // Export attribution
       exportName: '',
@@ -117,6 +128,13 @@ export const useSettingsStore = create<SettingsState>()(
             .filter((p) => (SELECTABLE_PERCENTILES as readonly number[]).includes(p))
             .sort((a, b) => a - b),
         })
+        emitSettingsSave(get()._isCloudUpdate)
+      },
+      setDistributionsEnabled: (value) => {
+        // Validation: must have at least one. Reject empty arrays silently — callers
+        // (e.g., Settings checkbox UI) should block last-uncheck before reaching here.
+        if (value.length === 0) return
+        set({ distributionsEnabled: value })
         emitSettingsSave(get()._isCloudUpdate)
       },
       // Export attribution and notifications are local-only — no sync bus emission

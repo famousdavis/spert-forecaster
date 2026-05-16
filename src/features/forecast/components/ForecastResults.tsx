@@ -18,6 +18,7 @@ import {
   buildDynamicPercentileRows,
   buildPercentileRows,
 } from './ResultsTable'
+import { useSettingsStore } from '@/shared/state/settings-store'
 
 interface ForecastResultsProps {
   results: QuadResults
@@ -160,10 +161,11 @@ export function ForecastResults({
   summaryText,
 }: ForecastResultsProps) {
   const [isExpanded, setIsExpanded] = useState(true)
+  const distributionsEnabled = useSettingsStore((s) => s.distributionsEnabled)
 
   const hasBootstrap = results.bootstrap !== null
   const modeContext = buildModeContext(forecastMode, effectiveMean, effectiveStdDev, velocityMean, velocityStdDev, selectedCV, volatilityMultiplier)
-  const columns = getDistributionColumns(forecastMode, hasBootstrap)
+  const columns = getDistributionColumns(forecastMode, hasBootstrap, distributionsEnabled)
   const visibleMilestones = useMemo(
     () => milestones
       .map((m, idx) => ({ milestone: m, originalIndex: idx }))

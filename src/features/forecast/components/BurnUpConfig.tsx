@@ -4,10 +4,11 @@
 
 'use client'
 
-import type { RefObject } from 'react'
+import { useEffect, useMemo, type RefObject } from 'react'
 import type { BurnUpConfig, DistributionType, ForecastLineConfig, ChartFontSize } from '../types'
 import { DISTRIBUTION_LABELS, CHART_FONT_SIZE_LABELS } from '../types'
 import { CopyImageButton } from '@/shared/components/CopyImageButton'
+import { useSettingsStore } from '@/shared/state/settings-store'
 // Slider-specific range: step by 5 from 5–95 for easier thumb control
 const SLIDER_MIN = 5
 const SLIDER_MAX = 95
@@ -25,6 +26,13 @@ interface BurnUpConfigProps {
 }
 
 export function BurnUpConfigUI({ config, hasBootstrap, onChange, fontSize = 'small', onFontSizeChange, chartRef }: BurnUpConfigProps) {
+  // Distribution availability is intentionally hardcoded here (not derived from
+  // getVisibleDistributions) to preserve Triangular/Uniform visibility in BOTH forecast modes.
+  // The Settings "Statistical methods to show" checkboxes further filter this list.
+  // If you add a distribution, update this list AND the forecastMode matrix in
+  // getVisibleDistributions AND DISTRIBUTION_TYPES in src/shared/types/burn-up.ts.
+  const distributionsEnabled = useSettingsStore((s) => s.distributionsEnabled)
+
   const handleDistributionChange = (distribution: DistributionType) => {
     onChange({ ...config, distribution })
   }
@@ -35,10 +43,33 @@ export function BurnUpConfigUI({ config, hasBootstrap, onChange, fontSize = 'sma
     onChange({ ...config, lines: newLines })
   }
 
-  // Available distributions (all 6 always available; bootstrap only if historical data exists)
-  const availableDistributions: DistributionType[] = hasBootstrap
-    ? ['truncatedNormal', 'lognormal', 'gamma', 'bootstrap', 'triangular', 'uniform']
-    : ['truncatedNormal', 'lognormal', 'gamma', 'triangular', 'uniform']
+  // Memoize the intersection of (hardcoded availability for burn-up) with (user's Settings).
+  // CRITICAL: this MUST be a stable reference across renders or the fallback effect below
+  // re-fires every render → onChange re-fires → parent rerenders → new array reference →
+  // infinite loop. Do not drop deps — array reference stability is load-bearing.
+  const availableDistributions = useMemo<DistributionType[]>(() => {
+    const base: DistributionType[] = hasBootstrap
+      ? ['truncatedNormal', 'lognormal', 'gamma', 'bootstrap', 'triangular', 'uniform']
+      : ['truncatedNormal', 'lognormal', 'gamma', 'triangular', 'uniform']
+    return base.filter((d) => distributionsEnabled.includes(d))
+  }, [hasBootstrap, distributionsEnabled])
+
+  // State-fallback: when the user disables the burn-up's current distribution via Settings,
+  // reset to the first available option. burnUpConfigs is session-only (excluded from
+  // partialize) so this only matters within a single session.
+  //
+  // Deps are deliberately ONLY [availableDistributions, config.distribution] — both stable
+  // primitives/memoized refs. Including the full `config` object would re-fire the effect on
+  // every parent render and risk an infinite loop with onChange. We read the latest config
+  // inside the effect body via the closure (acceptable: the function reruns on each render
+  // anyway, so the captured `config` is always current).
+  useEffect(() => {
+    if (availableDistributions.length === 0) return
+    if (!availableDistributions.includes(config.distribution)) {
+      onChange({ ...config, distribution: availableDistributions[0] })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional dep stability; see comment above
+  }, [availableDistributions, config.distribution])
 
   return (
     <div className="mb-4">

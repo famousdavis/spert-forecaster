@@ -5,7 +5,7 @@
 import { describe, it, expect } from 'vitest'
 import { projectToFirestoreDoc, firestoreDocToProject, firestoreDocToSprints, settingsToFirestoreDoc, firestoreDocToSettings } from './firestore-converters'
 import type { Project, Sprint } from '@/shared/types'
-import type { FirestoreProjectDoc } from './types'
+import type { FirestoreProjectDoc, FirestoreSettingsDoc } from './types'
 
 const mockProject: Project = {
   id: 'p1',
@@ -127,13 +127,83 @@ describe('settingsToFirestoreDoc / firestoreDocToSettings', () => {
       defaultCustomPercentile: 85,
       defaultCustomPercentile2: 50,
       defaultResultsPercentiles: [50, 70, 80, 90],
+      distributionsEnabled: ['truncatedNormal', 'lognormal'] as const,
     }
-    const doc = settingsToFirestoreDoc(settings)
+    const doc = settingsToFirestoreDoc({
+      ...settings,
+      distributionsEnabled: [...settings.distributionsEnabled],
+    })
     const restored = firestoreDocToSettings(doc)
     expect(restored.autoRecalculate).toBe(true)
     expect(restored.trialCount).toBe(10000)
     expect(restored.defaultChartFontSize).toBe('medium')
     expect(restored.defaultCustomPercentile).toBe(85)
     expect(restored.defaultResultsPercentiles).toEqual([50, 70, 80, 90])
+    expect(restored.distributionsEnabled).toEqual(['truncatedNormal', 'lognormal'])
+  })
+
+  describe('distributionsEnabled defensive coercion', () => {
+    const baseDoc: FirestoreSettingsDoc = {
+      autoRecalculate: true,
+      trialCount: 10000,
+      defaultChartFontSize: 'medium',
+      defaultCustomPercentile: 85,
+      defaultCustomPercentile2: 50,
+      defaultResultsPercentiles: [50, 80],
+    }
+
+    it("coerces missing field to ['truncatedNormal']", () => {
+      const restored = firestoreDocToSettings(baseDoc)
+      expect(restored.distributionsEnabled).toEqual(['truncatedNormal'])
+    })
+
+    it("coerces empty array to ['truncatedNormal']", () => {
+      const restored = firestoreDocToSettings({ ...baseDoc, distributionsEnabled: [] })
+      expect(restored.distributionsEnabled).toEqual(['truncatedNormal'])
+    })
+
+    it("coerces non-array values to ['truncatedNormal']", () => {
+      const corrupted = { ...baseDoc, distributionsEnabled: 'truncatedNormal' as unknown as string[] }
+      const restored = firestoreDocToSettings(corrupted)
+      expect(restored.distributionsEnabled).toEqual(['truncatedNormal'])
+    })
+
+    it('filters out unknown distribution keys', () => {
+      const restored = firestoreDocToSettings({
+        ...baseDoc,
+        distributionsEnabled: ['truncatedNormal', 'someFutureDist', 'lognormal'],
+      })
+      expect(restored.distributionsEnabled).toEqual(['truncatedNormal', 'lognormal'])
+    })
+
+    it("falls back when filter result is empty after removing invalid entries", () => {
+      const restored = firestoreDocToSettings({
+        ...baseDoc,
+        distributionsEnabled: ['unknownA', 'unknownB'],
+      })
+      expect(restored.distributionsEnabled).toEqual(['truncatedNormal'])
+    })
+
+    it('preserves valid array with all six distributions', () => {
+      const restored = firestoreDocToSettings({
+        ...baseDoc,
+        distributionsEnabled: [
+          'truncatedNormal',
+          'lognormal',
+          'gamma',
+          'bootstrap',
+          'triangular',
+          'uniform',
+        ],
+      })
+      expect(restored.distributionsEnabled).toEqual([
+        'truncatedNormal',
+        'lognormal',
+        'gamma',
+        'bootstrap',
+        'triangular',
+        'uniform',
+      ])
+    })
   })
 })

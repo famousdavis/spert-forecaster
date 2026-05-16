@@ -11,6 +11,7 @@ import { MIN_PERCENTILE, MAX_PERCENTILE } from '../constants'
 import { CopyImageButton } from '@/shared/components/CopyImageButton'
 import { formatDate } from '@/shared/lib/dates'
 import { getVisibleDistributions, DISTRIBUTION_LABELS, type DistributionType } from '../types'
+import { useSettingsStore } from '@/shared/state/settings-store'
 
 interface PercentileSelectorProps {
   percentile: number
@@ -64,10 +65,11 @@ const RESULT_PROP_MAP_2: Record<DistributionType, keyof PercentileSelectorProps>
 function getDistCards(
   forecastMode: ForecastMode,
   props: PercentileSelectorProps,
-  propMap: Record<DistributionType, keyof PercentileSelectorProps>
+  propMap: Record<DistributionType, keyof PercentileSelectorProps>,
+  enabledDistributions?: readonly DistributionType[]
 ): DistCard[] {
   const hasBootstrap = props.bootstrapResult !== null
-  return getVisibleDistributions(forecastMode, hasBootstrap).map((key) => ({
+  return getVisibleDistributions(forecastMode, hasBootstrap, enabledDistributions).map((key) => ({
     label: DISTRIBUTION_LABELS[key],
     result: props[propMap[key]] as ForecastResult | null,
   }))
@@ -168,8 +170,10 @@ export function PercentileSelector(props: PercentileSelectorProps) {
     onPercentile2Change,
   } = props
 
-  const cards1 = getDistCards(forecastMode, props, RESULT_PROP_MAP)
-  const cards2 = percentile2 !== undefined ? getDistCards(forecastMode, props, RESULT_PROP_MAP_2) : []
+  const distributionsEnabled = useSettingsStore((s) => s.distributionsEnabled)
+
+  const cards1 = getDistCards(forecastMode, props, RESULT_PROP_MAP, distributionsEnabled)
+  const cards2 = percentile2 !== undefined ? getDistCards(forecastMode, props, RESULT_PROP_MAP_2, distributionsEnabled) : []
   const hasResults = cards1.every((c) => c.result !== null)
   const hasSecondSlider = percentile2 !== undefined && onPercentile2Change !== undefined
 

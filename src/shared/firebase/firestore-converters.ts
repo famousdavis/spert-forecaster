@@ -10,7 +10,8 @@ import type { Project, Sprint } from '@/shared/types'
 import type { ChangeLogEntry } from '@/shared/state/storage'
 import type { FirestoreProjectDoc, FirestoreSettingsDoc } from './types'
 import type { TrialCount } from '@/shared/state/settings-store'
-import type { ChartFontSize } from '@/shared/types/burn-up'
+import type { ChartFontSize, DistributionType } from '@/shared/types/burn-up'
+import { DISTRIBUTION_TYPES } from '@/shared/types/burn-up'
 import { SCHEMA_VERSION } from './types'
 import { sanitizeForFirestore } from './firestore-sanitize'
 
@@ -78,6 +79,7 @@ export function settingsToFirestoreDoc(settings: {
   defaultCustomPercentile: number
   defaultCustomPercentile2: number
   defaultResultsPercentiles: number[]
+  distributionsEnabled: DistributionType[]
 }): FirestoreSettingsDoc {
   return {
     autoRecalculate: settings.autoRecalculate,
@@ -86,6 +88,7 @@ export function settingsToFirestoreDoc(settings: {
     defaultCustomPercentile: settings.defaultCustomPercentile,
     defaultCustomPercentile2: settings.defaultCustomPercentile2,
     defaultResultsPercentiles: settings.defaultResultsPercentiles,
+    distributionsEnabled: settings.distributionsEnabled,
   }
 }
 
@@ -97,7 +100,22 @@ export function firestoreDocToSettings(doc: FirestoreSettingsDoc): {
   defaultCustomPercentile: number
   defaultCustomPercentile2: number
   defaultResultsPercentiles: number[]
+  distributionsEnabled: DistributionType[]
 } {
+  // Defensive two-layer coercion for distributionsEnabled (Delta A):
+  // 1. Filter to known DistributionType values (guards against corrupted/forward-migrated keys).
+  // 2. If empty or missing, fall back to ['truncatedNormal'] (the v0.31.0 default).
+  // Array.isArray check is load-bearing — older docs may omit the field; defensive against
+  // non-array values too (corrupted documents, manual Firestore edits).
+  const raw = doc.distributionsEnabled
+  const filtered: DistributionType[] = Array.isArray(raw)
+    ? raw.filter((v): v is DistributionType =>
+        DISTRIBUTION_TYPES.includes(v as DistributionType)
+      )
+    : []
+  const distributionsEnabled: DistributionType[] =
+    filtered.length > 0 ? filtered : ['truncatedNormal']
+
   return {
     autoRecalculate: doc.autoRecalculate,
     trialCount: doc.trialCount as TrialCount,
@@ -105,5 +123,6 @@ export function firestoreDocToSettings(doc: FirestoreSettingsDoc): {
     defaultCustomPercentile: doc.defaultCustomPercentile,
     defaultCustomPercentile2: doc.defaultCustomPercentile2,
     defaultResultsPercentiles: doc.defaultResultsPercentiles,
+    distributionsEnabled,
   }
 }

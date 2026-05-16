@@ -3,7 +3,7 @@
 // See LICENSE file in the project root for full license text.
 
 import { describe, it, expect } from 'vitest'
-import { buildCdfPoints, calculateCumulativePercentage, buildHistogramBins } from './cdf'
+import { buildCdfPoints, calculateCumulativePercentage, buildHistogramBins, mergeDistributions } from './cdf'
 
 describe('buildCdfPoints', () => {
   it('returns percentile values for sorted data', () => {
@@ -102,10 +102,12 @@ describe('buildHistogramBins', () => {
 
     const bins = buildHistogramBins(tNormal, lognormal, gamma, null, '2025-01-06', 2, 10)
 
-    // Total percentages should sum to approximately 100 for each distribution
-    const tNormalTotal = bins.reduce((sum, bin) => sum + bin.tNormal, 0)
-    const lognormalTotal = bins.reduce((sum, bin) => sum + bin.lognormal, 0)
-    const gammaTotal = bins.reduce((sum, bin) => sum + bin.gamma, 0)
+    // Total percentages should sum to approximately 100 for each distribution.
+    // tNormal/lognormal/gamma are optional on HistogramBin (v0.31.0) — present here because
+    // non-null inputs are passed, so we assert via the non-null assertion.
+    const tNormalTotal = bins.reduce((sum, bin) => sum + bin.tNormal!, 0)
+    const lognormalTotal = bins.reduce((sum, bin) => sum + bin.lognormal!, 0)
+    const gammaTotal = bins.reduce((sum, bin) => sum + bin.gamma!, 0)
 
     expect(tNormalTotal).toBeCloseTo(100, 1)
     expect(lognormalTotal).toBeCloseTo(100, 1)
@@ -122,6 +124,51 @@ describe('buildHistogramBins', () => {
       expect(bin.sprintLabel).toBeDefined()
       // Label should be either a single number or a range
       expect(bin.sprintLabel).toMatch(/^\d+(-\d+)?$/)
+    })
+  })
+
+  // v0.31.0: distributions can be disabled via Settings ("Statistical methods to show")
+  // and arrive as null. Functions must skip rather than throw.
+  describe('null-input safety (v0.31.0)', () => {
+    const data = Array.from({ length: 50 }, (_, i) => i + 1)
+
+    it('skips null tNormal, lognormal, and gamma in buildHistogramBins', () => {
+      const bins = buildHistogramBins(null, data, data, null, '2025-01-06', 2, 5)
+      expect(bins.length).toBeGreaterThan(0)
+      bins.forEach((bin) => {
+        expect(bin.tNormal).toBeUndefined()
+        expect(bin.lognormal).toBeDefined()
+        expect(bin.gamma).toBeDefined()
+      })
+    })
+
+    it('returns empty bins when ALL distributions are null/undefined', () => {
+      const bins = buildHistogramBins(null, null, null, null, '2025-01-06', 2, 5)
+      expect(bins).toEqual([])
+    })
+
+    it('does not produce NaN sprintMin/sprintMax when some distributions are null', () => {
+      const bins = buildHistogramBins(null, null, data, null, '2025-01-06', 2, 5)
+      bins.forEach((bin) => {
+        expect(Number.isNaN(bin.sprintMin)).toBe(false)
+        expect(Number.isNaN(bin.sprintMax)).toBe(false)
+      })
+    })
+
+    it('mergeDistributions skips null tNormal and assigns only enabled distributions', () => {
+      const points = mergeDistributions(null, data, data, null, '2025-01-06', 2)
+      expect(points.length).toBeGreaterThan(0)
+      points.forEach((p) => {
+        expect(p.tNormal).toBeUndefined()
+        expect(p.lognormal).toBeDefined()
+        expect(p.gamma).toBeDefined()
+        expect(p.bootstrap).toBeUndefined()
+      })
+    })
+
+    it('mergeDistributions returns empty array when all inputs are null', () => {
+      const points = mergeDistributions(null, null, null, null, '2025-01-06', 2)
+      expect(points).toEqual([])
     })
   })
 })
