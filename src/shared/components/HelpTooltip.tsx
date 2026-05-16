@@ -35,7 +35,7 @@ export function HelpTooltip({ content, className, ariaLabel = 'More information'
       >
         i
       </TooltipTrigger>
-      <TooltipContent className="max-w-xs leading-relaxed">
+      <TooltipContent className="max-w-[14rem] leading-relaxed">
         {content}
       </TooltipContent>
     </Tooltip>
