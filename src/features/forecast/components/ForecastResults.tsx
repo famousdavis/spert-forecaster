@@ -168,7 +168,7 @@ export function ForecastResults({
   projectName,
   summaryText,
 }: ForecastResultsProps) {
-  const [isExpanded, setIsExpanded] = useState(true)
+  const [isExpanded, setIsExpanded] = useState(false)
   const distributionsEnabled = useSettingsStore((s) => s.distributionsEnabled)
 
   const hasBootstrap = results.bootstrap !== null

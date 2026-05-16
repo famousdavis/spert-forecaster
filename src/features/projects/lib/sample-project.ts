@@ -145,13 +145,12 @@ export function loadSampleProject(): void {
     color: '#8b5cf6', // purple
   })
 
-  // Productivity adjustment: a five-day "Production Issues" window 10 weeks into the
-  // seeded timeline (lands inside sprint 5 at 2-week cadence). Generic label avoids
-  // pinning the demo to a particular calendar holiday. Factor 0.5 = half productivity.
+  // Five-day "Spring Break" window 10 weeks into the seeded timeline — lands inside
+  // sprint 5 at the 2-week cadence. Factor 0.5 = half productivity.
   const adjStart = addWeeks(firstSprintStartDate, 10)
   const adjEnd = addDays(adjStart, 4)
   useProjectStore.getState().addProductivityAdjustment(newProjectId, {
-    name: 'Production Issues',
+    name: 'Spring Break',
     startDate: adjStart,
     endDate: adjEnd,
     factor: 0.5,

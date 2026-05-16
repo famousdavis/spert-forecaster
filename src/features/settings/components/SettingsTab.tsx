@@ -33,12 +33,18 @@ const FONT_SIZE_OPTIONS: { value: ChartFontSize; label: string }[] = [
 // One-line description per distribution for the "Statistical methods to show" section.
 // Refine wording as needed; keep terse.
 const DISTRIBUTION_DESCRIPTIONS: Record<DistributionType, string> = {
-  truncatedNormal: 'Bell-curve velocity assumption; the standard PERT default.',
-  lognormal: 'For teams whose velocity has occasional big-positive outliers.',
-  gamma: 'Similar shape to Lognormal but with a different tail.',
-  bootstrap: 'Resamples your actual sprint history (needs 5+ sprints).',
-  triangular: 'Simple low/most-likely/high estimate, no statistical assumption.',
-  uniform: 'All velocities equally likely; the most conservative assumption.',
+  truncatedNormal:
+    'Truncated normal — symmetric bell curve restricted to non-negative velocities; a reasonable default when sprint-to-sprint variation is roughly balanced around the average.',
+  lognormal:
+    'Lognormal — right-skewed curve always above zero, with a long upper tail; useful when your team has occasional unusually high-throughput sprints.',
+  gamma:
+    'Gamma — right-skewed like Lognormal but with a thinner upper tail; useful when faster sprints happen but extreme breakouts are unlikely.',
+  bootstrap:
+    'Bootstrap — resamples directly from your actual sprint history; the most data-driven option, assuming only that future sprints will look like past ones, but needs 5+ recorded sprints.',
+  triangular:
+    'Triangular — a simple peaked shape with hard limits at ±3 standard deviations from the mean; useful when you want a transparent, bounded forecast without long tails.',
+  uniform:
+    'Uniform — every velocity in the range equally likely; the most conservative shape, useful when you have little basis to prefer any one value.',
 }
 
 export function SettingsTab() {

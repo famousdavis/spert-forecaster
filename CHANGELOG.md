@@ -1,5 +1,37 @@
 # Changelog
 
+## v0.31.3 - 2026-05-16
+
+Three small polish items surfaced during hands-on review of v0.31.2 on
+production, ahead of the NCCI train-the-trainer kickoff Monday 2026-05-18. No
+math, schema, or persistence changes — UI defaults and copy only.
+
+### Changed
+
+- **Forecast Results section collapsed by default.** It was the only
+  collapsible on the Forecast tab that opened expanded — every other section
+  (Custom Percentile, Burn-Up Chart, Distribution Chart, Histogram Chart,
+  Volatility Adjuster) already defaulted to collapsed. The hero callout above
+  it still conveys the headline, and expanding the detailed per-milestone
+  percentile table is one click. Brings Forecast Results in line with the
+  established convention and makes the Forecast tab less visually intimidating
+  to first-time users.
+- **Sample project productivity adjustment renamed** from "Production Issues"
+  to "Spring Break." Friendlier first-impression framing — same dates, same
+  factor (0.5, five-day window in sprint 5).
+- **Settings → "Statistical methods to show" descriptions rewritten** to a
+  consistent *Name — shape; usage guidance* pattern across all six
+  distributions:
+  - **Truncated Normal** explicitly expands the abbreviation and drops the
+    prior "standard PERT default" framing (technically misleading — traditional
+    PERT uses a Beta distribution).
+  - **Triangular** no longer describes itself as a "low/most-likely/high
+    estimate" — in this app, Triangular bounds are derived from `mean ± 3σ`,
+    not user-entered three-point values, so the old copy implied control the
+    user does not have.
+  - **Bootstrap, Lognormal, Gamma, Uniform** rewritten for consistency with
+    shape + usage hint per entry.
+
 ## v0.31.2 - 2026-05-16
 
 Consolidates the v0.31.0 + v0.31.1 work (rolled back from production on 2026-05-16)

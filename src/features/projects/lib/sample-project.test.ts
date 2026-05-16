@@ -103,7 +103,7 @@ describe('loadSampleProject', () => {
     expect(sample.milestones?.[3]).toMatchObject({ name: 'v2 Release', backlogSize: 210, color: '#8b5cf6' })
 
     expect(sample.productivityAdjustments).toHaveLength(1)
-    expect(sample.productivityAdjustments?.[0].name).toBe('Production Issues')
+    expect(sample.productivityAdjustments?.[0].name).toBe('Spring Break')
     expect(sample.productivityAdjustments?.[0].factor).toBe(0.5)
     expect(sample.productivityAdjustments?.[0].enabled).toBe(true)
   })
