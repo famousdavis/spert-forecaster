@@ -427,10 +427,16 @@ export function ForecastSummary({
       </p>
       {milestoneTexts.length > 0 && (
         <div className="mt-2 pl-3 border-l-2 border-blue-200 dark:border-blue-700">
-          {visibleMilestones.map(({ milestone }, visIdx) => {
+          {visibleMilestones.map(({ milestone, originalIndex }, visIdx) => {
             if (!milestoneTexts[visIdx]) return null
+            // Past-tense (shipped) milestones render italic so users can eye-scan
+            // the boundary between "what's done" and "what's still ahead."
+            const isShipped = shippedInfo[originalIndex]?.shipped === true
             return (
-              <p key={milestone.id} className="text-xs text-spert-text-muted dark:text-gray-400 leading-relaxed">
+              <p
+                key={milestone.id}
+                className={`text-xs text-spert-text-muted dark:text-gray-400 leading-relaxed${isShipped ? ' italic' : ''}`}
+              >
                 <span
                   className="inline-block size-2 rounded-full mr-1.5 align-middle"
                   style={{ backgroundColor: milestone.color }}
