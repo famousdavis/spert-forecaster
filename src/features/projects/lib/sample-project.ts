@@ -30,16 +30,22 @@ import { addDays, addWeeks, today, calculateSprintStartDate, calculateSprintFini
 
 export const SAMPLE_PROJECT_NAME = 'Sample: Mobile App Launch'
 
-// Hand-chosen velocity sequence: moderate variability with a couple of small dips.
-// Tunable but deliberately not too noisy — the burn-up should look "well-behaved" but
-// not perfectly flat. Eight sprints aligns with the MIN_SPRINTS_FOR_BOOTSTRAP threshold
-// (5) so the Bootstrap distribution is available if the user re-enables it in Settings.
-const SAMPLE_VELOCITIES = [38, 45, 42, 35, 48, 44, 41, 47] as const
+// Hand-chosen velocity sequence: realistic variability for a generic agile team.
+// Mean ~42.5, σ ~18, CV ~42% — matches the messy reality of teams hit by production
+// fires, unplanned absences, and competing priorities (the failure modes that motivate
+// statistical forecasting in the first place). A too-tight sequence collapses the
+// P10/P90 spread and makes the forecast date look hard-pinned even when sliding the
+// custom percentile, which reads as "broken" to first-time users.
+// Eight sprints aligns with the MIN_SPRINTS_FOR_BOOTSTRAP threshold (5) so the
+// Bootstrap distribution is available if the user re-enables it in Settings.
+// Shape: slow start, normal, production-fire dip, recovery, productivity-hit dip,
+// catch-up surge, normal, late push.
+const SAMPLE_VELOCITIES = [25, 50, 18, 55, 22, 62, 48, 60] as const
 
-// Declining backlog: starts at ~540 (sum of velocities + final backlog), ends at 200.
+// Declining backlog: starts at 540 (sum of velocities + final backlog), ends at 200.
 // The final entry (200) is what the Forecast tab pre-fills as remainingBacklog via the
 // auto-derivation in useForecastInputs.ts:63-66.
-const SAMPLE_BACKLOG_AT_SPRINT_END = [502, 457, 415, 380, 332, 288, 247, 200] as const
+const SAMPLE_BACKLOG_AT_SPRINT_END = [515, 465, 447, 392, 370, 308, 260, 200] as const
 
 const SPRINT_CADENCE_WEEKS = 2 as const
 const SPRINT_COUNT = 8
@@ -110,12 +116,13 @@ export function loadSampleProject(): void {
     color: '#3b82f6',
   })
 
-  // Productivity adjustment: a five-day "Holiday Week" 10 weeks into the seeded timeline
-  // (lands inside sprint 5 at 2-week cadence). Factor 0.5 = half productivity.
+  // Productivity adjustment: a five-day "Production Issues" window 10 weeks into the
+  // seeded timeline (lands inside sprint 5 at 2-week cadence). Generic label avoids
+  // pinning the demo to a particular calendar holiday. Factor 0.5 = half productivity.
   const adjStart = addWeeks(firstSprintStartDate, 10)
   const adjEnd = addDays(adjStart, 4)
   useProjectStore.getState().addProductivityAdjustment(newProjectId, {
-    name: 'Holiday Week',
+    name: 'Production Issues',
     startDate: adjStart,
     endDate: adjEnd,
     factor: 0.5,

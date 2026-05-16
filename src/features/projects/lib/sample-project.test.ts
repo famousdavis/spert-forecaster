@@ -97,7 +97,7 @@ describe('loadSampleProject', () => {
     expect(sample.milestones?.[0].backlogSize).toBe(100)
 
     expect(sample.productivityAdjustments).toHaveLength(1)
-    expect(sample.productivityAdjustments?.[0].name).toBe('Holiday Week')
+    expect(sample.productivityAdjustments?.[0].name).toBe('Production Issues')
     expect(sample.productivityAdjustments?.[0].factor).toBe(0.5)
     expect(sample.productivityAdjustments?.[0].enabled).toBe(true)
   })
