@@ -29,11 +29,12 @@ interface ForecastResultsProps {
   onExport?: () => void
   milestones?: Milestone[]
   milestoneResultsState?: MilestoneResults | null
-  /** Project-zero cumulative scope per milestone (1:1 with `milestones`). Used for the
-   *  "X cumulative" label and as a stable, history-independent value to display. */
-  cumulativeScope?: number[]
-  /** Per-milestone shipped status. Shipped milestones are filtered out of the per-milestone
-   *  forecast tables (they appear past-tense in the ForecastSummary breakdown instead). */
+  /** Cumulative remaining work to reach each milestone (1:1 with `milestones`). Used
+   *  for the "X cumulative" display next to the milestone name. */
+  cumulativeThresholds?: number[]
+  /** Per-milestone shipped status (user has zeroed backlogSize). Shipped milestones
+   *  are filtered out of the per-milestone forecast tables (they appear in the
+   *  ForecastSummary breakdown past-tense instead). */
   shippedMilestoneInfo?: MilestoneShippedInfo[]
   unitOfMeasure?: string
   effectiveMean?: number
@@ -146,7 +147,7 @@ export function ForecastResults({
   onExport,
   milestones = [],
   milestoneResultsState,
-  cumulativeScope = [],
+  cumulativeThresholds = [],
   shippedMilestoneInfo = [],
   unitOfMeasure = '',
   effectiveMean,
@@ -290,7 +291,7 @@ export function ForecastResults({
 
                 const milestoneSimData = milestoneResultsState.milestoneSimulationData?.[originalIndex] ?? null
                 const isLast = visIdx === visibleMilestones.length - 1
-                const cumulativeBacklog = cumulativeScope[originalIndex] ?? 0
+                const cumulativeBacklog = cumulativeThresholds[originalIndex] ?? 0
                 const rows = buildRows(milestoneResult as QuadResults, milestoneSimData)
 
                 return (

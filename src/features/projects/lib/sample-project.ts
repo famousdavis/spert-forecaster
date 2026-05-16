@@ -110,31 +110,38 @@ export function loadSampleProject(): void {
     })
   }
 
-  // Four ordered milestones (incremental backlog sizes — cumulative = 150 / 350 / 600 / 800).
-  // Sizes range 150–250 (≈3.5–6 sprints at mean velocity ~42.5), giving each milestone
-  // a meaningful window for the trainee to visualize. Colors mirror DEFAULT_MILESTONE_COLORS
-  // in order (emerald, blue, amber, purple) so the seeded milestones look the same as
-  // milestones a user would add manually one by one.
-  // After 8 sprints (340 done), MVP is already shipped, Beta is just over the horizon,
-  // GA sits mid-forecast, and v2 anchors the project finish.
+  // Four ordered milestones. Under SPERT Forecaster's user-maintained dynamic-remaining
+  // model, milestone.backlogSize is "work the user knows remains to deliver this
+  // milestone's release." The user updates these values as work is completed and as
+  // scope is added or removed. A milestone is "shipped" when the user has set its
+  // backlogSize to 0.
+  //
+  // Seeded shape (sum of remaining = 460, matching the final backlogAtSprintEnd):
+  //  - MVP Release: 0   — already shipped (the trainee sees a zero value as the cue)
+  //  - Beta Release: 100 — near-term, ~Sprint 11 at P85 given mean velocity ~42.5
+  //  - GA Release: 150  — mid-future, ~Sprint 14
+  //  - v2 Release: 210  — project completion, ~Sprint 19
+  //
+  // Colors mirror DEFAULT_MILESTONE_COLORS in order so seeded milestones look the same
+  // as ones a user would add manually one at a time.
   useProjectStore.getState().addMilestone(newProjectId, {
     name: 'MVP Release',
-    backlogSize: 150,
+    backlogSize: 0,
     color: '#10b981', // emerald
   })
   useProjectStore.getState().addMilestone(newProjectId, {
     name: 'Beta Release',
-    backlogSize: 200,
+    backlogSize: 100,
     color: '#3b82f6', // blue
   })
   useProjectStore.getState().addMilestone(newProjectId, {
     name: 'GA Release',
-    backlogSize: 250,
+    backlogSize: 150,
     color: '#f59e0b', // amber
   })
   useProjectStore.getState().addMilestone(newProjectId, {
     name: 'v2 Release',
-    backlogSize: 200,
+    backlogSize: 210,
     color: '#8b5cf6', // purple
   })
 

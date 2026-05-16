@@ -40,7 +40,7 @@ export function ForecastTab({ onTabChange }: ForecastTabProps = {}) {
     resolvedSprintDates,
     calculatedStats,
     milestones,
-    cumulativeScope,
+    cumulativeThresholds,
     shippedMilestoneInfo,
     forecastMode,
     setForecastMode,
@@ -259,7 +259,7 @@ export function ForecastTab({ onTabChange }: ForecastTabProps = {}) {
                       onExport={handleExportCsv}
                       milestones={milestones}
                       milestoneResultsState={milestoneResultsState}
-                      cumulativeScope={cumulativeScope}
+                      cumulativeThresholds={cumulativeThresholds}
                       shippedMilestoneInfo={shippedMilestoneInfo}
                       unitOfMeasure={selectedProject.unitOfMeasure}
                       effectiveMean={effectiveMean}
@@ -364,7 +364,7 @@ export function ForecastTab({ onTabChange }: ForecastTabProps = {}) {
             fontSize={burnUpFontSize}
             onFontSizeChange={setBurnUpFontSize}
             milestones={milestones}
-            cumulativeScope={cumulativeScope}
+            cumulativeThresholds={cumulativeThresholds}
             forecastStartDate={forecastStartDate}
             resolvedSprintDates={resolvedSprintDates}
           />

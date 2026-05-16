@@ -2,37 +2,32 @@
 // Licensed under the GNU General Public License v3.0.
 // See LICENSE file in the project root for full license text.
 
-// Milestone history derivation.
+// Milestone derivations.
 //
-// Two key concepts live in this module:
+// SPERT Forecaster's milestone model is **user-maintained dynamic remaining work**:
 //
-//  • cumulativeScope[i] — project-zero cumulative backlog at milestone i: the sum of
-//    `backlogSize` for milestones 0..i. This is a static, project-level fact derived
-//    purely from the milestones array; it does not depend on what the team has done.
-//    Used for: burn-up chart reference-line positions, "X cumulative" display labels,
-//    CSV export.
+//  • milestone.backlogSize is "remaining work to deliver this milestone's release,"
+//    set and updated by the user as work progresses (and as scope is added or removed).
+//    The system does not auto-derive this from sprint history — milestone scope can
+//    change independently of sprint delivery (descopes, additions) and the user is
+//    the source of truth.
 //
-//  • cumulativeThresholds[i] — work to deliver from the team's *current* state to
-//    reach milestone i. Defined as max(0, cumulativeScope[i] − alreadyDone), so that
-//    already-shipped milestones report zero remaining work. This is what the Monte
-//    Carlo simulation needs: the sim's per-trial check is "delivered-this-trial ≥
-//    threshold", and passing project-zero cumulative would inflate the threshold by
-//    alreadyDone, causing late milestones to fall through to the trial's max-sprint
-//    fallback (a latent bug exposed when alreadyDone > 0 and milestones span project
-//    history).
+//  • cumulativeThresholds[i] = sum of remaining work to reach milestone i from current
+//    state = sum(milestone[0..i].backlogSize). This is what the Monte Carlo simulation
+//    needs: the per-trial check "delivered-this-trial ≥ threshold" reads correctly
+//    as "have we delivered enough to cross this milestone?"
 //
-// Shipped detection: walk included sprints in sprintNumber order, accumulate doneValue,
-// mark each milestone shipped the first sprint at which cumulative work meets/exceeds
-// the milestone's cumulativeScope. Result is 1:1 aligned with milestones[] by index.
+//  • A milestone is "shipped" when the user has set backlogSize to 0. No work remains
+//    for that release window. The system surfaces this state visually (italic in the
+//    breakdown, filtered from Scope picker and per-milestone forecast tables) but does
+//    not record *when* it shipped — that history lives in GanttApp, which this tool
+//    feeds into.
 
-import type { Milestone, Sprint } from '@/shared/types'
+import type { Milestone } from '@/shared/types'
 
 export interface MilestoneShippedInfo {
+  /** True iff the user has zeroed out backlogSize for this milestone. */
   shipped: boolean
-  /** Sprint number at which cumulative work first met/exceeded the milestone's threshold. */
-  shippedAtSprintNumber?: number
-  /** Finish date of that sprint (YYYY-MM-DD). */
-  shippedAtFinishDate?: string
 }
 
 /** Sum of backlogSize across milestones 0..i, returned per milestone (aligned by index). */
@@ -45,41 +40,10 @@ export function computeCumulativeScope(milestones: Milestone[]): number[] {
 }
 
 /**
- * Per-milestone shipped status, derived from sprint history.
- *
- * Walks `includedSprints` in sprintNumber order, accumulating `doneValue`. The first
- * sprint at which cumulative work meets or exceeds a milestone's cumulativeScope is
- * recorded as that milestone's shipping sprint.
- *
+ * Per-milestone shipped status. A milestone is shipped when the user has set its
+ * backlogSize to 0 — i.e., they've declared that no work remains for that release.
  * Returns an array aligned 1:1 with `milestones` by index.
  */
-export function computeShippedMilestoneInfo(
-  milestones: Milestone[],
-  includedSprints: Sprint[] | undefined,
-): MilestoneShippedInfo[] {
-  if (milestones.length === 0) return []
-  if (!includedSprints || includedSprints.length === 0) {
-    return milestones.map(() => ({ shipped: false }))
-  }
-
-  const cumulativeScope = computeCumulativeScope(milestones)
-  const info: MilestoneShippedInfo[] = milestones.map(() => ({ shipped: false }))
-  const sorted = [...includedSprints].sort((a, b) => a.sprintNumber - b.sprintNumber)
-
-  let cumulativeDone = 0
-  let nextIdx = 0
-  for (const sprint of sorted) {
-    cumulativeDone += sprint.doneValue
-    while (nextIdx < cumulativeScope.length && cumulativeScope[nextIdx] <= cumulativeDone) {
-      info[nextIdx] = {
-        shipped: true,
-        shippedAtSprintNumber: sprint.sprintNumber,
-        shippedAtFinishDate: sprint.sprintFinishDate,
-      }
-      nextIdx++
-    }
-    if (nextIdx >= cumulativeScope.length) break
-  }
-
-  return info
+export function computeShippedMilestoneInfo(milestones: Milestone[]): MilestoneShippedInfo[] {
+  return milestones.map((m) => ({ shipped: m.backlogSize === 0 }))
 }

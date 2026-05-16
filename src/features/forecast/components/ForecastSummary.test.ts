@@ -178,16 +178,14 @@ describe('buildSummaryText', () => {
 })
 
 describe('buildShippedMilestoneText', () => {
-  it('formats past-tense sprint + date for a shipped milestone', () => {
-    expect(buildShippedMilestoneText('MVP Release', 4, '2026-03-12'))
-      .toBe('MVP Release: shipped in Sprint 4 (March 12, 2026)')
+  it('returns "{name}: shipped" — terse past-tense with no sprint or date', () => {
+    // The system does not know *when* a milestone shipped; the user marks it
+    // shipped by setting backlogSize to 0. Release-history lives in GanttApp.
+    expect(buildShippedMilestoneText('MVP Release')).toBe('MVP Release: shipped')
   })
 
   it('handles milestone names with special characters', () => {
-    const text = buildShippedMilestoneText('Release v2.0 (GA)', 15, '2026-07-15')
-    expect(text).toContain('Release v2.0 (GA)')
-    expect(text).toContain('Sprint 15')
-    expect(text).toContain('shipped')
+    expect(buildShippedMilestoneText('Release v2.0 (GA)')).toBe('Release v2.0 (GA): shipped')
   })
 })
 

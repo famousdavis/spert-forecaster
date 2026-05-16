@@ -29,12 +29,15 @@ interface BurnUpChartProps {
   onFontSizeChange?: (size: ChartFontSize) => void
   milestones?: Milestone[]
   /**
-   * Project-zero cumulative scope per milestone (1:1 with `milestones`). The reference
-   * line for milestone i is drawn at y = cumulativeScope[i] on the chart's work-units
-   * axis. This is the milestone's static project position; it does not move as work
-   * is delivered.
+   * Cumulative remaining work to reach each milestone from current state (1:1 with
+   * `milestones`). For an unshipped milestone, the reference line is drawn at
+   * y = totalDone + cumulativeThresholds[idx] — i.e., the chart-space scope position
+   * where the team will be when they reach that milestone. Shipped milestones
+   * (backlogSize=0) are skipped: their reference line would land at totalDone, which
+   * is exactly where the done line already sits, making the line visually noisy and
+   * conveying no information.
    */
-  cumulativeScope?: number[]
+  cumulativeThresholds?: number[]
   forecastStartDate?: string
   resolvedSprintDates?: Map<number, { startDate: string; finishDate: string }>
 }
@@ -52,7 +55,7 @@ export function BurnUpChart({
   fontSize = 'small',
   onFontSizeChange,
   milestones = [],
-  cumulativeScope = [],
+  cumulativeThresholds = [],
   forecastStartDate,
   resolvedSprintDates,
 }: BurnUpChartProps) {
@@ -61,22 +64,29 @@ export function BurnUpChart({
 
   const hasBootstrap = isBootstrapAvailable(simulationData)
 
-  // Milestone reference lines: position each visible milestone at its project-zero
-  // cumulative scope. The team's "done" line will cross through reference lines for
-  // already-shipped milestones at the sprint where that work was delivered, which
-  // visually communicates the historical progress without any extra rendering.
+  // Total work delivered, used to anchor milestone reference lines in chart space.
+  const totalDone = useMemo(
+    () => sprints.reduce((sum, s) => sum + s.doneValue, 0),
+    [sprints]
+  )
+
+  // Milestone reference lines on the work-units axis. Skip shipped milestones
+  // (backlogSize === 0): their line would render at totalDone (right on top of the
+  // done line) and the user already knows shipped milestones are done — drawing them
+  // adds visual noise without information.
   const milestoneRefLines = useMemo(() => {
-    if (milestones.length === 0 || cumulativeScope.length === 0) return []
+    if (milestones.length === 0 || cumulativeThresholds.length === 0) return []
     return milestones
       .map((m, idx) => ({ milestone: m, idx }))
       .filter(({ milestone: m }) => m.showOnChart !== false)
+      .filter(({ milestone: m }) => m.backlogSize > 0)
       .map(({ milestone: m, idx }) => ({
         id: m.id,
         name: m.name,
         color: m.color,
-        yValue: cumulativeScope[idx],
+        yValue: totalDone + cumulativeThresholds[idx],
       }))
-  }, [milestones, cumulativeScope])
+  }, [milestones, cumulativeThresholds, totalDone])
 
   const chartData = useMemo(
     () =>

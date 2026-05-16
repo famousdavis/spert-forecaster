@@ -122,13 +122,12 @@ export function buildMilestoneSummaryText(
   return `${milestoneName}: Sprint ${absoluteSprint} (${formatDateLong(finishDate)})`
 }
 
-/** Past-tense per-milestone line used in the breakdown for already-shipped milestones. */
-export function buildShippedMilestoneText(
-  milestoneName: string,
-  shippedAtSprintNumber: number,
-  shippedAtFinishDate: string,
-): string {
-  return `${milestoneName}: shipped in Sprint ${shippedAtSprintNumber} (${formatDateLong(shippedAtFinishDate)})`
+/** Past-tense per-milestone line used in the breakdown for already-shipped milestones.
+ *  A milestone is "shipped" when the user has set its backlogSize to 0. The system
+ *  does not know *when* it shipped (release-history lives in GanttApp), so the line
+ *  is intentionally terse — name + state, no sprint number, no date. */
+export function buildShippedMilestoneText(milestoneName: string): string {
+  return `${milestoneName}: shipped`
 }
 
 export function ForecastSummary({
@@ -277,8 +276,8 @@ export function ForecastSummary({
     if (visibleMilestones.length === 0) return []
     return visibleMilestones.map(({ milestone, originalIndex }) => {
       const ship = shippedInfo[originalIndex]
-      if (ship?.shipped && ship.shippedAtSprintNumber !== undefined && ship.shippedAtFinishDate) {
-        return buildShippedMilestoneText(milestone.name, ship.shippedAtSprintNumber, ship.shippedAtFinishDate)
+      if (ship?.shipped) {
+        return buildShippedMilestoneText(milestone.name)
       }
       if (!milestoneResultsState) return null
       const msResults = milestoneResultsState.milestoneResults[originalIndex]

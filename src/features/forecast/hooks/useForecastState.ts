@@ -122,13 +122,13 @@ export function useForecastState() {
     [selectedProject?.productivityAdjustments]
   )
 
-  // Per-milestone shipped status, derived once at this level so both ForecastSummary
-  // (breakdown past-tense rendering, Scope-picker filtering) and ForecastResults
-  // (filtering shipped milestones out of the per-milestone forecast tables) can share
-  // the same source of truth without duplicating the derivation.
+  // Per-milestone shipped status (user has zeroed backlogSize), derived once at this
+  // level so both ForecastSummary (breakdown past-tense rendering, Scope-picker filter)
+  // and ForecastResults (per-milestone forecast-table filter) share the same source of
+  // truth without duplication.
   const shippedMilestoneInfo = useMemo(
-    () => computeShippedMilestoneInfo(inputs.milestones, sprintData.includedSprints),
-    [inputs.milestones, sprintData.includedSprints]
+    () => computeShippedMilestoneInfo(inputs.milestones),
+    [inputs.milestones]
   )
 
   // Track previous project to clear results on change
@@ -446,7 +446,6 @@ export function useForecastState() {
     // Milestone data (from useForecastInputs)
     milestones: inputs.milestones,
     hasMilestones: inputs.hasMilestones,
-    cumulativeScope: inputs.cumulativeScope,
     cumulativeThresholds: inputs.cumulativeThresholds,
     shippedMilestoneInfo,
 

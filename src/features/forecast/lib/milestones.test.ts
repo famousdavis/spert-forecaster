@@ -4,7 +4,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { computeCumulativeScope, computeShippedMilestoneInfo } from './milestones'
-import type { Milestone, Sprint } from '@/shared/types'
+import type { Milestone } from '@/shared/types'
 
 function m(name: string, backlogSize: number, opts: Partial<Milestone> = {}): Milestone {
   return {
@@ -18,124 +18,73 @@ function m(name: string, backlogSize: number, opts: Partial<Milestone> = {}): Mi
   }
 }
 
-function s(sprintNumber: number, doneValue: number, finishDate = '2026-01-15'): Sprint {
-  return {
-    id: `s-${sprintNumber}`,
-    projectId: 'p',
-    sprintNumber,
-    sprintStartDate: '2026-01-01',
-    sprintFinishDate: finishDate,
-    doneValue,
-    includedInForecast: true,
-  }
-}
-
 describe('computeCumulativeScope', () => {
   it('returns empty array for empty milestones', () => {
     expect(computeCumulativeScope([])).toEqual([])
   })
 
   it('accumulates backlogSize across milestones in order', () => {
-    const milestones = [m('MVP', 150), m('Beta', 200), m('GA', 250), m('v2', 200)]
-    expect(computeCumulativeScope(milestones)).toEqual([150, 350, 600, 800])
+    const milestones = [m('MVP', 100), m('Beta', 130), m('GA', 150), m('v2', 210)]
+    expect(computeCumulativeScope(milestones)).toEqual([100, 230, 380, 590])
   })
 
   it('handles a single milestone', () => {
     expect(computeCumulativeScope([m('MVP', 100)])).toEqual([100])
   })
 
-  it('handles zero-size milestones as no-op markers', () => {
-    const milestones = [m('Kickoff', 0), m('MVP', 100)]
-    expect(computeCumulativeScope(milestones)).toEqual([0, 100])
+  it('handles zero-size (shipped) milestones', () => {
+    // MVP has been shipped (user zeroed it). Beta and GA are still ahead.
+    const milestones = [m('MVP', 0), m('Beta', 100), m('GA', 150)]
+    expect(computeCumulativeScope(milestones)).toEqual([0, 100, 250])
   })
 })
 
 describe('computeShippedMilestoneInfo', () => {
   it('returns empty array for empty milestones', () => {
-    expect(computeShippedMilestoneInfo([], undefined)).toEqual([])
-    expect(computeShippedMilestoneInfo([], [])).toEqual([])
+    expect(computeShippedMilestoneInfo([])).toEqual([])
   })
 
-  it('returns all-not-shipped when no sprint history provided', () => {
-    const milestones = [m('MVP', 150), m('Beta', 200)]
-    expect(computeShippedMilestoneInfo(milestones, undefined)).toEqual([
+  it('marks milestones with backlogSize === 0 as shipped', () => {
+    const milestones = [m('MVP', 0), m('Beta', 100), m('GA', 150), m('v2', 210)]
+    expect(computeShippedMilestoneInfo(milestones)).toEqual([
+      { shipped: true },
       { shipped: false },
-      { shipped: false },
-    ])
-    expect(computeShippedMilestoneInfo(milestones, [])).toEqual([
       { shipped: false },
       { shipped: false },
     ])
   })
 
-  it('marks shipped milestones with the sprint number where the threshold was crossed', () => {
-    // MVP at cumulative 100, team delivers [40, 30, 40, 50] = cumulative [40, 70, 110, 160]
-    // 100 crossed at sprint 3 (cumulative 110).
-    const milestones = [m('MVP', 100)]
-    const sprints = [
-      s(1, 40, '2026-01-15'),
-      s(2, 30, '2026-01-29'),
-      s(3, 40, '2026-02-12'),
-      s(4, 50, '2026-02-26'),
-    ]
-    const info = computeShippedMilestoneInfo(milestones, sprints)
-    expect(info[0]).toEqual({
-      shipped: true,
-      shippedAtSprintNumber: 3,
-      shippedAtFinishDate: '2026-02-12',
-    })
+  it('marks all milestones unshipped when every backlogSize is positive', () => {
+    const milestones = [m('A', 10), m('B', 20), m('C', 30)]
+    expect(computeShippedMilestoneInfo(milestones)).toEqual([
+      { shipped: false },
+      { shipped: false },
+      { shipped: false },
+    ])
   })
 
-  it('marks each milestone at its own crossing sprint when multiple ship in the same trial', () => {
-    // Cumulative scope: [50, 120, 200]
-    // Sprint velocities: [30, 30, 70, 80] → cumulative work [30, 60, 130, 210]
-    // Milestone[0] (50) crossed at sprint 2 (60 ≥ 50)
-    // Milestone[1] (120) crossed at sprint 3 (130 ≥ 120)
-    // Milestone[2] (200) crossed at sprint 4 (210 ≥ 200)
-    const milestones = [m('A', 50), m('B', 70), m('C', 80)]
-    const sprints = [
-      s(1, 30, '2026-01-15'),
-      s(2, 30, '2026-01-29'),
-      s(3, 70, '2026-02-12'),
-      s(4, 80, '2026-02-26'),
-    ]
-    const info = computeShippedMilestoneInfo(milestones, sprints)
-    expect(info[0]).toMatchObject({ shipped: true, shippedAtSprintNumber: 2 })
-    expect(info[1]).toMatchObject({ shipped: true, shippedAtSprintNumber: 3 })
-    expect(info[2]).toMatchObject({ shipped: true, shippedAtSprintNumber: 4 })
+  it('marks all milestones shipped when every backlogSize is zero', () => {
+    const milestones = [m('A', 0), m('B', 0)]
+    expect(computeShippedMilestoneInfo(milestones)).toEqual([
+      { shipped: true },
+      { shipped: true },
+    ])
   })
 
-  it('marks multiple milestones at the same sprint when one big delivery crosses several', () => {
-    // Cumulative scope: [10, 20, 30]
-    // Sprint 1 delivers 50 → crosses all three thresholds in a single sprint.
-    const milestones = [m('A', 10), m('B', 10), m('C', 10)]
-    const sprints = [s(1, 50, '2026-01-15')]
-    const info = computeShippedMilestoneInfo(milestones, sprints)
-    expect(info[0]).toMatchObject({ shipped: true, shippedAtSprintNumber: 1 })
-    expect(info[1]).toMatchObject({ shipped: true, shippedAtSprintNumber: 1 })
-    expect(info[2]).toMatchObject({ shipped: true, shippedAtSprintNumber: 1 })
-  })
-
-  it('leaves later milestones unshipped when work falls short', () => {
-    const milestones = [m('MVP', 100), m('Beta', 200), m('GA', 300)]
-    const sprints = [s(1, 50, '2026-01-15'), s(2, 80, '2026-01-29')] // cumulative 130
-    const info = computeShippedMilestoneInfo(milestones, sprints)
-    expect(info[0]).toMatchObject({ shipped: true }) // 100 ≤ 130
-    expect(info[1]).toEqual({ shipped: false }) // 200 > 130
-    expect(info[2]).toEqual({ shipped: false }) // 300 > 130
-  })
-
-  it('handles sprints arriving in unsorted order', () => {
-    const milestones = [m('MVP', 100)]
-    const sprints = [s(3, 40, '2026-02-12'), s(1, 30, '2026-01-15'), s(2, 40, '2026-01-29')]
-    const info = computeShippedMilestoneInfo(milestones, sprints)
-    // Cumulative by sorted order: 30, 70, 110 → 100 crossed at sprint 3.
-    expect(info[0]).toMatchObject({ shipped: true, shippedAtSprintNumber: 3 })
+  it('does not depend on sprint history or order — pure function of backlogSize', () => {
+    // A milestone in the middle of the list can be shipped while others around it
+    // are not (e.g., a "kickoff" marker the user maintains at 0).
+    const milestones = [m('A', 50), m('Kickoff', 0), m('B', 100)]
+    expect(computeShippedMilestoneInfo(milestones)).toEqual([
+      { shipped: false },
+      { shipped: true },
+      { shipped: false },
+    ])
   })
 
   it('aligns the output array with the input milestones by index', () => {
-    const milestones = [m('A', 10), m('B', 10)]
-    const info = computeShippedMilestoneInfo(milestones, [])
+    const milestones = [m('A', 10), m('B', 20)]
+    const info = computeShippedMilestoneInfo(milestones)
     expect(info).toHaveLength(2)
     expect(info[0]).toEqual({ shipped: false })
     expect(info[1]).toEqual({ shipped: false })
