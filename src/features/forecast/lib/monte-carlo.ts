@@ -283,6 +283,35 @@ export function calculatePercentileResult(
 }
 
 /**
+ * True cumulative probability (CDF) that completion lands by the end of `sprints`.
+ *
+ * Inverse of calculatePercentileResult: that function maps "I want P% confidence"
+ * to "the sprint count at which P% of sims have completed." This function maps
+ * a sprint count back to the actual proportion of sims that complete by then.
+ *
+ * Use this when the displayed date is sprint-quantized and the headline wants to
+ * report the true confidence (which may exceed the user-selected percentile due
+ * to round-up). Returns a value in [0, 100].
+ *
+ * Empty simulation data yields 0 (no information, no confidence).
+ */
+export function cumulativeProbabilityAtSprint(
+  sortedSprintsRequired: number[],
+  sprints: number,
+): number {
+  if (sortedSprintsRequired.length === 0) return 0
+  // Sorted ascending → count entries <= sprints using a linear scan from the end
+  // back, since most sims finish within a tight band around the median.
+  // Even simpler: just filter. The arrays are typically 1k–10k entries; this is fine.
+  let count = 0
+  for (const s of sortedSprintsRequired) {
+    if (s <= sprints) count++
+    else break // sorted: no later entries can satisfy
+  }
+  return (count / sortedSprintsRequired.length) * 100
+}
+
+/**
  * Extract percentile results from a simulation
  */
 function extractPercentileResults(

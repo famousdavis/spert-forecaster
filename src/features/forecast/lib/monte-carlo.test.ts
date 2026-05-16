@@ -9,6 +9,7 @@ import {
   createBootstrapSampler,
   runSimulation,
   calculatePercentileResult,
+  cumulativeProbabilityAtSprint,
   runForecast,
   runQuadrupleForecast,
   runQuadrupleForecastWithMilestones,
@@ -185,6 +186,54 @@ describe('calculatePercentileResult', () => {
     const result = calculatePercentileResult([5], 50, '2024-01-01', 2)
     expect(result.sprintsRequired).toBe(5)
     expect(result.finishDate).toBeDefined()
+  })
+})
+
+// ============================================================================
+// cumulativeProbabilityAtSprint
+// ============================================================================
+
+describe('cumulativeProbabilityAtSprint', () => {
+  it('returns 0 for empty input', () => {
+    expect(cumulativeProbabilityAtSprint([], 5)).toBe(0)
+  })
+
+  it('returns 100% when the sprint count >= all simulated values', () => {
+    expect(cumulativeProbabilityAtSprint([3, 4, 5, 6, 7], 7)).toBe(100)
+    expect(cumulativeProbabilityAtSprint([3, 4, 5, 6, 7], 10)).toBe(100)
+  })
+
+  it('returns 0% when the sprint count is below all simulated values', () => {
+    expect(cumulativeProbabilityAtSprint([3, 4, 5, 6, 7], 2)).toBe(0)
+  })
+
+  it('returns the correct CDF value at intermediate sprint counts', () => {
+    // 5 sims, sprint count 5 covers [3, 4, 5] = 3/5 = 60%
+    expect(cumulativeProbabilityAtSprint([3, 4, 5, 6, 7], 5)).toBe(60)
+  })
+
+  it('counts ties at the sprint boundary as completed by that sprint', () => {
+    // All 7 sims finish in sprint 5 → at sprint 5 we are 100% done
+    expect(cumulativeProbabilityAtSprint([5, 5, 5, 5, 5, 5, 5], 5)).toBe(100)
+    // At sprint 4 (just before), 0% done
+    expect(cumulativeProbabilityAtSprint([5, 5, 5, 5, 5, 5, 5], 4)).toBe(0)
+  })
+
+  it('is the inverse of calculatePercentileResult under quantization', () => {
+    // calculatePercentileResult([3,4,5,6,7], 50) → sprintsRequired = 5 (median)
+    // cumulativeProbabilityAtSprint([3,4,5,6,7], 5) should be >= 50%
+    const p = calculatePercentileResult([3, 4, 5, 6, 7], 50, '2024-01-01', 2)
+    const cdf = cumulativeProbabilityAtSprint([3, 4, 5, 6, 7], p.sprintsRequired)
+    expect(cdf).toBeGreaterThanOrEqual(50)
+  })
+
+  it('surfaces the quantization gap: P10 round-up may yield > 10% true probability', () => {
+    // With ties, P10 may round up to a sprint where the actual cumulative probability is much higher.
+    const sortedSims = [4, 5, 5, 5, 5, 5, 5, 5, 5, 6]
+    const p10 = calculatePercentileResult(sortedSims, 10, '2024-01-01', 2)
+    // True CDF at p10.sprintsRequired will be the fraction of sims <= that sprint count
+    const cdf = cumulativeProbabilityAtSprint(sortedSims, p10.sprintsRequired)
+    expect(cdf).toBeGreaterThanOrEqual(10)
   })
 })
 

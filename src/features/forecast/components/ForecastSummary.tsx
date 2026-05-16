@@ -6,12 +6,14 @@
 
 import { useState, useMemo } from 'react'
 import { toast } from 'sonner'
-import { calculatePercentileResult, type PercentileResults, type QuadResults, type QuadSimulationData } from '../lib/monte-carlo'
+import { calculatePercentileResult, cumulativeProbabilityAtSprint, type PercentileResults, type QuadResults, type QuadSimulationData } from '../lib/monte-carlo'
 import type { MilestoneResults } from '../hooks/useForecastState'
 import { formatDateLong } from '@/shared/lib/dates'
-import type { Milestone, ForecastMode } from '@/shared/types'
+import type { Milestone, ForecastMode, Sprint } from '@/shared/types'
 import { type DistributionType, DISTRIBUTION_LABELS, getVisibleDistributions } from '../types'
 import { useSettingsStore } from '@/shared/state/settings-store'
+import { indefiniteArticle } from '@/shared/lib/grammar'
+import { HelpTooltip } from '@/shared/components/HelpTooltip'
 
 interface ForecastSummaryProps {
   results: QuadResults
@@ -24,6 +26,12 @@ interface ForecastSummaryProps {
   startDate: string
   milestones?: Milestone[]
   milestoneResultsState?: MilestoneResults | null
+  /**
+   * Included sprints (in-scope for the forecast). Used to derive shipped-milestone
+   * status from sprint history; optional to keep the component tolerant of older
+   * call sites and tests that don't provide it.
+   */
+  includedSprints?: Sprint[]
   hasBootstrap: boolean
   forecastMode: ForecastMode
   modelScopeGrowth?: boolean
@@ -34,7 +42,69 @@ interface ForecastSummaryProps {
   volatilityMultiplier?: number
 }
 
-const PERCENTILE_OPTIONS = [50, 60, 70, 80, 85, 90, 95] as const
+// Lower percentiles (10/20/30/40) added in v0.31.2 to support optimistic forecasting alongside
+// the conservative end of the range. Order is ascending so the dropdown reads naturally.
+const PERCENTILE_OPTIONS = [10, 20, 30, 40, 50, 60, 70, 80, 85, 90, 95] as const
+
+/** Sentinel for "Entire Project" in the Scope dropdown. Milestone ids are unique strings, so
+ *  this literal cannot collide. */
+const PROJECT_SCOPE = '__project__' as const
+type ScopeSelection = typeof PROJECT_SCOPE | string
+
+/** Per-milestone shipped status, derived from sprint history. shipped===true means the team's
+ *  cumulative work has met or exceeded this milestone's cumulative threshold. */
+interface MilestoneShippedInfo {
+  shipped: boolean
+  /** When shipped: the sprint number at which the threshold was crossed. */
+  shippedAtSprintNumber?: number
+  /** When shipped: that sprint's finish date (YYYY-MM-DD). */
+  shippedAtFinishDate?: string
+}
+
+/**
+ * Walk the milestones in their declared order, accumulating their incremental backlogSize
+ * to get cumulative thresholds; walk included sprints in sprintNumber order, accumulating
+ * doneValue; mark each milestone as shipped at the first sprint where cumulative work meets
+ * its cumulative threshold.
+ *
+ * Returns an array aligned 1:1 with `milestones`.
+ */
+function computeShippedMilestoneInfo(
+  milestones: Milestone[],
+  includedSprints: Sprint[] | undefined,
+): MilestoneShippedInfo[] {
+  if (milestones.length === 0) return []
+  if (!includedSprints || includedSprints.length === 0) {
+    return milestones.map(() => ({ shipped: false }))
+  }
+
+  const cumulativeThresholds: number[] = []
+  let running = 0
+  for (const m of milestones) {
+    running += m.backlogSize
+    cumulativeThresholds.push(running)
+  }
+
+  const info: MilestoneShippedInfo[] = milestones.map(() => ({ shipped: false }))
+  const sorted = [...includedSprints].sort((a, b) => a.sprintNumber - b.sprintNumber)
+
+  let cumulativeDone = 0
+  let nextIdx = 0
+  for (const sprint of sorted) {
+    cumulativeDone += sprint.doneValue
+    while (nextIdx < cumulativeThresholds.length && cumulativeThresholds[nextIdx] <= cumulativeDone) {
+      info[nextIdx] = {
+        shipped: true,
+        shippedAtSprintNumber: sprint.sprintNumber,
+        shippedAtFinishDate: sprint.sprintFinishDate,
+      }
+      nextIdx++
+    }
+    if (nextIdx >= cumulativeThresholds.length) break
+  }
+
+  return info
+}
 
 function getResultForPercentile(
   results: PercentileResults,
@@ -55,6 +125,16 @@ function getResultForPercentile(
   return result
 }
 
+/**
+ * Build the lower-section summary sentence.
+ *
+ * Project scope (milestoneName omitted): "...will finish the {backlog} {unit} backlog by Sprint N (date)."
+ * Milestone scope (milestoneName provided): "...will finish the {backlog} {unit} {milestoneName} by Sprint N (date)."
+ *
+ * Uses "at least {a/an} {percentile}%" framing — true under sprint-quantization since the
+ * displayed date is the *earliest* sprint-end where the CDF reaches the selected percentile,
+ * so the actual cumulative probability at that date is ≥ percentile.
+ */
 export function buildSummaryText(
   projectName: string,
   backlog: number,
@@ -66,10 +146,13 @@ export function buildSummaryText(
   distributionLabel: string,
   modelScopeGrowth?: boolean,
   scopeGrowthPerSprint?: number,
-  scopeGrowthMode?: 'calculated' | 'custom'
+  scopeGrowthMode?: 'calculated' | 'custom',
+  milestoneName?: string,
 ): string {
   const absoluteSprint = sprintsRequired + completedSprintCount
-  let text = `Using the ${distributionLabel} distribution, there is a ${percentile}% chance that ${projectName} will finish the ${backlog.toLocaleString()} ${unitOfMeasure} backlog by Sprint ${absoluteSprint} (${formatDateLong(finishDate)}).`
+  const article = indefiniteArticle(percentile)
+  const subject = milestoneName ?? 'backlog'
+  let text = `Using the ${distributionLabel} distribution, there is at least ${article} ${percentile}% chance that ${projectName} will finish the ${backlog.toLocaleString()} ${unitOfMeasure} ${subject} by Sprint ${absoluteSprint} (${formatDateLong(finishDate)}).`
   if (modelScopeGrowth && scopeGrowthPerSprint !== undefined) {
     const sign = scopeGrowthPerSprint > 0 ? '+' : ''
     const source = scopeGrowthMode === 'custom' ? 'custom' : 'calculated'
@@ -78,6 +161,7 @@ export function buildSummaryText(
   return text
 }
 
+/** Future-tense per-milestone line used in the breakdown for non-shipped milestones. */
 export function buildMilestoneSummaryText(
   milestoneName: string,
   sprintsRequired: number,
@@ -86,6 +170,15 @@ export function buildMilestoneSummaryText(
 ): string {
   const absoluteSprint = sprintsRequired + completedSprintCount
   return `${milestoneName}: Sprint ${absoluteSprint} (${formatDateLong(finishDate)})`
+}
+
+/** Past-tense per-milestone line used in the breakdown for already-shipped milestones. */
+export function buildShippedMilestoneText(
+  milestoneName: string,
+  shippedAtSprintNumber: number,
+  shippedAtFinishDate: string,
+): string {
+  return `${milestoneName}: shipped in Sprint ${shippedAtSprintNumber} (${formatDateLong(shippedAtFinishDate)})`
 }
 
 export function ForecastSummary({
@@ -99,6 +192,7 @@ export function ForecastSummary({
   startDate,
   milestones = [],
   milestoneResultsState,
+  includedSprints,
   hasBootstrap,
   forecastMode,
   modelScopeGrowth,
@@ -110,6 +204,7 @@ export function ForecastSummary({
 }: ForecastSummaryProps) {
   const [selectedDistribution, setSelectedDistribution] = useState<DistributionType>('truncatedNormal')
   const [selectedPercentile, setSelectedPercentile] = useState(80)
+  const [selectedScope, setSelectedScope] = useState<ScopeSelection>(PROJECT_SCOPE)
   const distributionsEnabled = useSettingsStore((s) => s.distributionsEnabled)
 
   const distributionOptions = useMemo(
@@ -128,19 +223,84 @@ export function ForecastSummary({
     ? selectedDistribution
     : (distributionOptions[0] ?? selectedDistribution)
 
-  // Get the result for the selected distribution and percentile
+  // Shipped-milestone status derived from sprint history. Used to filter the Scope dropdown
+  // (shipped milestones are hidden) and to render past-tense lines in the breakdown.
+  const shippedInfo = useMemo(
+    () => computeShippedMilestoneInfo(milestones, includedSprints),
+    [milestones, includedSprints],
+  )
+
+  // Scope options: "Entire Project" plus any non-shipped milestone. If the user previously
+  // selected a milestone that has since shipped, fall back to Entire Project.
+  const scopeOptions = useMemo(() => {
+    const opts: Array<{ value: ScopeSelection; label: string }> = [
+      { value: PROJECT_SCOPE, label: 'Entire Project' },
+    ]
+    milestones.forEach((m, idx) => {
+      if (!shippedInfo[idx]?.shipped) {
+        opts.push({ value: m.id, label: m.name })
+      }
+    })
+    return opts
+  }, [milestones, shippedInfo])
+
+  const effectiveScope: ScopeSelection = useMemo(() => {
+    if (selectedScope === PROJECT_SCOPE) return PROJECT_SCOPE
+    return scopeOptions.some((o) => o.value === selectedScope) ? selectedScope : PROJECT_SCOPE
+  }, [selectedScope, scopeOptions])
+
+  // Resolve the milestone index for the effective scope (or null for project scope).
+  const effectiveMilestoneIndex: number | null = useMemo(() => {
+    if (effectiveScope === PROJECT_SCOPE) return null
+    const idx = milestones.findIndex((m) => m.id === effectiveScope)
+    return idx === -1 ? null : idx
+  }, [effectiveScope, milestones])
+
+  // Pull the right results + sim data for the effective scope. For project scope, the
+  // top-level results; for milestone scope, the per-milestone slice from milestoneResultsState.
+  const activeResults = useMemo<PercentileResults | null>(() => {
+    if (effectiveMilestoneIndex === null) {
+      return results[effectiveDistribution] ?? null
+    }
+    if (!milestoneResultsState) return null
+    return milestoneResultsState.milestoneResults[effectiveMilestoneIndex]?.[effectiveDistribution] ?? null
+  }, [effectiveMilestoneIndex, results, milestoneResultsState, effectiveDistribution])
+
+  const activeSimData = useMemo<number[] | null>(() => {
+    if (effectiveMilestoneIndex === null) {
+      return simulationData[effectiveDistribution] ?? null
+    }
+    if (!milestoneResultsState) return null
+    return milestoneResultsState.milestoneSimulationData[effectiveMilestoneIndex]?.[effectiveDistribution] ?? null
+  }, [effectiveMilestoneIndex, simulationData, milestoneResultsState, effectiveDistribution])
+
+  // The sprintsRequired + finishDate for the user-selected percentile under the effective scope.
   const selectedResult = useMemo(() => {
-    const distResults = results[effectiveDistribution]
-    const distSimData = simulationData[effectiveDistribution]
-    if (!distResults || !distSimData) return null
-    return getResultForPercentile(distResults, distSimData, selectedPercentile, startDate, sprintCadenceWeeks)
-  }, [results, simulationData, effectiveDistribution, selectedPercentile, startDate, sprintCadenceWeeks])
+    if (!activeResults || !activeSimData) return null
+    return getResultForPercentile(activeResults, activeSimData, selectedPercentile, startDate, sprintCadenceWeeks)
+  }, [activeResults, activeSimData, selectedPercentile, startDate, sprintCadenceWeeks])
+
+  // True cumulative probability at the displayed date. Because dates round up to sprint-end,
+  // the actual CDF here is ≥ selectedPercentile — and may be quite a bit higher when the
+  // surrounding sprint bucket holds many simulated outcomes. Headline uses this rather than
+  // selectedPercentile to keep the (percent, date) pair internally consistent.
+  const trueCdfPercent = useMemo(() => {
+    if (!selectedResult || !activeSimData) return null
+    return Math.round(cumulativeProbabilityAtSprint(activeSimData, selectedResult.sprintsRequired))
+  }, [selectedResult, activeSimData])
+
+  // The milestone object for milestone-scope rendering (so we can use its name + backlogSize).
+  const effectiveMilestone: Milestone | null =
+    effectiveMilestoneIndex !== null ? milestones[effectiveMilestoneIndex] ?? null : null
 
   const summaryText = useMemo(() => {
     if (!selectedResult) return ''
+    // Project scope → "backlog" subject + remainingBacklog. Milestone scope → milestone name as
+    // subject + the milestone's own incremental backlogSize.
+    const backlogForSummary = effectiveMilestone ? effectiveMilestone.backlogSize : remainingBacklog
     return buildSummaryText(
       projectName,
-      remainingBacklog,
+      backlogForSummary,
       unitOfMeasure,
       selectedPercentile,
       selectedResult.sprintsRequired,
@@ -149,20 +309,35 @@ export function ForecastSummary({
       DISTRIBUTION_LABELS[effectiveDistribution],
       modelScopeGrowth,
       scopeGrowthPerSprint,
-      scopeGrowthMode
+      scopeGrowthMode,
+      effectiveMilestone?.name,
     )
-  }, [selectedResult, projectName, remainingBacklog, unitOfMeasure, selectedPercentile, completedSprintCount, effectiveDistribution, modelScopeGrowth, scopeGrowthPerSprint, scopeGrowthMode])
+  }, [selectedResult, projectName, remainingBacklog, unitOfMeasure, selectedPercentile, completedSprintCount, effectiveDistribution, modelScopeGrowth, scopeGrowthPerSprint, scopeGrowthMode, effectiveMilestone])
 
+  // Breakdown filter: charted (showOnChart !== false) AND not the currently selected Scope
+  // (coexistence option C — supporting detail under the headline; never duplicates it).
   const visibleMilestones = useMemo(
     () => milestones
       .map((m, idx) => ({ milestone: m, originalIndex: idx }))
-      .filter(({ milestone: m }) => m.showOnChart !== false),
-    [milestones]
+      .filter(({ milestone: m }) => m.showOnChart !== false)
+      .filter(({ milestone: m }) => effectiveScope === PROJECT_SCOPE || m.id !== effectiveScope),
+    [milestones, effectiveScope]
   )
 
+  /**
+   * One line of text per breakdown row. For shipped milestones, render the past-tense
+   * "shipped in Sprint N (date)" line derived from sprint history. For non-shipped
+   * milestones, fall back to the existing future-tense forecast pulled from
+   * milestoneResultsState.
+   */
   const milestoneTexts = useMemo(() => {
-    if (!milestoneResultsState || visibleMilestones.length === 0) return []
+    if (visibleMilestones.length === 0) return []
     return visibleMilestones.map(({ milestone, originalIndex }) => {
+      const ship = shippedInfo[originalIndex]
+      if (ship?.shipped && ship.shippedAtSprintNumber !== undefined && ship.shippedAtFinishDate) {
+        return buildShippedMilestoneText(milestone.name, ship.shippedAtSprintNumber, ship.shippedAtFinishDate)
+      }
+      if (!milestoneResultsState) return null
       const msResults = milestoneResultsState.milestoneResults[originalIndex]
       const msSimData = milestoneResultsState.milestoneSimulationData[originalIndex]
       if (!msResults || !msSimData) return null
@@ -177,7 +352,7 @@ export function ForecastSummary({
         completedSprintCount
       )
     }).filter(Boolean) as string[]
-  }, [milestoneResultsState, visibleMilestones, effectiveDistribution, selectedPercentile, startDate, sprintCadenceWeeks, completedSprintCount])
+  }, [milestoneResultsState, visibleMilestones, shippedInfo, effectiveDistribution, selectedPercentile, startDate, sprintCadenceWeeks, completedSprintCount])
 
   const handleCopy = () => {
     let fullText = summaryText
@@ -199,6 +374,14 @@ export function ForecastSummary({
     ? `Based on your estimates,`
     : `Based on your team's pace,`
 
+  // Headline percent shown in the hero is the *true* CDF at the displayed date, not the
+  // user's selected percentile. Falls back to selected percentile if the helper couldn't
+  // compute (no sim data) — should never happen when selectedResult is non-null but the
+  // belt-and-braces makes the JSX safe.
+  const heroPercent = trueCdfPercent ?? selectedPercentile
+  const heroArticle = indefiniteArticle(heroPercent)
+  const heroDate = formatDateLong(selectedResult.finishDate)
+
   return (
     <>
       <section
@@ -212,24 +395,47 @@ export function ForecastSummary({
           Your forecast
         </h2>
         <p className="text-lg leading-relaxed text-spert-text dark:text-gray-100">
-          {heroLead} you have an{' '}
-          <strong className="text-spert-blue">{selectedPercentile}%</strong> chance of finishing by{' '}
-          <strong className="text-spert-blue">{formatDateLong(selectedResult.finishDate)}</strong>.
+          {heroLead} there is {heroArticle}{' '}
+          <strong className="text-spert-blue">{heroPercent}%</strong> chance{' '}
+          {effectiveMilestone
+            ? <>{effectiveMilestone.name} will be reached by{' '}</>
+            : <>the project will finish by{' '}</>}
+          <strong className="text-spert-blue">{heroDate}</strong>.
         </p>
       </section>
     <div className="mt-4 bg-blue-50 dark:bg-blue-900/20 border-l-4 border-spert-blue rounded-r-lg p-4">
       <div className="flex items-center gap-3 mb-3">
         <select
-          name="summaryDistribution"
-          value={effectiveDistribution}
-          onChange={(e) => setSelectedDistribution(e.target.value as DistributionType)}
+          name="summaryScope"
+          value={effectiveScope}
+          onChange={(e) => setSelectedScope(e.target.value as ScopeSelection)}
           className="text-sm border border-spert-border dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 dark:text-gray-100"
-          aria-label="Distribution"
+          aria-label="Scope"
         >
-          {distributionOptions.map((dist) => (
-            <option key={dist} value={dist}>{DISTRIBUTION_LABELS[dist]}</option>
+          {scopeOptions.map((opt) => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
           ))}
         </select>
+        <div className="flex items-center">
+          <select
+            name="summaryDistribution"
+            value={effectiveDistribution}
+            onChange={(e) => setSelectedDistribution(e.target.value as DistributionType)}
+            className="text-sm border border-spert-border dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 dark:text-gray-100"
+            aria-label="Distribution"
+          >
+            {distributionOptions.map((dist) => (
+              <option key={dist} value={dist}>{DISTRIBUTION_LABELS[dist]}</option>
+            ))}
+          </select>
+          <HelpTooltip
+            ariaLabel="About the distribution choices"
+            content={
+              <>Only Truncated Normal is shown by default. Add more distributions in
+                {' '}<strong>Settings → Statistical methods to show</strong>.</>
+            }
+          />
+        </div>
         <select
           name="summaryPercentile"
           value={selectedPercentile}

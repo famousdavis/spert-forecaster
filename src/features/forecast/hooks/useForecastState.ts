@@ -423,6 +423,7 @@ export function useForecastState() {
 
     // Sprint data (from useSprintData)
     projectSprints: sprintData.projectSprints,
+    includedSprints: sprintData.includedSprints,
     completedSprintCount: sprintData.completedSprintCount,
     forecastStartDate: sprintData.forecastStartDate,
     resolvedSprintDates: sprintData.resolvedSprintDates,

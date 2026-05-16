@@ -105,6 +105,9 @@ export function BurnUpChartCanvas({
         <Legend
           wrapperStyle={{ fontSize: fontSizes.legend, paddingTop: 20 }}
           verticalAlign="bottom"
+          // Recharts' public types omit `payload` from <Legend>, but it is supported at runtime
+          // and is how recharts itself drives the legend when content is supplied externally.
+          // @ts-expect-error -- see comment above
           payload={legendPayload}
         />
 

@@ -35,6 +35,7 @@ export function ForecastTab({ onTabChange }: ForecastTabProps = {}) {
     projects,
     selectedProject,
     projectSprints,
+    includedSprints,
     completedSprintCount,
     forecastStartDate,
     resolvedSprintDates,
@@ -238,6 +239,7 @@ export function ForecastTab({ onTabChange }: ForecastTabProps = {}) {
                   startDate={forecastStartDate}
                   milestones={milestones}
                   milestoneResultsState={milestoneResultsState}
+                  includedSprints={includedSprints}
                   hasBootstrap={results.bootstrap !== null}
                   forecastMode={forecastMode}
                   modelScopeGrowth={modelScopeGrowth}

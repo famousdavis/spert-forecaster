@@ -3,7 +3,7 @@
 // See LICENSE file in the project root for full license text.
 
 import { describe, it, expect } from 'vitest'
-import { buildSummaryText, buildMilestoneSummaryText } from './ForecastSummary'
+import { buildSummaryText, buildMilestoneSummaryText, buildShippedMilestoneText } from './ForecastSummary'
 
 describe('buildSummaryText', () => {
   it('returns correct narrative for simple mode', () => {
@@ -136,6 +136,58 @@ describe('buildSummaryText', () => {
   it('starts with "Using the" distribution phrase', () => {
     const text = buildSummaryText('P', 100, 'pts', 80, 10, '2026-05-01', 0, 'T-Normal')
     expect(text.startsWith('Using the ')).toBe(true)
+  })
+
+  it('uses "at least" framing to acknowledge sprint-quantization round-up', () => {
+    const text = buildSummaryText('P', 100, 'pts', 80, 10, '2026-05-01', 0, 'T-Normal')
+    expect(text).toContain('at least an 80% chance')
+  })
+
+  it('picks "a" for consonant-sound percentiles and "an" for vowel-sound percentiles', () => {
+    expect(buildSummaryText('P', 100, 'pts', 90, 10, '2026-05-01', 0, 'T-Normal'))
+      .toContain('at least a 90% chance')
+    expect(buildSummaryText('P', 100, 'pts', 50, 10, '2026-05-01', 0, 'T-Normal'))
+      .toContain('at least a 50% chance')
+    expect(buildSummaryText('P', 100, 'pts', 85, 10, '2026-05-01', 0, 'T-Normal'))
+      .toContain('at least an 85% chance')
+    expect(buildSummaryText('P', 100, 'pts', 11, 10, '2026-05-01', 0, 'T-Normal'))
+      .toContain('at least an 11% chance')
+  })
+
+  it('uses milestone name and incremental backlog when milestoneName is provided', () => {
+    const text = buildSummaryText(
+      'Sample: Mobile App Launch',
+      150,
+      'story points',
+      80,
+      4,
+      '2026-03-12',
+      0,
+      'T-Normal',
+      undefined, undefined, undefined,
+      'MVP Release',
+    )
+    expect(text).toContain('Sample: Mobile App Launch will finish the 150 story points MVP Release')
+    expect(text).not.toContain('backlog')
+  })
+
+  it('uses generic "backlog" subject when milestoneName is omitted', () => {
+    const text = buildSummaryText('Project Alpha', 460, 'story points', 80, 10, '2026-06-26', 4, 'T-Normal')
+    expect(text).toContain('Project Alpha will finish the 460 story points backlog')
+  })
+})
+
+describe('buildShippedMilestoneText', () => {
+  it('formats past-tense sprint + date for a shipped milestone', () => {
+    expect(buildShippedMilestoneText('MVP Release', 4, '2026-03-12'))
+      .toBe('MVP Release: shipped in Sprint 4 (March 12, 2026)')
+  })
+
+  it('handles milestone names with special characters', () => {
+    const text = buildShippedMilestoneText('Release v2.0 (GA)', 15, '2026-07-15')
+    expect(text).toContain('Release v2.0 (GA)')
+    expect(text).toContain('Sprint 15')
+    expect(text).toContain('shipped')
   })
 })
 
