@@ -1,34 +1,106 @@
 # Changelog
 
-## v0.31.1 - 2026-05-16
+## v0.31.2 - 2026-05-16
+
+Consolidates the v0.31.0 + v0.31.1 work (rolled back from production on 2026-05-16)
+with the corrections that emerged from hands-on review. Net result: NCCI train-the-
+trainer trainees opening the Forecast tab on the sample project land on an
+internally consistent forecast that explains itself, rather than a forecast that
+looks correct but reads as broken.
 
 ### Added
 
-- **"Load Sample Project" CTA on both empty states.** New users can now seed a runnable example with one click — eight sprints of history (variable velocity ending at 200 remaining), one milestone ("MVP Release"), and one productivity adjustment ("Holiday Week"). The seeded project lands on a clean burn-up + plain-language hero sentence so the demo writes itself. The CTA appears as the right-hand button on a twin-button empty-state ("Create New Project" + "Load Sample Project") that shows on both the Projects tab (Welcome variant) and the Forecast tab ("You'll need a project to forecast"). The sample is idempotent against double-clicks via name-guard; if a project named "Sample: Mobile App Launch" already exists, the seeder silently no-ops with a friendly toast.
-- **Custom Percentile section is now collapsible.** The custom-percentile sliders + result cards on the Forecast tab default to collapsed under the label *"Explore a custom percentile."* Click once to expand; functionality unchanged. One fewer wall of controls on first load.
-- **Jargon relabel: "Std Dev" / "Standard Deviation" → "Variability."** The Forecast form and the Sprint History velocity stats card now read "Variability" with an info-tooltip explaining the stats meaning: *"Standard deviation — how much velocity varies sprint to sprint."*
-- **History / Subjective mode tooltip.** The forecast-mode toggle now has an info-tooltip: *"History uses your sprint data; Subjective uses your judgment."*
+- **"Load Sample Project" CTA on both empty states.** New users seed a runnable
+  example with one click — eight sprints of history with realistic ~42% velocity
+  variability ending at 460 remaining backlog; four ordered milestones (MVP Release
+  already completed, Beta / GA / v2 ahead) summing to that remainder; one
+  productivity adjustment ("Production Issues"). The seeded project lands on a
+  clean burn-up + plain-language hero so the demo writes itself. Idempotent against
+  double-clicks via name-guard.
+- **Custom Percentile section is collapsible** — defaults to collapsed under
+  *"Explore a custom percentile."*
+- **"Std Dev" / "Standard Deviation" relabeled to "Variability"** on the Forecast
+  form and Sprint History velocity stats, with an info-tooltip explaining the
+  stats meaning.
+- **History / Subjective mode tooltip** on the forecast-mode toggle.
+- **Settings → "Statistical methods to show."** A new section with one checkbox
+  per distribution (Truncated Normal, Lognormal, Gamma, Bootstrap, Triangular,
+  Uniform) plus plain-language descriptions. New installs default to Truncated
+  Normal only — the cleanest first-touch view. Re-enable any combination; at
+  least one must remain checked. Bootstrap is still gated by 5+ sprints of
+  history regardless of this setting. Setting round-trips through Firestore for
+  cloud-mode users.
+- **"Your forecast" hero callout.** The Forecast Summary panel leads with a
+  plain-language sentence — *"Based upon your forecast judgments, there is an
+  87% chance the project will finish by [date]."* — using the true cumulative
+  probability for the displayed sprint-end date so the percentage and date are
+  always internally consistent.
+- **Scope picker** in the forecast summary controls row. Choose "Entire Project"
+  or any not-yet-completed milestone; hero + summary sentence reflect the choice.
+  Completed milestones (backlogSize = 0) are filtered out of the picker.
+- **Per-milestone breakdown** under the summary text. Colored-dot list of each
+  charted milestone's forecast date. Completed milestones render italic
+  (*"MVP Release: completed"*) so the boundary between done and ahead is
+  eye-scannable.
+- **Burn-up chart legend** is now ordered Scope → Done → forecast lines in
+  ascending percentile (matching their left-to-right position on the chart),
+  rather than Recharts' default alphabetical sort.
+- **Distribution dropdown info-tooltip** in the summary controls row, pointing
+  users to Settings for enabling additional distributions.
+
+### Changed
+
+- **Auto-simulation runs on first valid input** — the Forecast tab no longer
+  requires a manual "Run Forecast" click before auto-recalculate kicks in.
+- **Default selected percentile pills shrunk** from `[P10, P20, P50, P80, P90]`
+  to `[P10, P50, P90]`. The full picker still offers `[P5, P10, P15, P20, P25,
+  P30, P35, P40, P45, P50, P55, P60, P65, P70, P75, P80, P85, P90, P95]`.
+- **Custom-percentile dropdown extended downward to P10–P40** for optimistic
+  forecasting; was P50–P95 only.
+- **Forecast Results table** no longer stretches with few distributions selected
+  — fixed per-column widths leave the table left-anchored with trailing space.
+- **Summary sentence uses "at least" framing**
+  (*"there is at least an 80% chance that..."*) — true under sprint-quantization
+  round-up and reads congruently with the hero's true-CDF percentage.
+- **Indefinite article computed by pronunciation**: "an 80%" / "a 90%" /
+  "a 50%" / "an 87%" via a small grammar helper.
 
 ### Internal
 
-- **shadcn `tooltip` component installed** (first Radix-backed component in the codebase). Imports the unified `radix-ui` package; named exports `Tooltip`, `TooltipTrigger`, `TooltipContent`, `TooltipProvider`. New `HelpTooltip` wrapper renders an ⓘ info chip with Radix tooltip content. `TooltipProvider` wraps the entire `AppShell` render tree — without it, Radix throws "TooltipProvider is missing" at runtime.
-- **Sample project seeder** as a plain module function using `useProjectStore.getState()` (not hooks). All sprint dates computed via the shared `calculateSprintStartDate` / `calculateSprintFinishDate` helpers — never hand-rolled — so every finish date lands on a business day. The "200 pre-fill backlog" promise is locked by a contract test that mirrors the full auto-derivation chain (project sprint filter → `includedInForecast` filter → `getLastSprintBacklog`).
-- **Tab-switch focus handoff.** `useProjectStore` gains a session-only `shouldFocusNewProjectForm` flag (not in `partialize`, no cloud sync). `ProjectForm` now uses `forwardRef` + `useImperativeHandle` to expose a `focusNameInput()` method. The Forecast empty-state "Create New Project" CTA sets the flag and switches tabs; ProjectsTab's mount effect reads the flag, focuses the name field via the ref, and immediately resets the flag.
-
-## v0.31.0 - 2026-05-16
-
-### Added
-
-- **Single-distribution default — Settings → "Statistical methods to show."** A new section in Settings exposes one checkbox per distribution (Truncated Normal, Lognormal, Gamma, Bootstrap, Triangular, Uniform), each with a one-line plain-language description. New installs and upgraded installs default to **Truncated Normal only** — the cleanest first-touch view for new users. Re-enable any combination at any time; at least one must remain checked (the last enabled checkbox is locked). Bootstrap continues to be shown only on projects with 5+ sprints of history regardless of this setting. The setting round-trips through Firestore for cloud-mode users with two-layer defensive coercion (`Array.isArray` guard plus per-value `DistributionType` filter) so corrupted or forward-migrated documents fall back to `['truncatedNormal']` instead of breaking the load.
-- **"Your forecast" hero callout.** The Forecast Summary panel now leads with a plain-language sentence — *"Based on your team's pace, you have an 80% chance of finishing by [date]."* — dynamic against the percentile selector and adapted to subjective mode (*"Based on your estimates,..."*). The existing detailed paragraph stays below as supporting detail and the Copy Summary button continues to copy that paragraph.
-
-### Internal
-
-- **`getVisibleDistributions` chokepoint gained a third parameter** (`enabledDistributions?: readonly DistributionType[]`) that intersects with the mode-visible set. Order matters: the mode/bootstrap set is computed first, then intersected with the enabled set — never the reverse. All three call sites (`ForecastSummary`, `PercentileSelector`, `ResultsTable` via `ForecastResults`) now pass through the Settings value.
-- **Chart input arrays widened to `number[] | null`.** `DistributionChart` and `HistogramChart` props for `truncatedNormal`, `lognormal`, `gamma`, `triangular`, and `uniform` now accept null; the corresponding `<Line>`/`<Bar>` gates render only when the input is non-null. `mergeDistributions` and `buildHistogramBins` skip null inputs (rather than throwing on `null.length` / `null[0]`) and `CdfDataPoint`/`HistogramBin` fields are now optional.
-- **State-fallback `useEffect`s in `ForecastSummary` and `BurnUpConfigUI`.** When a user disables the currently-selected distribution via Settings, both components reset their selection to the first available option. Both effects depend on a `useMemo`'d availability set with explicit stability comments — array reference stability is load-bearing.
-- **`DISTRIBUTION_TYPES` runtime constant** added to `src/shared/types/burn-up.ts` as the single source of truth for iteration (Settings UI, defensive coercion, tests).
-- **BurnUpConfig reads Settings directly** via `useSettingsStore` rather than receiving a new prop. Triangular and Uniform are intentionally available in both forecast modes from this dropdown — the hardcoded availability list is intersected with the user's Settings, not driven by `getVisibleDistributions`.
+- **shadcn `tooltip` component** installed (Radix-backed); `HelpTooltip` wrapper
+  renders ⓘ info chips with content sized to `max-w-[14rem]` for compact reads.
+  `TooltipProvider` wraps `AppShell`.
+- **Monte Carlo helper** `cumulativeProbabilityAtSprint(sortedSimData, sprints)`
+  returns the true cumulative probability at a given sprint count — powers the
+  hero's headline percentage.
+- **Grammar helper** `indefiniteArticle(n)` at
+  [src/shared/lib/grammar.ts](src/shared/lib/grammar.ts).
+- **Milestones lib** at
+  [src/features/forecast/lib/milestones.ts](src/features/forecast/lib/milestones.ts)
+  exports `computeCumulativeScope` and `computeMilestoneCompletionInfo`.
+  Completion is detected from `backlogSize === 0` only — no auto-derivation
+  from sprint history. Milestone scope can change independently of sprint
+  delivery (descopes, additions); the user is the source of truth on what
+  remains. Release-history (when milestones actually completed) is owned by
+  GanttApp, which this tool feeds into.
+- **Burn-up legend payload** built explicitly via
+  [burn-up-legend.ts](src/features/forecast/lib/burn-up-legend.ts) with
+  `itemSorter={null}` on `<Legend>` to opt out of Recharts 3.x's default
+  alphabetical sort.
+- **`getVisibleDistributions` chokepoint** gained an `enabledDistributions`
+  parameter so all three call sites (`ForecastSummary`, `PercentileSelector`,
+  `ResultsTable` via `ForecastResults`) pass through the Settings value. The
+  Bootstrap-OR-Uniform mutual exclusion is enforced here (max 5 visible
+  distributions ever).
+- **State-fallback `useEffect`s in `ForecastSummary` and `BurnUpConfigUI`** when
+  the user disables the currently-selected distribution via Settings. Both
+  depend on a `useMemo`'d availability set with explicit reference-stability
+  comments.
+- **Sample-project seeder** at
+  [src/features/projects/lib/sample-project.ts](src/features/projects/lib/sample-project.ts)
+  uses `useProjectStore.getState()` (not hooks); all sprint dates flow through
+  `calculateSprintStartDate` / `calculateSprintFinishDate` so finish dates
+  always land on business days.
 
 ## v0.30.2 - 2026-05-15
 
