@@ -18,6 +18,7 @@ import {
 } from 'recharts'
 import type { BurnUpConfig } from '../types'
 import { COLORS } from '@/shared/lib/colors'
+import { buildBurnUpLegendPayload } from '../lib/burn-up-legend'
 
 // Fixed colors for backlog and done lines
 const BACKLOG_COLOR = COLORS.burnUp.backlog
@@ -59,6 +60,7 @@ export function BurnUpChartCanvas({
   milestoneRefLines,
   fontSizes,
 }: BurnUpChartCanvasProps) {
+  const legendPayload = buildBurnUpLegendPayload(config, BACKLOG_COLOR, DONE_COLOR)
   return (
     <ResponsiveContainer width="100%" height={400}>
       <ComposedChart data={chartData} margin={{ top: 5, right: 30, left: 10, bottom: 60 }}>
@@ -100,7 +102,11 @@ export function BurnUpChartCanvas({
           }}
           contentStyle={{ fontSize: fontSizes.axisTick }}
         />
-        <Legend wrapperStyle={{ fontSize: fontSizes.legend, paddingTop: 20 }} verticalAlign="bottom" />
+        <Legend
+          wrapperStyle={{ fontSize: fontSizes.legend, paddingTop: 20 }}
+          verticalAlign="bottom"
+          payload={legendPayload}
+        />
 
         {/* Confidence interval areas (rendered first so lines appear on top) */}
         {config.showConfidenceIntervals && (
