@@ -35,13 +35,13 @@ export function ForecastTab({ onTabChange }: ForecastTabProps = {}) {
     projects,
     selectedProject,
     projectSprints,
-    includedSprints,
     completedSprintCount,
     forecastStartDate,
     resolvedSprintDates,
     calculatedStats,
     milestones,
-    cumulativeThresholds,
+    cumulativeScope,
+    shippedMilestoneInfo,
     forecastMode,
     setForecastMode,
     includedSprintCount,
@@ -239,7 +239,7 @@ export function ForecastTab({ onTabChange }: ForecastTabProps = {}) {
                   startDate={forecastStartDate}
                   milestones={milestones}
                   milestoneResultsState={milestoneResultsState}
-                  includedSprints={includedSprints}
+                  shippedMilestoneInfo={shippedMilestoneInfo}
                   hasBootstrap={results.bootstrap !== null}
                   forecastMode={forecastMode}
                   modelScopeGrowth={modelScopeGrowth}
@@ -259,7 +259,8 @@ export function ForecastTab({ onTabChange }: ForecastTabProps = {}) {
                       onExport={handleExportCsv}
                       milestones={milestones}
                       milestoneResultsState={milestoneResultsState}
-                      cumulativeThresholds={cumulativeThresholds}
+                      cumulativeScope={cumulativeScope}
+                      shippedMilestoneInfo={shippedMilestoneInfo}
                       unitOfMeasure={selectedProject.unitOfMeasure}
                       effectiveMean={effectiveMean}
                       effectiveStdDev={effectiveStdDev}
@@ -363,7 +364,7 @@ export function ForecastTab({ onTabChange }: ForecastTabProps = {}) {
             fontSize={burnUpFontSize}
             onFontSizeChange={setBurnUpFontSize}
             milestones={milestones}
-            cumulativeThresholds={cumulativeThresholds}
+            cumulativeScope={cumulativeScope}
             forecastStartDate={forecastStartDate}
             resolvedSprintDates={resolvedSprintDates}
           />

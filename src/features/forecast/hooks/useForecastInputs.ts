@@ -8,6 +8,7 @@ import { useMemo } from 'react'
 import { useProjectStore, selectViewingProject } from '@/shared/state/project-store'
 import type { VelocityStats, ForecastMode, Sprint } from '@/shared/types'
 import { DEFAULT_CV, DEFAULT_VOLATILITY_MULTIPLIER, MIN_SPRINTS_FOR_HISTORY } from '../constants'
+import { computeCumulativeScope } from '../lib/milestones'
 
 /**
  * Find the most recent defined backlog-at-end value from the given sprint list.
@@ -48,14 +49,33 @@ export function useForecastInputs(calculatedStats: VelocityStats, includedSprint
 
   const hasMilestones = milestones.length > 0
 
-  const cumulativeThresholds = useMemo(
-    () =>
-      milestones.reduce<number[]>((acc, m) => {
-        const prev = acc[acc.length - 1] ?? 0
-        acc.push(prev + m.backlogSize)
-        return acc
-      }, []),
+  // Two distinct concepts, both aligned 1:1 with `milestones` by index.
+  //
+  // cumulativeScope — project-zero cumulative backlog at each milestone. A static fact
+  // about the project's milestone layout; does not change as the team delivers work.
+  // Used by the burn-up chart for reference-line y-positions and by display surfaces
+  // that show "X cumulative" next to a milestone.
+  //
+  // cumulativeThresholds — work remaining from the team's current state to reach each
+  // milestone, clamped at zero for already-shipped milestones. This is what the Monte
+  // Carlo simulation needs: the sim treats threshold values as "delivered-in-trial ≥
+  // threshold" semantics, so passing project-zero cumulative would inflate the
+  // threshold by alreadyDone and cause late milestones to fall through to the trial's
+  // max-sprint fallback (a latent bug exposed when alreadyDone > 0 and milestones
+  // span project history).
+  const alreadyDone = useMemo(
+    () => sprints.reduce((sum, s) => sum + s.doneValue, 0),
+    [sprints]
+  )
+
+  const cumulativeScope = useMemo(
+    () => computeCumulativeScope(milestones),
     [milestones]
+  )
+
+  const cumulativeThresholds = useMemo(
+    () => cumulativeScope.map((c) => Math.max(0, c - alreadyDone)),
+    [cumulativeScope, alreadyDone]
   )
 
   // Form values — derive backlog from the most recent *included* sprint that has a value recorded.
@@ -138,7 +158,9 @@ export function useForecastInputs(calculatedStats: VelocityStats, includedSprint
   return {
     milestones,
     hasMilestones,
+    cumulativeScope,
     cumulativeThresholds,
+    alreadyDone,
     remainingBacklog,
     lastSprintBacklog,
     derivedBacklogFromIncluded,

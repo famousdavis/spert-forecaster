@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils'
 import type { QuadResults, QuadSimulationData } from '../lib/monte-carlo'
 import type { MilestoneResults } from '../hooks/useForecastState'
 import type { Milestone, ForecastMode } from '@/shared/types'
+import type { MilestoneShippedInfo } from '../lib/milestones'
 import { SELECTABLE_PERCENTILES, MIN_SPRINTS_FOR_BOOTSTRAP } from '../constants'
 import { ReportButton } from './ReportButton'
 import { CopyImageButton } from '@/shared/components/CopyImageButton'
@@ -28,7 +29,12 @@ interface ForecastResultsProps {
   onExport?: () => void
   milestones?: Milestone[]
   milestoneResultsState?: MilestoneResults | null
-  cumulativeThresholds?: number[]
+  /** Project-zero cumulative scope per milestone (1:1 with `milestones`). Used for the
+   *  "X cumulative" label and as a stable, history-independent value to display. */
+  cumulativeScope?: number[]
+  /** Per-milestone shipped status. Shipped milestones are filtered out of the per-milestone
+   *  forecast tables (they appear past-tense in the ForecastSummary breakdown instead). */
+  shippedMilestoneInfo?: MilestoneShippedInfo[]
   unitOfMeasure?: string
   effectiveMean?: number
   effectiveStdDev?: number
@@ -140,7 +146,8 @@ export function ForecastResults({
   onExport,
   milestones = [],
   milestoneResultsState,
-  cumulativeThresholds = [],
+  cumulativeScope = [],
+  shippedMilestoneInfo = [],
   unitOfMeasure = '',
   effectiveMean,
   effectiveStdDev,
@@ -166,11 +173,15 @@ export function ForecastResults({
   const hasBootstrap = results.bootstrap !== null
   const modeContext = buildModeContext(forecastMode, effectiveMean, effectiveStdDev, velocityMean, velocityStdDev, selectedCV, volatilityMultiplier)
   const columns = getDistributionColumns(forecastMode, hasBootstrap, distributionsEnabled)
+  // Per-milestone forecast tables are for UPCOMING milestones only. Shipped milestones
+  // appear past-tense in ForecastSummary's breakdown above; rendering a future-tense
+  // forecast for an already-shipped milestone here would duplicate and confuse.
   const visibleMilestones = useMemo(
     () => milestones
       .map((m, idx) => ({ milestone: m, originalIndex: idx }))
-      .filter(({ milestone: m }) => m.showOnChart !== false),
-    [milestones]
+      .filter(({ milestone: m }) => m.showOnChart !== false)
+      .filter(({ originalIndex }) => !shippedMilestoneInfo[originalIndex]?.shipped),
+    [milestones, shippedMilestoneInfo]
   )
 
   const hasMilestones = visibleMilestones.length > 0 && milestoneResultsState && milestoneResultsState.milestoneResults.length > 0
@@ -279,7 +290,7 @@ export function ForecastResults({
 
                 const milestoneSimData = milestoneResultsState.milestoneSimulationData?.[originalIndex] ?? null
                 const isLast = visIdx === visibleMilestones.length - 1
-                const cumulativeBacklog = cumulativeThresholds[originalIndex] ?? 0
+                const cumulativeBacklog = cumulativeScope[originalIndex] ?? 0
                 const rows = buildRows(milestoneResult as QuadResults, milestoneSimData)
 
                 return (

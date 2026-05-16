@@ -29,6 +29,7 @@ import { generateForecastCsv, downloadCsv, generateFilename } from '../lib/expor
 import { safeParseNumber } from '@/shared/lib/validation'
 import { MIN_SPRINTS_FOR_HISTORY, DEFAULT_SELECTED_PERCENTILES } from '../constants'
 import type { ForecastMode } from '@/shared/types'
+import { computeShippedMilestoneInfo } from '../lib/milestones'
 
 /** Per-milestone QuadResults and QuadSimulationData */
 export interface MilestoneResults {
@@ -119,6 +120,15 @@ export function useForecastState() {
   const productivityAdjustments = useMemo(
     () => selectedProject?.productivityAdjustments ?? [],
     [selectedProject?.productivityAdjustments]
+  )
+
+  // Per-milestone shipped status, derived once at this level so both ForecastSummary
+  // (breakdown past-tense rendering, Scope-picker filtering) and ForecastResults
+  // (filtering shipped milestones out of the per-milestone forecast tables) can share
+  // the same source of truth without duplicating the derivation.
+  const shippedMilestoneInfo = useMemo(
+    () => computeShippedMilestoneInfo(inputs.milestones, sprintData.includedSprints),
+    [inputs.milestones, sprintData.includedSprints]
   )
 
   // Track previous project to clear results on change
@@ -436,7 +446,9 @@ export function useForecastState() {
     // Milestone data (from useForecastInputs)
     milestones: inputs.milestones,
     hasMilestones: inputs.hasMilestones,
+    cumulativeScope: inputs.cumulativeScope,
     cumulativeThresholds: inputs.cumulativeThresholds,
+    shippedMilestoneInfo,
 
     // Forecast mode
     forecastMode: effectiveForecastMode,

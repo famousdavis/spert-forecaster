@@ -9,11 +9,12 @@ import { toast } from 'sonner'
 import { calculatePercentileResult, cumulativeProbabilityAtSprint, type PercentileResults, type QuadResults, type QuadSimulationData } from '../lib/monte-carlo'
 import type { MilestoneResults } from '../hooks/useForecastState'
 import { formatDateLong } from '@/shared/lib/dates'
-import type { Milestone, ForecastMode, Sprint } from '@/shared/types'
+import type { Milestone, ForecastMode } from '@/shared/types'
 import { type DistributionType, DISTRIBUTION_LABELS, getVisibleDistributions } from '../types'
 import { useSettingsStore } from '@/shared/state/settings-store'
 import { indefiniteArticle } from '@/shared/lib/grammar'
 import { HelpTooltip } from '@/shared/components/HelpTooltip'
+import type { MilestoneShippedInfo } from '../lib/milestones'
 
 interface ForecastSummaryProps {
   results: QuadResults
@@ -27,11 +28,11 @@ interface ForecastSummaryProps {
   milestones?: Milestone[]
   milestoneResultsState?: MilestoneResults | null
   /**
-   * Included sprints (in-scope for the forecast). Used to derive shipped-milestone
-   * status from sprint history; optional to keep the component tolerant of older
-   * call sites and tests that don't provide it.
+   * Per-milestone shipped status, 1:1 with `milestones`. Computed upstream in
+   * useForecastState; consumed here to filter the Scope picker and to render shipped
+   * milestones past-tense in the breakdown.
    */
-  includedSprints?: Sprint[]
+  shippedMilestoneInfo?: MilestoneShippedInfo[]
   hasBootstrap: boolean
   forecastMode: ForecastMode
   modelScopeGrowth?: boolean
@@ -51,60 +52,9 @@ const PERCENTILE_OPTIONS = [10, 20, 30, 40, 50, 60, 70, 80, 85, 90, 95] as const
 const PROJECT_SCOPE = '__project__' as const
 type ScopeSelection = typeof PROJECT_SCOPE | string
 
-/** Per-milestone shipped status, derived from sprint history. shipped===true means the team's
- *  cumulative work has met or exceeded this milestone's cumulative threshold. */
-interface MilestoneShippedInfo {
-  shipped: boolean
-  /** When shipped: the sprint number at which the threshold was crossed. */
-  shippedAtSprintNumber?: number
-  /** When shipped: that sprint's finish date (YYYY-MM-DD). */
-  shippedAtFinishDate?: string
-}
-
-/**
- * Walk the milestones in their declared order, accumulating their incremental backlogSize
- * to get cumulative thresholds; walk included sprints in sprintNumber order, accumulating
- * doneValue; mark each milestone as shipped at the first sprint where cumulative work meets
- * its cumulative threshold.
- *
- * Returns an array aligned 1:1 with `milestones`.
- */
-function computeShippedMilestoneInfo(
-  milestones: Milestone[],
-  includedSprints: Sprint[] | undefined,
-): MilestoneShippedInfo[] {
-  if (milestones.length === 0) return []
-  if (!includedSprints || includedSprints.length === 0) {
-    return milestones.map(() => ({ shipped: false }))
-  }
-
-  const cumulativeThresholds: number[] = []
-  let running = 0
-  for (const m of milestones) {
-    running += m.backlogSize
-    cumulativeThresholds.push(running)
-  }
-
-  const info: MilestoneShippedInfo[] = milestones.map(() => ({ shipped: false }))
-  const sorted = [...includedSprints].sort((a, b) => a.sprintNumber - b.sprintNumber)
-
-  let cumulativeDone = 0
-  let nextIdx = 0
-  for (const sprint of sorted) {
-    cumulativeDone += sprint.doneValue
-    while (nextIdx < cumulativeThresholds.length && cumulativeThresholds[nextIdx] <= cumulativeDone) {
-      info[nextIdx] = {
-        shipped: true,
-        shippedAtSprintNumber: sprint.sprintNumber,
-        shippedAtFinishDate: sprint.sprintFinishDate,
-      }
-      nextIdx++
-    }
-    if (nextIdx >= cumulativeThresholds.length) break
-  }
-
-  return info
-}
+// Shipped-milestone derivation lives in ../lib/milestones (shared with ForecastResults
+// and useForecastState so the computation isn't duplicated). The hook lifts the value
+// into context and passes it down as `shippedMilestoneInfo`.
 
 function getResultForPercentile(
   results: PercentileResults,
@@ -192,7 +142,7 @@ export function ForecastSummary({
   startDate,
   milestones = [],
   milestoneResultsState,
-  includedSprints,
+  shippedMilestoneInfo: shippedInfo = [],
   hasBootstrap,
   forecastMode,
   modelScopeGrowth,
@@ -222,13 +172,6 @@ export function ForecastSummary({
   const effectiveDistribution: DistributionType = distributionOptions.includes(selectedDistribution)
     ? selectedDistribution
     : (distributionOptions[0] ?? selectedDistribution)
-
-  // Shipped-milestone status derived from sprint history. Used to filter the Scope dropdown
-  // (shipped milestones are hidden) and to render past-tense lines in the breakdown.
-  const shippedInfo = useMemo(
-    () => computeShippedMilestoneInfo(milestones, includedSprints),
-    [milestones, includedSprints],
-  )
 
   // Scope options: "Entire Project" plus any non-shipped milestone. If the user previously
   // selected a milestone that has since shipped, fall back to Entire Project.
