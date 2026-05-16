@@ -30,12 +30,12 @@ interface BurnUpChartProps {
   milestones?: Milestone[]
   /**
    * Cumulative remaining work to reach each milestone from current state (1:1 with
-   * `milestones`). For an unshipped milestone, the reference line is drawn at
-   * y = totalDone + cumulativeThresholds[idx] — i.e., the chart-space scope position
-   * where the team will be when they reach that milestone. Shipped milestones
-   * (backlogSize=0) are skipped: their reference line would land at totalDone, which
-   * is exactly where the done line already sits, making the line visually noisy and
-   * conveying no information.
+   * `milestones`). For a not-yet-completed milestone, the reference line is drawn
+   * at y = totalDone + cumulativeThresholds[idx] — the chart-space scope position
+   * where the team will be when they reach that milestone. Completed milestones
+   * (backlogSize=0) are skipped: their reference line would land at totalDone,
+   * exactly where the done line already sits, which is visually noisy and conveys
+   * no information.
    */
   cumulativeThresholds?: number[]
   forecastStartDate?: string
@@ -70,10 +70,10 @@ export function BurnUpChart({
     [sprints]
   )
 
-  // Milestone reference lines on the work-units axis. Skip shipped milestones
+  // Milestone reference lines on the work-units axis. Skip completed milestones
   // (backlogSize === 0): their line would render at totalDone (right on top of the
-  // done line) and the user already knows shipped milestones are done — drawing them
-  // adds visual noise without information.
+  // done line) and the user already knows completed milestones are done — drawing
+  // them adds visual noise without information.
   const milestoneRefLines = useMemo(() => {
     if (milestones.length === 0 || cumulativeThresholds.length === 0) return []
     return milestones

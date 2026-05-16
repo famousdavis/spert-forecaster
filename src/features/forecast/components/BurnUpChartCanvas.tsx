@@ -105,6 +105,10 @@ export function BurnUpChartCanvas({
         <Legend
           wrapperStyle={{ fontSize: fontSizes.legend, paddingTop: 20 }}
           verticalAlign="bottom"
+          // Recharts 3.x defaults itemSorter to "value" — alphabetical-by-label — which
+          // overrides any custom payload order we supply. Setting to null preserves the
+          // order we put items in (Scope → Done → ascending-percentile forecasts).
+          itemSorter={null}
           // Recharts' public types omit `payload` from <Legend>, but it is supported at runtime
           // and is how recharts itself drives the legend when content is supplied externally.
           // @ts-expect-error -- see comment above

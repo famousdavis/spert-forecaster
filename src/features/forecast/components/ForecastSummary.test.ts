@@ -3,7 +3,7 @@
 // See LICENSE file in the project root for full license text.
 
 import { describe, it, expect } from 'vitest'
-import { buildSummaryText, buildMilestoneSummaryText, buildShippedMilestoneText } from './ForecastSummary'
+import { buildSummaryText, buildMilestoneSummaryText, buildCompletedMilestoneText } from './ForecastSummary'
 
 describe('buildSummaryText', () => {
   it('returns correct narrative for simple mode', () => {
@@ -177,15 +177,15 @@ describe('buildSummaryText', () => {
   })
 })
 
-describe('buildShippedMilestoneText', () => {
-  it('returns "{name}: shipped" — terse past-tense with no sprint or date', () => {
-    // The system does not know *when* a milestone shipped; the user marks it
-    // shipped by setting backlogSize to 0. Release-history lives in GanttApp.
-    expect(buildShippedMilestoneText('MVP Release')).toBe('MVP Release: shipped')
+describe('buildCompletedMilestoneText', () => {
+  it('returns "{name}: completed" — terse past-tense with no sprint or date', () => {
+    // The system does not know *when* a milestone was completed; the user marks
+    // completion by setting backlogSize to 0. Release-history lives in GanttApp.
+    expect(buildCompletedMilestoneText('MVP Release')).toBe('MVP Release: completed')
   })
 
   it('handles milestone names with special characters', () => {
-    expect(buildShippedMilestoneText('Release v2.0 (GA)')).toBe('Release v2.0 (GA): shipped')
+    expect(buildCompletedMilestoneText('Release v2.0 (GA)')).toBe('Release v2.0 (GA): completed')
   })
 })
 

@@ -14,7 +14,7 @@ import { type DistributionType, DISTRIBUTION_LABELS, getVisibleDistributions } f
 import { useSettingsStore } from '@/shared/state/settings-store'
 import { indefiniteArticle } from '@/shared/lib/grammar'
 import { HelpTooltip } from '@/shared/components/HelpTooltip'
-import type { MilestoneShippedInfo } from '../lib/milestones'
+import type { MilestoneCompletionInfo } from '../lib/milestones'
 
 interface ForecastSummaryProps {
   results: QuadResults
@@ -28,11 +28,11 @@ interface ForecastSummaryProps {
   milestones?: Milestone[]
   milestoneResultsState?: MilestoneResults | null
   /**
-   * Per-milestone shipped status, 1:1 with `milestones`. Computed upstream in
-   * useForecastState; consumed here to filter the Scope picker and to render shipped
-   * milestones past-tense in the breakdown.
+   * Per-milestone completion status, 1:1 with `milestones`. Computed upstream in
+   * useForecastState; consumed here to filter the Scope picker and to render
+   * completed milestones past-tense in the breakdown.
    */
-  shippedMilestoneInfo?: MilestoneShippedInfo[]
+  milestoneCompletionInfo?: MilestoneCompletionInfo[]
   hasBootstrap: boolean
   forecastMode: ForecastMode
   modelScopeGrowth?: boolean
@@ -52,9 +52,9 @@ const PERCENTILE_OPTIONS = [10, 20, 30, 40, 50, 60, 70, 80, 85, 90, 95] as const
 const PROJECT_SCOPE = '__project__' as const
 type ScopeSelection = typeof PROJECT_SCOPE | string
 
-// Shipped-milestone derivation lives in ../lib/milestones (shared with ForecastResults
+// Completion-status derivation lives in ../lib/milestones (shared with ForecastResults
 // and useForecastState so the computation isn't duplicated). The hook lifts the value
-// into context and passes it down as `shippedMilestoneInfo`.
+// into context and passes it down as `milestoneCompletionInfo`.
 
 function getResultForPercentile(
   results: PercentileResults,
@@ -111,7 +111,7 @@ export function buildSummaryText(
   return text
 }
 
-/** Future-tense per-milestone line used in the breakdown for non-shipped milestones. */
+/** Future-tense per-milestone line used in the breakdown for not-yet-completed milestones. */
 export function buildMilestoneSummaryText(
   milestoneName: string,
   sprintsRequired: number,
@@ -122,12 +122,15 @@ export function buildMilestoneSummaryText(
   return `${milestoneName}: Sprint ${absoluteSprint} (${formatDateLong(finishDate)})`
 }
 
-/** Past-tense per-milestone line used in the breakdown for already-shipped milestones.
- *  A milestone is "shipped" when the user has set its backlogSize to 0. The system
- *  does not know *when* it shipped (release-history lives in GanttApp), so the line
- *  is intentionally terse — name + state, no sprint number, no date. */
-export function buildShippedMilestoneText(milestoneName: string): string {
-  return `${milestoneName}: shipped`
+/** Past-tense per-milestone line used in the breakdown for completed milestones.
+ *  A milestone is "completed" when the user has set its backlogSize to 0. The system
+ *  does not know *when* it completed (release-history lives in GanttApp), so the
+ *  line is intentionally terse — name + state, no sprint number, no date. The word
+ *  "completed" rather than "shipped" or "released" — not every milestone represents
+ *  a release event (some are markers like "Feature Complete"), but every milestone
+ *  can be in a state where all its remaining work is done. */
+export function buildCompletedMilestoneText(milestoneName: string): string {
+  return `${milestoneName}: completed`
 }
 
 export function ForecastSummary({
@@ -141,7 +144,7 @@ export function ForecastSummary({
   startDate,
   milestones = [],
   milestoneResultsState,
-  shippedMilestoneInfo: shippedInfo = [],
+  milestoneCompletionInfo: completionInfo = [],
   hasBootstrap,
   forecastMode,
   modelScopeGrowth,
@@ -172,19 +175,20 @@ export function ForecastSummary({
     ? selectedDistribution
     : (distributionOptions[0] ?? selectedDistribution)
 
-  // Scope options: "Entire Project" plus any non-shipped milestone. If the user previously
-  // selected a milestone that has since shipped, fall back to Entire Project.
+  // Scope options: "Entire Project" plus any not-yet-completed milestone. If the user
+  // previously selected a milestone that has since been completed, fall back to
+  // Entire Project.
   const scopeOptions = useMemo(() => {
     const opts: Array<{ value: ScopeSelection; label: string }> = [
       { value: PROJECT_SCOPE, label: 'Entire Project' },
     ]
     milestones.forEach((m, idx) => {
-      if (!shippedInfo[idx]?.shipped) {
+      if (!completionInfo[idx]?.completed) {
         opts.push({ value: m.id, label: m.name })
       }
     })
     return opts
-  }, [milestones, shippedInfo])
+  }, [milestones, completionInfo])
 
   const effectiveScope: ScopeSelection = useMemo(() => {
     if (selectedScope === PROJECT_SCOPE) return PROJECT_SCOPE
@@ -267,17 +271,16 @@ export function ForecastSummary({
   )
 
   /**
-   * One line of text per breakdown row. For shipped milestones, render the past-tense
-   * "shipped in Sprint N (date)" line derived from sprint history. For non-shipped
-   * milestones, fall back to the existing future-tense forecast pulled from
-   * milestoneResultsState.
+   * One line of text per breakdown row. For completed milestones, render the
+   * past-tense "completed" line. For not-yet-completed milestones, fall back to
+   * the future-tense forecast pulled from milestoneResultsState.
    */
   const milestoneTexts = useMemo(() => {
     if (visibleMilestones.length === 0) return []
     return visibleMilestones.map(({ milestone, originalIndex }) => {
-      const ship = shippedInfo[originalIndex]
-      if (ship?.shipped) {
-        return buildShippedMilestoneText(milestone.name)
+      const c = completionInfo[originalIndex]
+      if (c?.completed) {
+        return buildCompletedMilestoneText(milestone.name)
       }
       if (!milestoneResultsState) return null
       const msResults = milestoneResultsState.milestoneResults[originalIndex]
@@ -294,7 +297,7 @@ export function ForecastSummary({
         completedSprintCount
       )
     }).filter(Boolean) as string[]
-  }, [milestoneResultsState, visibleMilestones, shippedInfo, effectiveDistribution, selectedPercentile, startDate, sprintCadenceWeeks, completedSprintCount])
+  }, [milestoneResultsState, visibleMilestones, completionInfo, effectiveDistribution, selectedPercentile, startDate, sprintCadenceWeeks, completedSprintCount])
 
   const handleCopy = () => {
     let fullText = summaryText
@@ -428,13 +431,13 @@ export function ForecastSummary({
         <div className="mt-2 pl-3 border-l-2 border-blue-200 dark:border-blue-700">
           {visibleMilestones.map(({ milestone, originalIndex }, visIdx) => {
             if (!milestoneTexts[visIdx]) return null
-            // Past-tense (shipped) milestones render italic so users can eye-scan
-            // the boundary between "what's done" and "what's still ahead."
-            const isShipped = shippedInfo[originalIndex]?.shipped === true
+            // Completed milestones render italic so users can eye-scan the
+            // boundary between "what's done" and "what's still ahead."
+            const isCompleted = completionInfo[originalIndex]?.completed === true
             return (
               <p
                 key={milestone.id}
-                className={`text-xs text-spert-text-muted dark:text-gray-400 leading-relaxed${isShipped ? ' italic' : ''}`}
+                className={`text-xs text-spert-text-muted dark:text-gray-400 leading-relaxed${isCompleted ? ' italic' : ''}`}
               >
                 <span
                   className="inline-block size-2 rounded-full mr-1.5 align-middle"

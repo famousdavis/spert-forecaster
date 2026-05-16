@@ -29,7 +29,7 @@ import { generateForecastCsv, downloadCsv, generateFilename } from '../lib/expor
 import { safeParseNumber } from '@/shared/lib/validation'
 import { MIN_SPRINTS_FOR_HISTORY, DEFAULT_SELECTED_PERCENTILES } from '../constants'
 import type { ForecastMode } from '@/shared/types'
-import { computeShippedMilestoneInfo } from '../lib/milestones'
+import { computeMilestoneCompletionInfo } from '../lib/milestones'
 
 /** Per-milestone QuadResults and QuadSimulationData */
 export interface MilestoneResults {
@@ -122,12 +122,12 @@ export function useForecastState() {
     [selectedProject?.productivityAdjustments]
   )
 
-  // Per-milestone shipped status (user has zeroed backlogSize), derived once at this
-  // level so both ForecastSummary (breakdown past-tense rendering, Scope-picker filter)
-  // and ForecastResults (per-milestone forecast-table filter) share the same source of
-  // truth without duplication.
-  const shippedMilestoneInfo = useMemo(
-    () => computeShippedMilestoneInfo(inputs.milestones),
+  // Per-milestone completion status (user has zeroed backlogSize), derived once at
+  // this level so both ForecastSummary (breakdown past-tense rendering, Scope-picker
+  // filter) and ForecastResults (per-milestone forecast-table filter) share the same
+  // source of truth without duplication.
+  const milestoneCompletionInfo = useMemo(
+    () => computeMilestoneCompletionInfo(inputs.milestones),
     [inputs.milestones]
   )
 
@@ -447,7 +447,7 @@ export function useForecastState() {
     milestones: inputs.milestones,
     hasMilestones: inputs.hasMilestones,
     cumulativeThresholds: inputs.cumulativeThresholds,
-    shippedMilestoneInfo,
+    milestoneCompletionInfo,
 
     // Forecast mode
     forecastMode: effectiveForecastMode,

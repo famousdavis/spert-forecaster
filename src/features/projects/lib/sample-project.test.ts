@@ -95,7 +95,7 @@ describe('loadSampleProject', () => {
 
     expect(sample.milestones).toHaveLength(4)
     // Order matters: milestones[0] ships first. MVP is seeded at backlogSize=0 to
-    // demonstrate the "shipped milestone" state (user-maintained model). The other
+    // demonstrate the "completed milestone" state (user-maintained model). The other
     // three sum to 460 (the seed's final remaining backlog).
     expect(sample.milestones?.[0]).toMatchObject({ name: 'MVP Release', backlogSize: 0, color: '#10b981' })
     expect(sample.milestones?.[1]).toMatchObject({ name: 'Beta Release', backlogSize: 100, color: '#3b82f6' })

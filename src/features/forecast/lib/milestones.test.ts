@@ -3,7 +3,7 @@
 // See LICENSE file in the project root for full license text.
 
 import { describe, it, expect } from 'vitest'
-import { computeCumulativeScope, computeShippedMilestoneInfo } from './milestones'
+import { computeCumulativeScope, computeMilestoneCompletionInfo } from './milestones'
 import type { Milestone } from '@/shared/types'
 
 function m(name: string, backlogSize: number, opts: Partial<Milestone> = {}): Milestone {
@@ -32,61 +32,61 @@ describe('computeCumulativeScope', () => {
     expect(computeCumulativeScope([m('MVP', 100)])).toEqual([100])
   })
 
-  it('handles zero-size (shipped) milestones', () => {
-    // MVP has been shipped (user zeroed it). Beta and GA are still ahead.
+  it('handles zero-size (completed) milestones', () => {
+    // MVP has been completed (user zeroed it). Beta and GA are still ahead.
     const milestones = [m('MVP', 0), m('Beta', 100), m('GA', 150)]
     expect(computeCumulativeScope(milestones)).toEqual([0, 100, 250])
   })
 })
 
-describe('computeShippedMilestoneInfo', () => {
+describe('computeMilestoneCompletionInfo', () => {
   it('returns empty array for empty milestones', () => {
-    expect(computeShippedMilestoneInfo([])).toEqual([])
+    expect(computeMilestoneCompletionInfo([])).toEqual([])
   })
 
-  it('marks milestones with backlogSize === 0 as shipped', () => {
+  it('marks milestones with backlogSize === 0 as completed', () => {
     const milestones = [m('MVP', 0), m('Beta', 100), m('GA', 150), m('v2', 210)]
-    expect(computeShippedMilestoneInfo(milestones)).toEqual([
-      { shipped: true },
-      { shipped: false },
-      { shipped: false },
-      { shipped: false },
+    expect(computeMilestoneCompletionInfo(milestones)).toEqual([
+      { completed: true },
+      { completed: false },
+      { completed: false },
+      { completed: false },
     ])
   })
 
-  it('marks all milestones unshipped when every backlogSize is positive', () => {
+  it('marks all milestones not-completed when every backlogSize is positive', () => {
     const milestones = [m('A', 10), m('B', 20), m('C', 30)]
-    expect(computeShippedMilestoneInfo(milestones)).toEqual([
-      { shipped: false },
-      { shipped: false },
-      { shipped: false },
+    expect(computeMilestoneCompletionInfo(milestones)).toEqual([
+      { completed: false },
+      { completed: false },
+      { completed: false },
     ])
   })
 
-  it('marks all milestones shipped when every backlogSize is zero', () => {
+  it('marks all milestones completed when every backlogSize is zero', () => {
     const milestones = [m('A', 0), m('B', 0)]
-    expect(computeShippedMilestoneInfo(milestones)).toEqual([
-      { shipped: true },
-      { shipped: true },
+    expect(computeMilestoneCompletionInfo(milestones)).toEqual([
+      { completed: true },
+      { completed: true },
     ])
   })
 
-  it('does not depend on sprint history or order — pure function of backlogSize', () => {
-    // A milestone in the middle of the list can be shipped while others around it
+  it('is order-independent and pure — driven only by backlogSize', () => {
+    // A milestone in the middle of the list can be completed while others around it
     // are not (e.g., a "kickoff" marker the user maintains at 0).
     const milestones = [m('A', 50), m('Kickoff', 0), m('B', 100)]
-    expect(computeShippedMilestoneInfo(milestones)).toEqual([
-      { shipped: false },
-      { shipped: true },
-      { shipped: false },
+    expect(computeMilestoneCompletionInfo(milestones)).toEqual([
+      { completed: false },
+      { completed: true },
+      { completed: false },
     ])
   })
 
   it('aligns the output array with the input milestones by index', () => {
     const milestones = [m('A', 10), m('B', 20)]
-    const info = computeShippedMilestoneInfo(milestones)
+    const info = computeMilestoneCompletionInfo(milestones)
     expect(info).toHaveLength(2)
-    expect(info[0]).toEqual({ shipped: false })
-    expect(info[1]).toEqual({ shipped: false })
+    expect(info[0]).toEqual({ completed: false })
+    expect(info[1]).toEqual({ completed: false })
   })
 })

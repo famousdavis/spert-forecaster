@@ -113,11 +113,11 @@ export function loadSampleProject(): void {
   // Four ordered milestones. Under SPERT Forecaster's user-maintained dynamic-remaining
   // model, milestone.backlogSize is "work the user knows remains to deliver this
   // milestone's release." The user updates these values as work is completed and as
-  // scope is added or removed. A milestone is "shipped" when the user has set its
+  // scope is added or removed. A milestone is "completed" when the user has set its
   // backlogSize to 0.
   //
   // Seeded shape (sum of remaining = 460, matching the final backlogAtSprintEnd):
-  //  - MVP Release: 0   — already shipped (the trainee sees a zero value as the cue)
+  //  - MVP Release: 0   — already completed (the trainee sees a zero value as the cue)
   //  - Beta Release: 100 — near-term, ~Sprint 11 at P85 given mean velocity ~42.5
   //  - GA Release: 150  — mid-future, ~Sprint 14
   //  - v2 Release: 210  — project completion, ~Sprint 19

@@ -17,17 +17,20 @@
 //    needs: the per-trial check "delivered-this-trial ≥ threshold" reads correctly
 //    as "have we delivered enough to cross this milestone?"
 //
-//  • A milestone is "shipped" when the user has set backlogSize to 0. No work remains
-//    for that release window. The system surfaces this state visually (italic in the
-//    breakdown, filtered from Scope picker and per-milestone forecast tables) but does
-//    not record *when* it shipped — that history lives in GanttApp, which this tool
-//    feeds into.
+//  • A milestone is "completed" when the user has set backlogSize to 0. No work
+//    remains for that release window. "Completed" is the term used throughout
+//    because not every milestone represents a release event — some are internal
+//    markers ("Feature Complete," "Code Freeze") — but every milestone can be in
+//    a state of "all its remaining work is done." The system surfaces this state
+//    visually (italic in the breakdown, filtered from Scope picker and per-
+//    milestone forecast tables) but does not record *when* it completed — that
+//    history lives in GanttApp, which this tool feeds into.
 
 import type { Milestone } from '@/shared/types'
 
-export interface MilestoneShippedInfo {
+export interface MilestoneCompletionInfo {
   /** True iff the user has zeroed out backlogSize for this milestone. */
-  shipped: boolean
+  completed: boolean
 }
 
 /** Sum of backlogSize across milestones 0..i, returned per milestone (aligned by index). */
@@ -40,10 +43,10 @@ export function computeCumulativeScope(milestones: Milestone[]): number[] {
 }
 
 /**
- * Per-milestone shipped status. A milestone is shipped when the user has set its
- * backlogSize to 0 — i.e., they've declared that no work remains for that release.
- * Returns an array aligned 1:1 with `milestones` by index.
+ * Per-milestone completion status. A milestone is completed when the user has set
+ * its backlogSize to 0 — i.e., they've declared that no work remains for that
+ * release. Returns an array aligned 1:1 with `milestones` by index.
  */
-export function computeShippedMilestoneInfo(milestones: Milestone[]): MilestoneShippedInfo[] {
-  return milestones.map((m) => ({ shipped: m.backlogSize === 0 }))
+export function computeMilestoneCompletionInfo(milestones: Milestone[]): MilestoneCompletionInfo[] {
+  return milestones.map((m) => ({ completed: m.backlogSize === 0 }))
 }
