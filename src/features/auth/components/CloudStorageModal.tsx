@@ -8,7 +8,6 @@ import { useEffect, useCallback, useState } from 'react'
 import { useAuth } from '@/shared/providers/AuthProvider'
 import { useStorageMode } from '@/shared/hooks/useStorageMode'
 import { useProjectStore } from '@/shared/state/project-store'
-import { useSettingsStore } from '@/shared/state/settings-store'
 import { ConfirmDialog } from '@/shared/components/ConfirmDialog'
 import { normalizeDisplayName } from '@/features/auth/lib/display-name'
 import { SignInButtons } from './SignInButtons'
@@ -21,8 +20,6 @@ interface CloudStorageModalProps {
 
 const sectionHeadingClass = 'text-sm font-semibold text-spert-text dark:text-gray-100 mb-2'
 const descriptionClass = 'text-xs text-spert-text-muted dark:text-gray-400'
-const inputClass =
-  'w-full p-2 text-sm border border-spert-border dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-spert-text dark:text-gray-100'
 
 function CloseIcon() {
   return (
@@ -41,14 +38,6 @@ export function CloudStorageModal({ isOpen, onClose }: CloudStorageModalProps) {
   const { user, isFirebaseAvailable, signOut } = useAuth()
   const { mode, setMode } = useStorageMode()
   const projects = useProjectStore((s) => s.projects)
-  const {
-    exportName,
-    setExportName,
-    exportId,
-    setExportId,
-    suppressLocalStorageWarning,
-    setSuppressLocalStorageWarning,
-  } = useSettingsStore()
 
   const [showUploadConfirm, setShowUploadConfirm] = useState(false)
   const [showSwitchToLocalConfirm, setShowSwitchToLocalConfirm] = useState(false)
@@ -255,73 +244,6 @@ export function CloudStorageModal({ isOpen, onClose }: CloudStorageModalProps) {
                     />
                   </div>
                 )}
-              </section>
-
-              {/* Export Attribution */}
-              <section>
-                <h3 className={sectionHeadingClass}>Export Attribution</h3>
-                <p className={`${descriptionClass} mb-3`}>
-                  Identify yourself on exported files. These fields are included in JSON exports
-                  for traceability.
-                </p>
-                <div className="space-y-3">
-                  <div>
-                    <label
-                      htmlFor="cloudModalExportName"
-                      className="block text-xs font-medium text-spert-text-secondary dark:text-gray-300 mb-1"
-                    >
-                      Name
-                    </label>
-                    <input
-                      id="cloudModalExportName"
-                      type="text"
-                      value={exportName}
-                      onChange={(e) => setExportName(e.target.value)}
-                      placeholder="e.g., Jane Smith"
-                      autoComplete="name"
-                      className={inputClass}
-                    />
-                  </div>
-                  <div>
-                    <label
-                      htmlFor="cloudModalExportId"
-                      className="block text-xs font-medium text-spert-text-secondary dark:text-gray-300 mb-1"
-                    >
-                      Identifier
-                    </label>
-                    <input
-                      id="cloudModalExportId"
-                      type="text"
-                      value={exportId}
-                      onChange={(e) => setExportId(e.target.value)}
-                      placeholder="e.g., student ID, email, or team name"
-                      className={inputClass}
-                    />
-                  </div>
-                </div>
-              </section>
-
-              {/* Notifications */}
-              <section>
-                <h3 className={sectionHeadingClass}>Notifications</h3>
-                <label className="flex items-start gap-3 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    name="warnLocalStorageStartup"
-                    checked={!suppressLocalStorageWarning}
-                    onChange={(e) => setSuppressLocalStorageWarning(!e.target.checked)}
-                    className="mt-0.5 rounded border-gray-300 dark:border-gray-500 cursor-pointer"
-                  />
-                  <span>
-                    <span className="block text-sm text-spert-text dark:text-gray-200">
-                      Warn me on startup when using local storage
-                    </span>
-                    <span className={`block ${descriptionClass} mt-0.5`}>
-                      Shows a caution banner each time the app opens while your data is stored
-                      locally in this browser.
-                    </span>
-                  </span>
-                </label>
               </section>
             </>
           )}

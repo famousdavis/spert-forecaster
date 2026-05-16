@@ -135,27 +135,27 @@ export function SettingsTab() {
           </div>
 
           {/* Trial count */}
-          <div className="flex items-start gap-3">
-            <div>
+          <div>
+            <div className="flex items-center gap-3">
               <label htmlFor="trialCount" className={labelClass}>
                 Number of simulations
               </label>
-              <p className={descriptionClass}>
-                More trials produce smoother distributions but take longer. Each distribution runs this many trials.
-              </p>
+              <select
+                id="trialCount"
+                value={trialCount}
+                onChange={(e) => setTrialCount(Number(e.target.value) as TrialCount)}
+                className={selectClass}
+              >
+                {TRIAL_COUNT_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
             </div>
-            <select
-              id="trialCount"
-              value={trialCount}
-              onChange={(e) => setTrialCount(Number(e.target.value) as TrialCount)}
-              className={`${selectClass} ml-auto flex-shrink-0`}
-            >
-              {TRIAL_COUNT_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
+            <p className={descriptionClass}>
+              More trials produce smoother distributions but take longer. Each distribution runs this many trials.
+            </p>
           </div>
         </div>
       </section>
@@ -189,27 +189,27 @@ export function SettingsTab() {
         <h3 className={sectionHeaderClass}>Chart Defaults</h3>
         <div className="space-y-5">
           {/* Default chart font size */}
-          <div className="flex items-start gap-3">
-            <div>
+          <div>
+            <div className="flex items-center gap-3">
               <label htmlFor="defaultFontSize" className={labelClass}>
                 Chart font size
               </label>
-              <p className={descriptionClass}>
-                Default font size for new chart sessions. Individual charts can still be overridden.
-              </p>
+              <select
+                id="defaultFontSize"
+                value={defaultChartFontSize}
+                onChange={(e) => setDefaultChartFontSize(e.target.value as ChartFontSize)}
+                className={selectClass}
+              >
+                {FONT_SIZE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
             </div>
-            <select
-              id="defaultFontSize"
-              value={defaultChartFontSize}
-              onChange={(e) => setDefaultChartFontSize(e.target.value as ChartFontSize)}
-              className={`${selectClass} ml-auto flex-shrink-0`}
-            >
-              {FONT_SIZE_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
+            <p className={descriptionClass}>
+              Default font size for new chart sessions. Individual charts can still be overridden.
+            </p>
           </div>
 
           {/* Default results table percentiles */}
@@ -243,51 +243,51 @@ export function SettingsTab() {
           </div>
 
           {/* Default custom percentile 1 */}
-          <div className="flex items-start gap-3">
-            <div>
+          <div>
+            <div className="flex items-center gap-3">
               <label htmlFor="defaultPercentile" className={labelClass}>
                 Default custom percentile 1
               </label>
-              <p className={descriptionClass}>
-                Initial percentile for the first custom percentile slider ({MIN_PERCENTILE}&ndash;{MAX_PERCENTILE}).
-              </p>
+              <input
+                id="defaultPercentile"
+                type="number"
+                min={MIN_PERCENTILE}
+                max={MAX_PERCENTILE}
+                value={defaultCustomPercentile}
+                onChange={(e) => {
+                  const val = parseInt(e.target.value, 10)
+                  if (!isNaN(val)) setDefaultCustomPercentile(val)
+                }}
+                className={inputClass}
+              />
             </div>
-            <input
-              id="defaultPercentile"
-              type="number"
-              min={MIN_PERCENTILE}
-              max={MAX_PERCENTILE}
-              value={defaultCustomPercentile}
-              onChange={(e) => {
-                const val = parseInt(e.target.value, 10)
-                if (!isNaN(val)) setDefaultCustomPercentile(val)
-              }}
-              className={`${inputClass} ml-auto flex-shrink-0`}
-            />
+            <p className={descriptionClass}>
+              Initial percentile for the first custom percentile slider ({MIN_PERCENTILE}&ndash;{MAX_PERCENTILE}).
+            </p>
           </div>
 
           {/* Default custom percentile 2 */}
-          <div className="flex items-start gap-3">
-            <div>
+          <div>
+            <div className="flex items-center gap-3">
               <label htmlFor="defaultPercentile2" className={labelClass}>
                 Default custom percentile 2
               </label>
-              <p className={descriptionClass}>
-                Initial percentile for the second custom percentile slider ({MIN_PERCENTILE}&ndash;{MAX_PERCENTILE}).
-              </p>
+              <input
+                id="defaultPercentile2"
+                type="number"
+                min={MIN_PERCENTILE}
+                max={MAX_PERCENTILE}
+                value={defaultCustomPercentile2}
+                onChange={(e) => {
+                  const val = parseInt(e.target.value, 10)
+                  if (!isNaN(val)) setDefaultCustomPercentile2(val)
+                }}
+                className={inputClass}
+              />
             </div>
-            <input
-              id="defaultPercentile2"
-              type="number"
-              min={MIN_PERCENTILE}
-              max={MAX_PERCENTILE}
-              value={defaultCustomPercentile2}
-              onChange={(e) => {
-                const val = parseInt(e.target.value, 10)
-                if (!isNaN(val)) setDefaultCustomPercentile2(val)
-              }}
-              className={`${inputClass} ml-auto flex-shrink-0`}
-            />
+            <p className={descriptionClass}>
+              Initial percentile for the second custom percentile slider ({MIN_PERCENTILE}&ndash;{MAX_PERCENTILE}).
+            </p>
           </div>
 
           {/* Statistical methods to show */}
@@ -340,27 +340,27 @@ export function SettingsTab() {
         <h3 className={sectionHeaderClass}>Appearance</h3>
         <div className="space-y-5">
           {/* Theme */}
-          <div className="flex items-start gap-3">
-            <div>
+          <div>
+            <div className="flex items-center gap-3">
               <label htmlFor="theme" className={labelClass}>
                 Theme
               </label>
-              <p className={descriptionClass}>
-                Choose between light, dark, or system-default appearance.
-              </p>
+              <select
+                id="theme"
+                value={theme}
+                onChange={(e) => setTheme(e.target.value as Theme)}
+                className={selectClass}
+              >
+                {THEME_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
             </div>
-            <select
-              id="theme"
-              value={theme}
-              onChange={(e) => setTheme(e.target.value as Theme)}
-              className={`${selectClass} ml-auto flex-shrink-0`}
-            >
-              {THEME_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
+            <p className={descriptionClass}>
+              Choose between light, dark, or system-default appearance.
+            </p>
           </div>
         </div>
       </section>
@@ -373,7 +373,7 @@ export function SettingsTab() {
         </p>
         <div className="space-y-4">
           <div>
-            <label htmlFor="exportName" className={labelClass}>
+            <label htmlFor="exportName" className={`${labelClass} block mb-1`}>
               Name
             </label>
             <input
@@ -384,11 +384,11 @@ export function SettingsTab() {
               placeholder="e.g., Jane Smith"
               autoComplete="name"
               maxLength={100}
-              className={`${selectClass} w-full max-w-[400px] mt-1`}
+              className={`${selectClass} w-full max-w-[400px]`}
             />
           </div>
           <div>
-            <label htmlFor="exportId" className={labelClass}>
+            <label htmlFor="exportId" className={`${labelClass} block mb-1`}>
               Identifier
             </label>
             <input
@@ -398,7 +398,7 @@ export function SettingsTab() {
               onChange={(e) => setExportId(e.target.value)}
               placeholder="e.g., student ID, email, or team name"
               maxLength={100}
-              className={`${selectClass} w-full max-w-[400px] mt-1`}
+              className={`${selectClass} w-full max-w-[400px]`}
             />
           </div>
         </div>

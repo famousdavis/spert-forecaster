@@ -1,5 +1,43 @@
 # Changelog
 
+## v0.31.4 - 2026-05-16
+
+Settings layout polish + Cloud Storage modal trim + bug-fix on the sample
+project's productivity adjustment. No math or schema changes.
+
+### Fixed
+
+- **Sample project's productivity adjustment had no forecast effect.** Latent
+  since v0.31.1: the adjustment was placed at week 10 from the project start,
+  which (with 8 completed sprints = 16 weeks of history) sits ~6 weeks before
+  the forecast period begins. `preCalculateSprintFactors` filters adjustments
+  whose end date precedes the forecast start, so the seeded adjustment was
+  silently dropped. Toggling it on/off produced no change in the forecast — the
+  exact behavior the seeded example was meant to demonstrate. The existing
+  shape-only test never caught it. Now placed at forecast sprint 4 (project
+  sprint 12) so the toggle has demonstrable effect: project finish shifts by
+  exactly +1 sprint when enabled. Renamed "Spring Break" → "Summer Break" to
+  match the new calendar position (~late June). Added a regression test that
+  exercises the forecast-effect path, not just shape.
+
+### Changed
+
+- **Settings rows: consistent inline pattern for all narrow value controls.**
+  Number of simulations, Chart font size, Theme, and both Default custom
+  percentile rows now use a single `Label [Control]` inline layout with the
+  description below, instead of the previous mix of "label-left,
+  control-far-right" (which left small number inputs visually orphaned at the
+  right edge of the row) and stacked layouts. Every narrow value-entry row in
+  Settings now shares the same idiom.
+- **Export Attribution inputs use the wide-control convention.** Labels now
+  stack above their inputs (matching "Default results table percentiles" and
+  "Statistical methods to show"), instead of the broken inline layout where
+  "Name" and "Identifier" labels of different widths pushed the inputs to
+  different x-positions.
+- **Cloud Storage modal slimmed to sign-in only.** Removed Export Attribution
+  and Notifications sections from the modal; both still live under Settings.
+  The modal is now a single-purpose sign-in flow.
+
 ## v0.31.3 - 2026-05-16
 
 Three small polish items surfaced during hands-on review of v0.31.2 on
