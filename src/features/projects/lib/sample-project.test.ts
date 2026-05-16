@@ -6,6 +6,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { loadSampleProject, SAMPLE_PROJECT_NAME } from './sample-project'
 import { useProjectStore } from '@/shared/state/project-store'
 import { getLastSprintBacklog } from '@/features/forecast/hooks/useForecastInputs'
+import { preCalculateSprintFactors } from '@/features/forecast/lib/productivity'
+import { calculateSprintStartDate } from '@/shared/lib/dates'
 
 // sonner toast is a thin notification surface; mock to keep tests pure.
 vi.mock('sonner', () => ({
@@ -103,9 +105,44 @@ describe('loadSampleProject', () => {
     expect(sample.milestones?.[3]).toMatchObject({ name: 'v2 Release', backlogSize: 210, color: '#8b5cf6' })
 
     expect(sample.productivityAdjustments).toHaveLength(1)
-    expect(sample.productivityAdjustments?.[0].name).toBe('Spring Break')
-    expect(sample.productivityAdjustments?.[0].factor).toBe(0.5)
+    expect(sample.productivityAdjustments?.[0].name).toBe('Summer Break')
+    expect(sample.productivityAdjustments?.[0].factor).toBe(0)
     expect(sample.productivityAdjustments?.[0].enabled).toBe(true)
+  })
+
+  it('Summer Break adjustment actually affects the forecast (regression guard)', () => {
+    // Latent bug shipped in v0.31.1–v0.31.3: Spring Break was placed at week 10 from
+    // firstSprintStartDate, which (with 8 completed sprints = 16 weeks of history) sits
+    // ~6 weeks BEFORE the forecast period starts. preCalculateSprintFactors filters
+    // adjustments whose endDate < firstForecastStart, so the seeded adjustment was
+    // silently dropped — toggling it on/off produced no forecast change. This test
+    // proves the v0.31.4 adjustment lives in the forecast period and its effect lands
+    // at the expected sprint index.
+    loadSampleProject()
+    const sample = useProjectStore.getState().projects[0]
+    const adj = sample.productivityAdjustments![0]
+    const firstSprintStart = sample.firstSprintStartDate!
+    const cadence = sample.sprintCadenceWeeks!
+
+    // Forecast period begins at project sprint 9 (8 completed + 1).
+    const forecastStartDate = calculateSprintStartDate(firstSprintStart, 9, cadence)
+
+    // Position guard: adjustment must end on/after forecast start, otherwise it's
+    // filtered out and the toggle has no effect.
+    expect(adj.endDate >= forecastStartDate).toBe(true)
+
+    // Effect guard: with the adjustment, the factors array must contain at least one
+    // sprint at factor 0 (the wiped-out sprint). Without it, all 1.0s.
+    const { factors: withAdj } = preCalculateSprintFactors(forecastStartDate, cadence, 1, [adj])
+    const { factors: withoutAdj } = preCalculateSprintFactors(forecastStartDate, cadence, 1, [])
+
+    expect(withAdj.some((f) => f === 0)).toBe(true)
+    expect(withoutAdj.every((f) => f === 1)).toBe(true)
+
+    // Placement guard: factor 0 should land at forecast sprint index 3 (project
+    // sprint 12, since the seeder uses addWeeks(firstSprintStartDate, 22) and forecast
+    // sprint 1 = project sprint 9). Locks in the pedagogical positioning.
+    expect(withAdj[3]).toBe(0)
   })
 
   it('is idempotent against double-click: the second call no-ops', () => {

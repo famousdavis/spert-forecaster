@@ -145,15 +145,21 @@ export function loadSampleProject(): void {
     color: '#8b5cf6', // purple
   })
 
-  // Five-day "Spring Break" window 10 weeks into the seeded timeline — lands inside
-  // sprint 5 at the 2-week cadence. Factor 0.5 = half productivity.
-  const adjStart = addWeeks(firstSprintStartDate, 10)
-  const adjEnd = addDays(adjStart, 4)
+  // Two-week "Summer Break" window placed at the start of forecast sprint 4 (project
+  // sprint 12, ~6 weeks past the forecast start). Factor 0 wipes out a full sprint's
+  // worth of working days, shifting the overall project finish by exactly +1 sprint
+  // when the user toggles the adjustment on — the pedagogical point of seeding it.
+  // Position matters: must be in the forecast period or it gets filtered out by
+  // preCalculateSprintFactors. Sprint 4 also sits between Beta Release (~sprint 11,
+  // unaffected by the toggle) and GA/v2 (after the break, each shift +1 sprint),
+  // demonstrating that adjustments only affect releases whose work hasn't started yet.
+  const adjStart = addWeeks(firstSprintStartDate, 22)
+  const adjEnd = addDays(adjStart, 13)
   useProjectStore.getState().addProductivityAdjustment(newProjectId, {
-    name: 'Spring Break',
+    name: 'Summer Break',
     startDate: adjStart,
     endDate: adjEnd,
-    factor: 0.5,
+    factor: 0,
     enabled: true,
   })
 
