@@ -30,6 +30,7 @@ import { safeParseNumber } from '@/shared/lib/validation'
 import { MIN_SPRINTS_FOR_HISTORY, DEFAULT_SELECTED_PERCENTILES } from '../constants'
 import type { ForecastMode } from '@/shared/types'
 import { computeMilestoneCompletionInfo } from '../lib/milestones'
+import { canRunForecast, getRunForecastBlockedReason } from '../lib/run-forecast-prereqs'
 
 /** Per-milestone QuadResults and QuadSimulationData */
 export interface MilestoneResults {
@@ -164,6 +165,39 @@ export function useForecastState() {
   // Milestone chart selector (which milestone to show on CDF/histogram)
   const [selectedMilestoneIndex, setSelectedMilestoneIndex] = useState(0)
 
+  // Centralized prerequisite check shared by:
+  //  - the auto-recalculate effect below (silent-path gate)
+  //  - handleRunForecast (manual-path guard — defense in depth)
+  //  - the `canRun` prop passed to ForecastForm (drives the Run Forecast button
+  //    disabled state)
+  //  - the `runForecastBlockedReason` returned to consumers (rendered as
+  //    inline helper text under the button so the user sees WHY it's disabled)
+  //
+  // See ../lib/run-forecast-prereqs.ts for the rationale. Before v0.31.5 the
+  // four call sites had drifted: the button's canRun checked only backlog +
+  // velocity, while the handler additionally required cadence + start date —
+  // a missing-cadence project left the button enabled and the handler silently
+  // bailing with no UI feedback.
+  const prereqInputs = useMemo(
+    () => ({
+      sprintCadenceWeeks: selectedProject?.sprintCadenceWeeks,
+      firstSprintStartDate: selectedProject?.firstSprintStartDate,
+      remainingBacklog: inputs.remainingBacklog,
+      effectiveMean: inputs.effectiveMean,
+    }),
+    [
+      selectedProject?.sprintCadenceWeeks,
+      selectedProject?.firstSprintStartDate,
+      inputs.remainingBacklog,
+      inputs.effectiveMean,
+    ]
+  )
+  const canRun = useMemo(() => canRunForecast(prereqInputs), [prereqInputs])
+  const runForecastBlockedReason = useMemo(
+    () => getRunForecastBlockedReason(prereqInputs),
+    [prereqInputs]
+  )
+
   // Clear results when project changes. `resetScopeGrowth` is extracted to
   // a local binding so exhaustive-deps sees a plain identifier dep rather
   // than the `scopeGrowth.*` member access (which would force the whole
@@ -171,8 +205,16 @@ export function useForecastState() {
   // be a dep). The function has stable identity (wrapped in `useCallback([])`
   // inside useScopeGrowthState), so listing it does not cause re-runs.
   const { resetScopeGrowth } = scopeGrowth
+  // Reset all results state when the selected project changes. React's
+  // react-hooks/set-state-in-effect rule flags setState-in-useEffect as an
+  // anti-pattern, with the recommended alternative being a `key` prop on the
+  // parent for forced remount — too invasive for a tab-switch boundary that
+  // owns this much locally-managed state. The setStates here are
+  // resetting-to-empty, not cascading derivations, so the cascading-renders
+  // concern the rule warns about does not apply.
   useEffect(() => {
     if (prevProjectIdRef.current !== selectedProject?.id) {
+      /* eslint-disable react-hooks/set-state-in-effect */
       setResults(null)
       setSimulationData(null)
       setOverallSimulationData(null)
@@ -180,6 +222,7 @@ export function useForecastState() {
       setCustomResults(EMPTY_CUSTOM_RESULTS)
       setCustomResults2(EMPTY_CUSTOM_RESULTS)
       setSelectedMilestoneIndex(0)
+      /* eslint-enable react-hooks/set-state-in-effect */
       resetScopeGrowth()
       hasRunOnceRef.current = false
       prevProjectIdRef.current = selectedProject?.id
@@ -187,8 +230,17 @@ export function useForecastState() {
   }, [selectedProject?.id, resetScopeGrowth])
 
   const handleRunForecast = async () => {
-    if (!selectedProject || !inputs.remainingBacklog || !selectedProject.sprintCadenceWeeks) return
-    if (!selectedProject.firstSprintStartDate) return
+    // Belt-and-braces: same prereq check used by the UI's button-disabled state.
+    // If the UI is wired correctly, canRun gates the button so this guard never
+    // fires from a user click — but the auto-recalc effect and any future caller
+    // also funnels through here, so we keep the runtime guard.
+    if (!selectedProject || !canRun) return
+
+    // canRun already guarantees cadence + firstSprintStartDate are set, but the
+    // type system can't see that narrowing across a helper boundary. Re-check
+    // here so TypeScript can narrow `number | undefined` → `number` at every
+    // downstream use site. Runtime-redundant, type-system-essential.
+    if (!selectedProject.sprintCadenceWeeks || !selectedProject.firstSprintStartDate) return
 
     const parsedBacklog = safeParseNumber(inputs.remainingBacklog)
     if (parsedBacklog === null || parsedBacklog <= 0) return
@@ -276,9 +328,16 @@ export function useForecastState() {
     }
   }
 
-  // Auto-recalculation: re-run forecast when inputs change (after first manual run)
+  // Auto-recalculation: re-run forecast when inputs change. Keep an always-fresh
+  // ref to the latest handleRunForecast closure so the effect below (which has
+  // a static dep array of input values, NOT the function itself) calls the most
+  // recent version with up-to-date captured state. Ref updated in a render-free
+  // effect per React's lint rule react-hooks/refs (the in-render assignment was
+  // a footgun for React Compiler's render-purity analysis).
   const runForecastRef = useRef(handleRunForecast)
-  runForecastRef.current = handleRunForecast
+  useEffect(() => {
+    runForecastRef.current = handleRunForecast
+  })
 
   const debouncedBacklog = useDebounce(inputs.remainingBacklog, 400)
   const debouncedMean = useDebounce(inputs.velocityMean, 400)
@@ -288,16 +347,22 @@ export function useForecastState() {
 
   useEffect(() => {
     if (!autoRecalculate) return
-    const canRun = !!debouncedBacklog && inputs.effectiveMean > 0
+    // Shared canRun — same gate the manual Run Forecast button uses. Before
+    // v0.31.5 this effect used a stripped-down local check (backlog + velocity
+    // only) that didn't include cadence / firstSprintStartDate, so auto-recalc
+    // would silently call handleRunForecast for missing-cadence projects and
+    // handleRunForecast would then silently bail — two layers of silent fail.
+    // Centralizing here keeps both paths aligned and gives the UI a single
+    // place to surface the blockedReason to the user.
     if (!canRun) return
     // Previously gated on hasRunOnceRef.current — required an initial manual click of
     // "Run Forecast" before auto-recalc would fire. That made auto-recalc effectively
     // opt-in twice (Settings + first click) and left trainees staring at an empty
     // forecast despite valid inputs. canRun is the only correctness gate we need.
     runForecastRef.current()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     autoRecalculate,
+    canRun,
     debouncedBacklog,
     debouncedMean,
     debouncedStdDev,
@@ -500,6 +565,10 @@ export function useForecastState() {
 
     // Chart settings (from useChartSettings)
     ...charts,
+
+    // Run-forecast prerequisites (centralized — see ../lib/run-forecast-prereqs.ts)
+    canRun,
+    runForecastBlockedReason,
 
     // Handlers
     handleRunForecast,

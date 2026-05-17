@@ -53,6 +53,13 @@ interface ForecastFormProps {
   onVolatilityMultiplierChange: (multiplier: number) => void
   onRunForecast: () => void
   canRun: boolean
+  /**
+   * User-facing reason the Run Forecast button is disabled, or null when it
+   * isn't disabled / when the user is mid-fill and surfacing an error would be
+   * premature. Rendered as inline helper text under the button. See
+   * ../lib/run-forecast-prereqs.ts for the derivation.
+   */
+  runForecastBlockedReason: string | null
   isSimulating: boolean
 }
 
@@ -98,6 +105,7 @@ export function ForecastForm({
   onVolatilityMultiplierChange,
   onRunForecast,
   canRun,
+  runForecastBlockedReason,
   isSimulating,
 }: ForecastFormProps) {
   const isSubjective = forecastMode === 'subjective'
@@ -336,12 +344,12 @@ export function ForecastForm({
             {isSimulating ? 'Running…' : 'Run Forecast'}
           </button>
           <p className="h-4 mt-1">
-            {!canRun && remainingBacklog && effectiveMean <= 0 && (
+            {runForecastBlockedReason && (
               <span className="text-xs text-spert-error">
-                Velocity must be &gt; 0
+                {runForecastBlockedReason}
               </span>
             )}
-            {canRun && '\u00A0'}
+            {!runForecastBlockedReason && '\u00A0'}
           </p>
         </div>
       </div>

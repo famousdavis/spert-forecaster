@@ -97,6 +97,8 @@ export function ForecastTab({ onTabChange }: ForecastTabProps = {}) {
     histogramChartRef,
     percentileSelectorRef,
     burnUpChartRef,
+    canRun,
+    runForecastBlockedReason,
     handleRunForecast,
     handleCustomPercentileChange,
     handleCustomPercentile2Change,
@@ -223,7 +225,8 @@ export function ForecastTab({ onTabChange }: ForecastTabProps = {}) {
               volatilityMultiplier={volatilityMultiplier}
               onVolatilityMultiplierChange={setVolatilityMultiplier}
               onRunForecast={handleRunForecast}
-              canRun={!!remainingBacklog && effectiveMean > 0}
+              canRun={canRun}
+              runForecastBlockedReason={runForecastBlockedReason}
               isSimulating={isSimulating}
             />
             {hasResults && (
