@@ -6,6 +6,10 @@
 
 import { useEffect, useMemo } from 'react'
 import type { Milestone } from '@/shared/types'
+import {
+  type MilestoneCompletionInfo,
+  computeVisibleForecastMilestones,
+} from '../lib/milestones'
 import { type ChartFontSize, CHART_FONT_SIZE_LABELS } from '../types'
 
 const FONT_SIZES: ChartFontSize[] = ['small', 'medium', 'large']
@@ -13,6 +17,7 @@ const FONT_SIZES: ChartFontSize[] = ['small', 'medium', 'large']
 interface ChartToolbarProps {
   idPrefix: string
   milestones?: Milestone[]
+  milestoneCompletionInfo?: MilestoneCompletionInfo[]
   selectedMilestoneIndex?: number
   onMilestoneIndexChange?: (index: number) => void
   fontSize?: ChartFontSize
@@ -22,17 +27,17 @@ interface ChartToolbarProps {
 export function ChartToolbar({
   idPrefix,
   milestones = [],
+  milestoneCompletionInfo = [],
   selectedMilestoneIndex = 0,
   onMilestoneIndexChange,
   fontSize = 'small',
   onFontSizeChange,
 }: ChartToolbarProps) {
-  // Filter to only milestones checked for chart display, preserving original indices
+  // Forecast controls offer only chart-eligible, not-yet-completed milestones — see
+  // computeVisibleForecastMilestones in ../lib/milestones for the rationale.
   const visibleMilestones = useMemo(
-    () => milestones
-      .map((m, idx) => ({ milestone: m, originalIndex: idx }))
-      .filter(({ milestone: m }) => m.showOnChart !== false),
-    [milestones]
+    () => computeVisibleForecastMilestones(milestones, milestoneCompletionInfo),
+    [milestones, milestoneCompletionInfo]
   )
 
   // Auto-correct selected index when it's not among the visible milestones

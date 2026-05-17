@@ -50,3 +50,22 @@ export function computeCumulativeScope(milestones: Milestone[]): number[] {
 export function computeMilestoneCompletionInfo(milestones: Milestone[]): MilestoneCompletionInfo[] {
   return milestones.map((m) => ({ completed: m.backlogSize === 0 }))
 }
+
+/**
+ * Milestones eligible to appear in a forecast-control dropdown (chart toolbars,
+ * Forecast Summary scope picker, per-milestone forecast tables). Two conditions
+ * must hold: (1) the user has not unchecked the milestone's chart toggle, and
+ * (2) the milestone is not completed. A completed milestone's cumulative threshold
+ * equals the preceding milestone's, so offering it as a forecast option would
+ * render an identical chart under a misleading label. Returns `{ milestone, originalIndex }`
+ * pairs so callers can reference back into the source `milestones` array by index.
+ */
+export function computeVisibleForecastMilestones(
+  milestones: Milestone[],
+  completionInfo: MilestoneCompletionInfo[] = [],
+): Array<{ milestone: Milestone; originalIndex: number }> {
+  return milestones
+    .map((m, idx) => ({ milestone: m, originalIndex: idx }))
+    .filter(({ milestone: m }) => m.showOnChart !== false)
+    .filter(({ originalIndex }) => !completionInfo[originalIndex]?.completed)
+}

@@ -389,7 +389,7 @@ export function ForecastTab({ onTabChange }: ForecastTabProps = {}) {
             fontSize={distributionFontSize}
             onFontSizeChange={setDistributionFontSize}
             milestones={milestones}
-
+            milestoneCompletionInfo={milestoneCompletionInfo}
             selectedMilestoneIndex={selectedMilestoneIndex}
             onMilestoneIndexChange={handleMilestoneIndexChange}
           />
@@ -410,7 +410,7 @@ export function ForecastTab({ onTabChange }: ForecastTabProps = {}) {
             fontSize={histogramFontSize}
             onFontSizeChange={setHistogramFontSize}
             milestones={milestones}
-
+            milestoneCompletionInfo={milestoneCompletionInfo}
             selectedMilestoneIndex={selectedMilestoneIndex}
             onMilestoneIndexChange={handleMilestoneIndexChange}
           />

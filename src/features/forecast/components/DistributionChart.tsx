@@ -22,6 +22,7 @@ import { COLORS } from '@/shared/lib/colors'
 import { type ChartFontSize, CHART_FONT_SIZES } from '../types'
 import { mergeDistributions } from '../lib/cdf'
 import type { Milestone, ForecastMode } from '@/shared/types'
+import type { MilestoneCompletionInfo } from '../lib/milestones'
 import { ChartToolbar } from './ChartToolbar'
 
 interface DistributionChartProps {
@@ -42,6 +43,7 @@ interface DistributionChartProps {
   fontSize?: ChartFontSize
   onFontSizeChange?: (size: ChartFontSize) => void
   milestones?: Milestone[]
+  milestoneCompletionInfo?: MilestoneCompletionInfo[]
   selectedMilestoneIndex?: number
   onMilestoneIndexChange?: (index: number) => void
 }
@@ -64,6 +66,7 @@ export function DistributionChart({
   fontSize = 'small',
   onFontSizeChange,
   milestones = [],
+  milestoneCompletionInfo = [],
   selectedMilestoneIndex = 0,
   onMilestoneIndexChange,
 }: DistributionChartProps) {
@@ -125,6 +128,7 @@ export function DistributionChart({
           <ChartToolbar
             idPrefix="cdf"
             milestones={milestones}
+            milestoneCompletionInfo={milestoneCompletionInfo}
             selectedMilestoneIndex={selectedMilestoneIndex}
             onMilestoneIndexChange={onMilestoneIndexChange}
             fontSize={fontSize}

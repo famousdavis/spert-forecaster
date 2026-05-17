@@ -21,6 +21,7 @@ import { COLORS } from '@/shared/lib/colors'
 import { type ChartFontSize, CHART_FONT_SIZES } from '../types'
 import { buildHistogramBins } from '../lib/cdf'
 import type { Milestone, ForecastMode } from '@/shared/types'
+import type { MilestoneCompletionInfo } from '../lib/milestones'
 import { ChartToolbar } from './ChartToolbar'
 
 interface HistogramChartProps {
@@ -40,6 +41,7 @@ interface HistogramChartProps {
   fontSize?: ChartFontSize
   onFontSizeChange?: (size: ChartFontSize) => void
   milestones?: Milestone[]
+  milestoneCompletionInfo?: MilestoneCompletionInfo[]
   selectedMilestoneIndex?: number
   onMilestoneIndexChange?: (index: number) => void
 }
@@ -61,6 +63,7 @@ export function HistogramChart({
   fontSize = 'small',
   onFontSizeChange,
   milestones = [],
+  milestoneCompletionInfo = [],
   selectedMilestoneIndex = 0,
   onMilestoneIndexChange,
 }: HistogramChartProps) {
@@ -116,6 +119,7 @@ export function HistogramChart({
           <ChartToolbar
             idPrefix="histogram"
             milestones={milestones}
+            milestoneCompletionInfo={milestoneCompletionInfo}
             selectedMilestoneIndex={selectedMilestoneIndex}
             onMilestoneIndexChange={onMilestoneIndexChange}
             fontSize={fontSize}
