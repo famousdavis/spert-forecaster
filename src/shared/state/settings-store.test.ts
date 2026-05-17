@@ -10,8 +10,17 @@ describe('settings-store', () => {
   beforeEach(() => {
     // Reset to defaults between tests
     useSettingsStore.setState({
-      distributionsEnabled: ['truncatedNormal'],
+      distributionsEnabled: ['lognormal'],
       _isCloudUpdate: false,
+    })
+  })
+
+  describe('default state (v0.32.0)', () => {
+    it('distributionsEnabled defaults to [lognormal] on a fresh store', () => {
+      // Asserts the v0.32.0 default flip via getInitialState (Zustand v4+ API),
+      // independent of whatever the most recent beforeEach reset wrote.
+      const initial = useSettingsStore.getInitialState()
+      expect(initial.distributionsEnabled).toEqual(['lognormal'])
     })
   })
 

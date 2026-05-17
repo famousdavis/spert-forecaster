@@ -717,3 +717,32 @@ describe('runQuadrupleForecastWithMilestones with scope growth', () => {
     expect(runTrial(100, sampler)).toBe(5)
   })
 })
+
+describe('runQuadrupleForecast — lognormal vs truncatedNormal at high CV (v0.32.0 default rationale)', () => {
+  it('lognormal P50 sprintsRequired exceeds truncatedNormal P50 at σ/μ ≈ 0.65', () => {
+    // Locks in the calibration property motivating the v0.32.0 default flip: at high
+    // CV the T-Normal lower-bound truncation biases effective mean velocity upward
+    // (faster team, fewer sprints), while lognormal preserves the specified mean and
+    // is symmetric in log-space (slower P50, more sprints). Prevents a future sampler
+    // refactor from accidentally inverting the relationship and silently re-introducing
+    // the optimism this release was meant to remove.
+    const config = {
+      remainingBacklog: 1000,
+      velocityMean: 100,
+      velocityStdDev: 65, // σ/μ = 0.65 — "Wildly uncertain" preset
+      startDate: '2026-01-05',
+      sprintCadenceWeeks: 2,
+      trialCount: 10000,
+    }
+    const result = runQuadrupleForecast(config)
+    expect(result.lognormal.results.p50.sprintsRequired).toBeGreaterThan(
+      result.truncatedNormal.results.p50.sprintsRequired
+    )
+    // Sanity guards (empirical at 10k trials: T-Normal ≈ 10, Lognormal ≈ 11).
+    // Wide intervals to absorb Monte Carlo noise.
+    expect(result.truncatedNormal.results.p50.sprintsRequired).toBeGreaterThanOrEqual(8)
+    expect(result.truncatedNormal.results.p50.sprintsRequired).toBeLessThanOrEqual(11)
+    expect(result.lognormal.results.p50.sprintsRequired).toBeGreaterThanOrEqual(9)
+    expect(result.lognormal.results.p50.sprintsRequired).toBeLessThanOrEqual(13)
+  })
+})

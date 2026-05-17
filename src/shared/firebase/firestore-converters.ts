@@ -104,7 +104,7 @@ export function firestoreDocToSettings(doc: FirestoreSettingsDoc): {
 } {
   // Defensive two-layer coercion for distributionsEnabled (Delta A):
   // 1. Filter to known DistributionType values (guards against corrupted/forward-migrated keys).
-  // 2. If empty or missing, fall back to ['truncatedNormal'] (the v0.31.0 default).
+  // 2. If empty or missing, fall back to ['lognormal'] (the v0.32.0 default).
   // Array.isArray check is load-bearing — older docs may omit the field; defensive against
   // non-array values too (corrupted documents, manual Firestore edits).
   const raw = doc.distributionsEnabled
@@ -114,7 +114,7 @@ export function firestoreDocToSettings(doc: FirestoreSettingsDoc): {
       )
     : []
   const distributionsEnabled: DistributionType[] =
-    filtered.length > 0 ? filtered : ['truncatedNormal']
+    filtered.length > 0 ? filtered : ['lognormal']
 
   return {
     autoRecalculate: doc.autoRecalculate,

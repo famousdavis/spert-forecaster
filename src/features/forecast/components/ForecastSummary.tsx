@@ -154,7 +154,10 @@ export function ForecastSummary({
   velocityStdDev,
   volatilityMultiplier,
 }: ForecastSummaryProps) {
-  const [selectedDistribution, setSelectedDistribution] = useState<DistributionType>('truncatedNormal')
+  // Initial value aligned with the v0.32.0 Settings default. The actual rendered selection is
+  // `effectiveDistribution` below, which falls back to the first enabled distribution if this
+  // value isn't visible in the current Settings.
+  const [selectedDistribution, setSelectedDistribution] = useState<DistributionType>('lognormal')
   const [selectedPercentile, setSelectedPercentile] = useState(80)
   const [selectedScope, setSelectedScope] = useState<ScopeSelection>(PROJECT_SCOPE)
   const distributionsEnabled = useSettingsStore((s) => s.distributionsEnabled)

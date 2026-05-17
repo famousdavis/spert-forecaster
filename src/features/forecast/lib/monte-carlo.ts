@@ -243,7 +243,7 @@ export function runSimulation(
     velocityMean,
     velocityStdDev,
     trialCount,
-    distributionType = 'truncatedNormal',
+    distributionType = 'lognormal',
   } = input
 
   const sampler = createSampler(distributionType, velocityMean, velocityStdDev)
@@ -329,8 +329,9 @@ function extractPercentileResults(
 }
 
 /**
- * Run a full forecast simulation and return results for standard percentiles
- * (backward compatible - uses truncated normal distribution)
+ * Run a full forecast simulation and return results for standard percentiles.
+ * Convenience wrapper that uses the v0.32.0 app default distribution (lognormal).
+ * For a full sweep across all six distributions in one pass, use runQuadrupleForecast.
  */
 export function runForecast(config: ForecastConfig & { sprintCadenceWeeks: number }): PercentileResults {
   const simulation = runSimulation({
@@ -340,7 +341,7 @@ export function runForecast(config: ForecastConfig & { sprintCadenceWeeks: numbe
     startDate: config.startDate,
     sprintCadenceWeeks: config.sprintCadenceWeeks,
     trialCount: config.trialCount,
-    distributionType: 'truncatedNormal',
+    distributionType: 'lognormal',
   })
 
   return extractPercentileResults(simulation.sprintsRequired, config.startDate, config.sprintCadenceWeeks)

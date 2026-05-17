@@ -87,10 +87,14 @@ export const useSettingsStore = create<SettingsState>()(
       defaultCustomPercentile2: 50,
       defaultResultsPercentiles: [...DEFAULT_SELECTED_PERCENTILES],
 
-      // Statistical methods to show — default to T-Normal only for the cleanest first-touch view.
-      // Existing users default to T-Normal-only on upgrade (no migration: Firestore round-trip
-      // coerces missing/empty to ['truncatedNormal'] in firestoreDocToSettings).
-      distributionsEnabled: ['truncatedNormal'],
+      // Statistical methods to show — default to Lognormal only for the cleanest first-touch
+      // view. v0.32.0 promoted Lognormal from optional to default: it is naturally non-negative,
+      // matches the empirical right-skew of sprint velocity, and avoids the upward mean bias
+      // that truncation-at-zero introduces in T-Normal at high CV (σ/μ ≳ 0.3). Existing cloud
+      // users arrive at this default through firestoreDocToSettings's defensive coercion
+      // (missing / empty / corrupt arrays fall back to ['lognormal']); existing local users
+      // keep their persisted selection unchanged.
+      distributionsEnabled: ['lognormal'],
 
       // Export attribution
       exportName: '',
