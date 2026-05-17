@@ -21,7 +21,7 @@ describe('buildDynamicPercentileRows', () => {
 
   const columns = [
     { key: 'truncatedNormal' as const, label: 'T-Normal' },
-    { key: 'lognormal' as const, label: 'Lognorm' },
+    { key: 'lognormal' as const, label: 'Lognormal' },
     { key: 'gamma' as const, label: 'Gamma' },
     { key: 'triangular' as const, label: 'Triangular' },
     { key: 'uniform' as const, label: 'Uniform' },

@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.32.2 - 2026-05-17
+
+### Changed
+
+- **Lognormal distribution renamed from the abbreviated "Lognorm" to the full "Lognormal" everywhere in the UI and exports.** The compact label `'Lognorm'` was a holdover from the early dropdown/legend rendering — it saved two characters at the cost of using an abbreviation that has no established meaning outside code identifiers (e.g., `scipy.stats.lognorm`) and that disagreed with the leading word of every description string the app already used ("Lognormal — right-skewed curve always above zero…"). The full name now appears in the `DISTRIBUTION_LABELS` map at [src/shared/types/burn-up.ts:51](src/shared/types/burn-up.ts:51), which propagates through every consumer that reads the map: the Settings → "Statistical methods to show" checkbox label, the Forecast Summary's distribution dropdown and prose summary, the Forecast Results column header, the Burn-Up Config dropdown, the per-distribution PercentileSelector, and the PDF report (which inherits via the same data path). The two chart legends in the Forecast tab ([DistributionChart.tsx:208](src/features/forecast/components/DistributionChart.tsx:208) and [HistogramChart.tsx:201](src/features/forecast/components/HistogramChart.tsx:201)) hardcoded `name="Lognorm"` inline (the chart-legend pattern in those files inlines every distribution's display name rather than reading from `DISTRIBUTION_LABELS`) and have been updated to `name="Lognormal"`. The CSV export's three header rows at [src/features/forecast/lib/export-csv.ts:183, 248, 301](src/features/forecast/lib/export-csv.ts:183) — *PERCENTILE RESULTS*, *FREQUENCY DISTRIBUTION*, and *RAW TRIAL DATA* — also flip from `"Lognorm Sprints"` / `"Lognorm Count"` / `"Lognorm %"` etc. to the `"Lognormal …"` forms, keeping the on-screen label and the downloaded CSV column names consistent. T-Normal is intentionally **not** renamed: "T-Normal" is a recognized abbreviation in statistics, expanding it to "Truncated Normal" would inflate every column header by eight characters with no readability win, and unlike "Lognorm" the abbreviated form is already what a statistically-literate reader expects.
+
+### Internal
+
+- **Tests updated for the new label.** Three component-level test files asserted the literal string `'Lognorm'` — [ForecastSummary.test.ts:39, 58, 114](src/features/forecast/components/ForecastSummary.test.ts:39) (three assertions in the `buildSummaryText` suite that pass a distribution label and assert it appears in the prose output), [ForecastResults.test.ts:24](src/features/forecast/components/ForecastResults.test.ts:24) (column fixture), and [ResultsTable.test.ts:24](src/features/forecast/components/ResultsTable.test.ts:24) (column fixture) — all flip to `'Lognormal'`. The CSV column-count test comment at [export-csv.test.ts:153](src/features/forecast/lib/export-csv.test.ts:153) is updated for the new column name; the actual column-count assertion is unchanged because the number of columns hasn't moved. The JSDoc on `getVisibleDistributions` at [src/features/forecast/types.ts:25](src/features/forecast/types.ts:25) is also updated.
+
+- **No data-shape change.** The internal `DistributionType` discriminant remains `'lognormal'`; only the human-readable display label changed. Existing persisted state and Firestore documents round-trip unchanged.
+
 ## v0.32.1 - 2026-05-17
 
 ### Fixed

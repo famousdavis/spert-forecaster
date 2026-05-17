@@ -198,7 +198,7 @@ export function HistogramChart({
                 {lognormal != null && (
                   <Bar
                     dataKey="lognormal"
-                    name="Lognorm"
+                    name="Lognormal"
                     fill={CHART_COLORS.lognormal}
                     opacity={0.8}
                   />

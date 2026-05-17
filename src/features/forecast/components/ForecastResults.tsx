@@ -356,7 +356,7 @@ export function ForecastResults({
               {forecastMode === 'subjective' ? (
                 <>
                   <strong>T-Normal</strong>: symmetric, bounded at zero.{' '}
-                  <strong>Lognorm</strong>: right-skewed.{' '}
+                  <strong>Lognormal</strong>: right-skewed.{' '}
                   <strong>Gamma</strong>: flexible shape.{' '}
                   <strong>Triangular</strong>: peak at estimate.{' '}
                   <strong>Uniform</strong>: equal probability across range.
@@ -364,7 +364,7 @@ export function ForecastResults({
               ) : (
                 <>
                   <strong>T-Normal</strong>: symmetric, bounded at zero.{' '}
-                  <strong>Lognorm</strong>: right-skewed.{' '}
+                  <strong>Lognormal</strong>: right-skewed.{' '}
                   <strong>Gamma</strong>: flexible shape.{' '}
                   <strong>Triangular</strong>: peak at mean.
                   {hasBootstrap && (

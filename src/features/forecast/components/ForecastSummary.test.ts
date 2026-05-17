@@ -36,7 +36,7 @@ describe('buildSummaryText', () => {
       15,
       '2026-06-15',
       3,
-      'Lognorm',
+      'Lognormal',
       true,
       5.2,
       'calculated'
@@ -55,7 +55,7 @@ describe('buildSummaryText', () => {
       15,
       '2026-06-15',
       3,
-      'Lognorm',
+      'Lognormal',
       true,
       8.0,
       'custom'
@@ -111,7 +111,7 @@ describe('buildSummaryText', () => {
   })
 
   it('works with all distribution labels', () => {
-    const labels = ['T-Normal', 'Lognorm', 'Gamma', 'Bootstrap', 'Triangular', 'Uniform']
+    const labels = ['T-Normal', 'Lognormal', 'Gamma', 'Bootstrap', 'Triangular', 'Uniform']
     for (const label of labels) {
       const text = buildSummaryText('P', 100, 'pts', 80, 10, '2026-05-01', 0, label)
       expect(text).toContain(label)

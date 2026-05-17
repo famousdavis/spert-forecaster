@@ -150,7 +150,7 @@ describe('generateForecastCsv', () => {
     const csv = generateForecastCsv(baseExportData)
     const lines = csv.split('\n')
     const percentileHeader = lines.find((l) => l.startsWith('Percentile,'))!
-    // 11 columns: Percentile, T-Normal Sprints/Date, Lognorm Sprints/Date, Gamma Sprints/Date, Triangular Sprints/Date, Uniform Sprints/Date
+    // 11 columns: Percentile, T-Normal Sprints/Date, Lognormal Sprints/Date, Gamma Sprints/Date, Triangular Sprints/Date, Uniform Sprints/Date
     expect(percentileHeader.split(',').length).toBe(11)
     expect(csv).toContain('Bootstrap Enabled,No')
   })
