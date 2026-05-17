@@ -9,6 +9,7 @@ import { useForecastState } from '../hooks/useForecastState'
 import { ForecastForm } from './ForecastForm'
 import { ForecastSummary } from './ForecastSummary'
 import { ForecastResults } from './ForecastResults'
+import { DeadlineProbabilityPanel } from './DeadlineProbabilityPanel'
 import { DistributionChart } from './DistributionChart'
 import { HistogramChart } from './HistogramChart'
 import { PercentileSelector } from './PercentileSelector'
@@ -83,6 +84,8 @@ export function ForecastTab({ onTabChange }: ForecastTabProps = {}) {
     selectedResultsPercentiles,
     setSelectedResultsPercentiles,
     selectedMilestoneIndex,
+    targetDate,
+    setTargetDate,
     burnUpConfig,
     handleBurnUpConfigChange,
     burnUpFontSize,
@@ -301,6 +304,23 @@ export function ForecastTab({ onTabChange }: ForecastTabProps = {}) {
 
       {hasResults && (
         <>
+          {/* Deadline Probability — inverse of the hero callout. Collapsed by default. */}
+          <DeadlineProbabilityPanel
+            targetDate={targetDate}
+            onTargetDateChange={setTargetDate}
+            simulationData={simulationData}
+            milestoneResultsState={milestoneResultsState}
+            milestones={milestones}
+            milestoneCompletionInfo={milestoneCompletionInfo}
+            forecastStartDate={forecastStartDate}
+            sprintCadenceWeeks={selectedProject!.sprintCadenceWeeks!}
+            completedSprintCount={completedSprintCount}
+            unitOfMeasure={selectedProject!.unitOfMeasure}
+            projectName={selectedProject!.name}
+            remainingBacklog={Number(remainingBacklog) || 0}
+            forecastMode={forecastMode}
+          />
+
           {/* Custom Percentile — collapsed by default (v0.31.1). */}
           <div className="rounded-lg border bg-card">
             <button

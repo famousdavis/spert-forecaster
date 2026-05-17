@@ -15,6 +15,7 @@ import { useSettingsStore } from '@/shared/state/settings-store'
 import { indefiniteArticle } from '@/shared/lib/grammar'
 import { HelpTooltip } from '@/shared/components/HelpTooltip'
 import type { MilestoneCompletionInfo } from '../lib/milestones'
+import { PROJECT_SCOPE, type ScopeSelection } from '../lib/scope'
 
 interface ForecastSummaryProps {
   results: QuadResults
@@ -47,10 +48,9 @@ interface ForecastSummaryProps {
 // the conservative end of the range. Order is ascending so the dropdown reads naturally.
 const PERCENTILE_OPTIONS = [10, 20, 30, 40, 50, 60, 70, 80, 85, 90, 95] as const
 
-/** Sentinel for "Entire Project" in the Scope dropdown. Milestone ids are unique strings, so
- *  this literal cannot collide. */
-const PROJECT_SCOPE = '__project__' as const
-type ScopeSelection = typeof PROJECT_SCOPE | string
+// PROJECT_SCOPE / ScopeSelection are imported from ../lib/scope so the new
+// v0.33.0 DeadlineProbabilityPanel can use the same sentinel without
+// duplicating the definition. Behavior is unchanged.
 
 // Completion-status derivation lives in ../lib/milestones (shared with ForecastResults
 // and useForecastState so the computation isn't duplicated). The hook lifts the value
@@ -233,9 +233,15 @@ export function ForecastSummary({
   // the actual CDF here is ≥ selectedPercentile — and may be quite a bit higher when the
   // surrounding sprint bucket holds many simulated outcomes. Headline uses this rather than
   // selectedPercentile to keep the (percent, date) pair internally consistent.
+  //
+  // Capped at 99%: no forward-looking probability assertion ever claims complete certainty.
+  // Symmetric with the new DeadlineProbabilityPanel cap (v0.33.0) so the two adjacent
+  // headlines on the Forecast tab agree on the ceiling. DistributionChart axes/tooltips
+  // remain uncapped — those are mathematical CDF visualizations, not headline assertions.
+  // Cap-after-round arithmetic: Math.round(99.5) === 100, then Math.min(99, 100) === 99.
   const trueCdfPercent = useMemo(() => {
     if (!selectedResult || !activeSimData) return null
-    return Math.round(cumulativeProbabilityAtSprint(activeSimData, selectedResult.sprintsRequired))
+    return Math.min(99, Math.round(cumulativeProbabilityAtSprint(activeSimData, selectedResult.sprintsRequired)))
   }, [selectedResult, activeSimData])
 
   // The milestone object for milestone-scope rendering (so we can use its name + backlogSize).

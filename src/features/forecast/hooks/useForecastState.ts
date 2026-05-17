@@ -165,6 +165,13 @@ export function useForecastState() {
   // Milestone chart selector (which milestone to show on CDF/histogram)
   const [selectedMilestoneIndex, setSelectedMilestoneIndex] = useState(0)
 
+  // Deadline Probability panel target date (v0.33.0). Session-only string. Lives
+  // here rather than inside DeadlineProbabilityPanel so the project-change
+  // reset effect below can clear it alongside the other forecast state — a
+  // target date from project A shouldn't bleed into project B when the user
+  // switches.
+  const [targetDate, setTargetDate] = useState<string>('')
+
   // Centralized prerequisite check shared by:
   //  - the auto-recalculate effect below (silent-path gate)
   //  - handleRunForecast (manual-path guard — defense in depth)
@@ -222,6 +229,7 @@ export function useForecastState() {
       setCustomResults(EMPTY_CUSTOM_RESULTS)
       setCustomResults2(EMPTY_CUSTOM_RESULTS)
       setSelectedMilestoneIndex(0)
+      setTargetDate('')
       /* eslint-enable react-hooks/set-state-in-effect */
       resetScopeGrowth()
       hasRunOnceRef.current = false
@@ -562,6 +570,10 @@ export function useForecastState() {
     selectedResultsPercentiles,
     setSelectedResultsPercentiles,
     selectedMilestoneIndex,
+
+    // Deadline Probability panel (v0.33.0)
+    targetDate,
+    setTargetDate,
 
     // Chart settings (from useChartSettings)
     ...charts,
