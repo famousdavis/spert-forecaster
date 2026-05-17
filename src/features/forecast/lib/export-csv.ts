@@ -180,7 +180,7 @@ export function generateForecastCsv(data: ExportData): string {
 
   // Section 2: Percentile Results
   lines.push('PERCENTILE RESULTS')
-  let percentileHeader = 'Percentile,T-Normal Sprints,T-Normal Finish Date,Lognorm Sprints,Lognorm Finish Date,Gamma Sprints,Gamma Finish Date'
+  let percentileHeader = 'Percentile,T-Normal Sprints,T-Normal Finish Date,Lognormal Sprints,Lognormal Finish Date,Gamma Sprints,Gamma Finish Date'
   if (hasBootstrap) percentileHeader += ',Bootstrap Sprints,Bootstrap Finish Date'
   percentileHeader += ',Triangular Sprints,Triangular Finish Date,Uniform Sprints,Uniform Finish Date'
   lines.push(percentileHeader)
@@ -245,7 +245,7 @@ export function generateForecastCsv(data: ExportData): string {
 
   // Section 3: Frequency Distribution
   lines.push('FREQUENCY DISTRIBUTION')
-  let freqHeader = 'Sprints,T-Normal Count,T-Normal %,T-Normal Cumul %,Lognorm Count,Lognorm %,Lognorm Cumul %,Gamma Count,Gamma %,Gamma Cumul %'
+  let freqHeader = 'Sprints,T-Normal Count,T-Normal %,T-Normal Cumul %,Lognormal Count,Lognormal %,Lognormal Cumul %,Gamma Count,Gamma %,Gamma Cumul %'
   if (hasBootstrap) freqHeader += ',Bootstrap Count,Bootstrap %,Bootstrap Cumul %'
   freqHeader += ',Triangular Count,Triangular %,Triangular Cumul %,Uniform Count,Uniform %,Uniform Cumul %'
   lines.push(freqHeader)
@@ -298,7 +298,7 @@ export function generateForecastCsv(data: ExportData): string {
 
   // Section 4: Raw Trial Data
   lines.push('RAW TRIAL DATA (sorted)')
-  let rawHeader = 'Trial,T-Normal Sprints,Lognorm Sprints,Gamma Sprints'
+  let rawHeader = 'Trial,T-Normal Sprints,Lognormal Sprints,Gamma Sprints'
   if (hasBootstrap) rawHeader += ',Bootstrap Sprints'
   rawHeader += ',Triangular Sprints,Uniform Sprints'
   lines.push(rawHeader)

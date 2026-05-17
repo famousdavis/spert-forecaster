@@ -48,7 +48,7 @@ export const DEFAULT_BURN_UP_CONFIG: BurnUpConfig = {
 // Distribution display names for dropdown
 export const DISTRIBUTION_LABELS: Record<DistributionType, string> = {
   truncatedNormal: 'T-Normal',
-  lognormal: 'Lognorm',
+  lognormal: 'Lognormal',
   gamma: 'Gamma',
   bootstrap: 'Bootstrap',
   triangular: 'Triangular',

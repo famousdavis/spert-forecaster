@@ -22,7 +22,7 @@ import type { ForecastMode } from '@/shared/types'
 /**
  * Returns the list of distributions to display for a given forecast mode.
  *
- * Both modes share: T-Normal, Lognorm, Gamma, Triangular (4 common)
+ * Both modes share: T-Normal, Lognormal, Gamma, Triangular (4 common)
  * Subjective adds: Uniform (5 total — no Bootstrap without history)
  * History adds:    Bootstrap if 5+ sprints (4-5 total — no Uniform)
  */

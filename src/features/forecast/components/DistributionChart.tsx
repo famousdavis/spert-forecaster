@@ -205,7 +205,7 @@ export function DistributionChart({
                 <Line
                   type="stepAfter"
                   dataKey="lognormal"
-                  name="Lognorm"
+                  name="Lognormal"
                   stroke={CHART_COLORS.lognormal}
                   dot={false}
                   strokeWidth={2.5}
