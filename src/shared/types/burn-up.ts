@@ -35,7 +35,7 @@ export interface BurnUpConfig {
 }
 
 export const DEFAULT_BURN_UP_CONFIG: BurnUpConfig = {
-  distribution: 'truncatedNormal',
+  distribution: 'lognormal',
   lines: [
     { label: 'Optimistic', percentile: 10, color: COLORS.burnUp.optimistic },
     { label: 'Expected', percentile: 50, color: COLORS.burnUp.expected },

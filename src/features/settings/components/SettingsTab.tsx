@@ -31,12 +31,12 @@ const FONT_SIZE_OPTIONS: { value: ChartFontSize; label: string }[] = [
 ]
 
 // One-line description per distribution for the "Statistical methods to show" section.
-// Refine wording as needed; keep terse.
+// Lognormal is the v0.32.0 default; T-Normal is an opt-in classical alternative.
 const DISTRIBUTION_DESCRIPTIONS: Record<DistributionType, string> = {
-  truncatedNormal:
-    'Truncated normal — symmetric bell curve restricted to non-negative velocities; a reasonable default when sprint-to-sprint variation is roughly balanced around the average.',
   lognormal:
-    'Lognormal — right-skewed curve always above zero, with a long upper tail; useful when your team has occasional unusually high-throughput sprints.',
+    'Lognormal — right-skewed curve always above zero, with a long upper tail; the recommended default because it matches the empirical right-skew of sprint velocity and remains well-calibrated even when sprint-to-sprint variation is large.',
+  truncatedNormal:
+    'Truncated normal — symmetric bell curve restricted to non-negative velocities; classical PERT-style shape. A reasonable alternative when sprint variability is low and approximately symmetric — at high variability the lower-bound truncation biases the mean upward and makes forecasts artificially optimistic.',
   gamma:
     'Gamma — right-skewed like Lognormal but with a thinner upper tail; useful when faster sprints happen but extreme breakouts are unlikely.',
   bootstrap:
