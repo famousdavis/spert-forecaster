@@ -281,6 +281,30 @@ export function ProjectsTab({ onViewHistory }: ProjectsTabProps) {
       )}
 
       <div className={cn('flex gap-2', projects.length === 0 ? 'justify-center' : 'justify-end')}>
+        {/* Load Sample Project — v0.33.2: persistent toolbar button so the sample can be
+            re-loaded at any time, not only from the empty-state. Gated on projects.length > 0
+            because when zero projects exist, the empty-state's twin-CTA already surfaces the
+            same action with the friendlier framing. Auto-rename on name collision lives
+            inside loadSampleProject (see sample-project.ts:generateUniqueProjectName). */}
+        {projects.length > 0 && (
+          <button
+            type="button"
+            onClick={handleLoadSample}
+            aria-label="Load Sample"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-transparent bg-transparent text-gray-500 text-[0.9rem] font-medium cursor-pointer transition-all duration-[120ms] hover:text-[#8b5cf6] hover:bg-purple-50 dark:hover:bg-purple-500/15 hover:border-[#8b5cf6] focus:outline-none focus:text-[#8b5cf6] focus:bg-purple-50 dark:focus:bg-purple-500/15 focus:border-[#8b5cf6]"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"
+                stroke="currentColor"
+                strokeWidth="2.25"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            Load Sample
+          </button>
+        )}
         {projects.length > 0 && (
           <button
             type="button"
