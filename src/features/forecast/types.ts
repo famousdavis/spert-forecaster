@@ -34,11 +34,19 @@ export function getVisibleDistributions(
   // Compute the mode/bootstrap-appropriate set first, THEN intersect with enabledDistributions
   // if provided. Order matters: filtering enabledDistributions by mode rules first would change
   // the result when, e.g., a user has ['bootstrap', 'lognormal'] enabled in subjective mode.
+  //
+  // Order note: Lognormal is intentionally first since v0.33.1. It is the v0.32.0 default
+  // distribution, and the Forecast Results table's first column is used as the reference
+  // against which other distributions' percentile dates are highlighted in blue (when they
+  // differ). With Lognormal first, "blue means differs from the default" is restored —
+  // prior to v0.33.1 the reference column was T-Normal, which no longer matched the app
+  // default. The Settings checkbox grid (via DISTRIBUTION_TYPES) sits in the same order
+  // for consistency.
   let dists: DistributionType[]
   if (forecastMode === 'subjective') {
-    dists = ['truncatedNormal', 'lognormal', 'gamma', 'triangular', 'uniform']
+    dists = ['lognormal', 'truncatedNormal', 'gamma', 'triangular', 'uniform']
   } else {
-    dists = ['truncatedNormal', 'lognormal', 'gamma', 'triangular']
+    dists = ['lognormal', 'truncatedNormal', 'gamma', 'triangular']
     if (hasBootstrap) dists.push('bootstrap')
   }
   if (enabledDistributions) {

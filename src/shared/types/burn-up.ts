@@ -12,9 +12,15 @@ export type DistributionType = 'truncatedNormal' | 'lognormal' | 'gamma' | 'boot
 // Runtime list of all DistributionType values. Single source of truth for: Settings checkbox UI,
 // firestoreDocToSettings defensive coercion, and any test that needs to iterate all distributions.
 // Keep in sync with DistributionType above.
+//
+// Order note: Lognormal is intentionally first since v0.33.1. It is the v0.32.0 default
+// distribution (see settings-store.ts: distributionsEnabled: ['lognormal']), and it now
+// occupies the first position in every surface that iterates this list (Settings checkbox
+// grid, Firestore defensive-coercion ordering, Forecast Results table reference column,
+// Deadline Probability panel). T-Normal sits second as the most-common opt-in alternative.
 export const DISTRIBUTION_TYPES: readonly DistributionType[] = [
-  'truncatedNormal',
   'lognormal',
+  'truncatedNormal',
   'gamma',
   'bootstrap',
   'triangular',
