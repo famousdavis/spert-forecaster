@@ -44,7 +44,7 @@ export function MilestoneForm({
     name.trim().length > 0 &&
     backlogSize.length > 0 &&
     !isNaN(parsedBacklog) &&
-    parsedBacklog > 0
+    parsedBacklog >= 0
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4 rounded-lg border border-border dark:border-gray-700 p-4 bg-white dark:bg-gray-800">
@@ -93,7 +93,7 @@ export function MilestoneForm({
             value={backlogSize}
             onChange={(e) => setBacklogSize(e.target.value)}
             placeholder={unitOfMeasure}
-            min="0.01"
+            min="0"
             step="any"
             className={cn(
               'w-full rounded p-[0.4rem] text-[0.85rem] dark:text-gray-100',

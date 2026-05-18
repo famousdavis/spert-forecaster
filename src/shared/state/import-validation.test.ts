@@ -282,12 +282,16 @@ describe('validateImportData – milestone validation', () => {
     ).toThrow('name exceeding 200 characters')
   })
 
-  it('rejects backlogSize of 0', () => {
-    expect(() =>
+  it('accepts backlogSize of 0 (the "completed milestone" sentinel)', () => {
+    // backlogSize === 0 means the user has marked the milestone completed
+    // under the v0.31.2 user-maintained milestone model. The sample project
+    // seeds MVP Release with backlogSize: 0 for exactly this reason, and
+    // export → import round-trip must preserve that state.
+    expect(
       validateImportData(
         makeExportData([makeProject({ milestones: [makeMilestone({ backlogSize: 0 })] })]),
       ),
-    ).toThrow('invalid backlogSize')
+    ).toBe(true)
   })
 
   it('rejects negative backlogSize', () => {
@@ -304,6 +308,14 @@ describe('validateImportData – milestone validation', () => {
         makeExportData([makeProject({ milestones: [makeMilestone({ backlogSize: 1000000 })] })]),
       ),
     ).toThrow('invalid backlogSize')
+  })
+
+  it('accepts backlogSize at boundary 0 (lower bound, completed milestone)', () => {
+    expect(
+      validateImportData(
+        makeExportData([makeProject({ milestones: [makeMilestone({ backlogSize: 0 })] })]),
+      ),
+    ).toBe(true)
   })
 
   it('accepts backlogSize at boundary 0.01', () => {

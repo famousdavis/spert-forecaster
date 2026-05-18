@@ -4,10 +4,12 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { loadSampleProject, SAMPLE_PROJECT_NAME, generateUniqueProjectName } from './sample-project'
+import { buildProjectSubsetExport } from './export-project'
 import { useProjectStore } from '@/shared/state/project-store'
 import { getLastSprintBacklog } from '@/features/forecast/hooks/useForecastInputs'
 import { preCalculateSprintFactors } from '@/features/forecast/lib/productivity'
 import { calculateSprintStartDate } from '@/shared/lib/dates'
+import { validateImportData } from '@/shared/state/import-validation'
 
 // sonner toast is a thin notification surface; mock to keep tests pure.
 vi.mock('sonner', () => ({
@@ -186,6 +188,41 @@ describe('loadSampleProject', () => {
     const sample = state.projects.find((p) => p.unitOfMeasure === 'story points')
     expect(user?.name).toBe(SAMPLE_PROJECT_NAME)
     expect(sample?.name).toBe(`${SAMPLE_PROJECT_NAME} (2)`)
+  })
+})
+
+describe('sample project export → import round-trip', () => {
+  it('passes validateImportData after a full subset export (regression: v0.33.4 completed-milestone)', () => {
+    // The seeded "MVP Release" milestone has backlogSize: 0 as the
+    // "completed milestone" sentinel under the v0.31.2 user-maintained
+    // milestone model. Before v0.33.4, the import validator rejected
+    // backlogSize < 0.01, which made the exported sample project (and any
+    // user project containing a completed milestone) unimportable. This
+    // round-trip test guards the user-reported reproduction: load → export
+    // → re-import.
+    loadSampleProject()
+    const state = useProjectStore.getState()
+    expect(state.projects).toHaveLength(1)
+    const project = state.projects[0]
+
+    // The completed milestone must actually be present in the seed — if
+    // someone removes it later, the regression test is meaningless.
+    const completed = project.milestones?.find((m) => m.backlogSize === 0)
+    expect(completed).toBeDefined()
+    expect(completed?.name).toBe('MVP Release')
+
+    const payload = buildProjectSubsetExport([project.id], {
+      projects: state.projects,
+      sprints: state.sprints,
+      originRef: '',
+      storageRef: '',
+      changeLog: [],
+    })
+
+    // Serialize and re-parse to exercise the same JSON round-trip a real
+    // file export + file import would go through.
+    const roundTripped = JSON.parse(JSON.stringify(payload))
+    expect(() => validateImportData(roundTripped)).not.toThrow()
   })
 })
 

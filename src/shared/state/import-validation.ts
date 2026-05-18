@@ -208,8 +208,12 @@ export function validateImportData(data: unknown): data is ExportData {
         if (m.name.length > MAX_STRING_LENGTH) {
           throw new Error(`Project ${i}, milestone at index ${j} has a name exceeding ${MAX_STRING_LENGTH} characters.`)
         }
-        if (!isValidNumber(m.backlogSize, 0.01, MAX_NUMERIC_VALUE)) {
-          throw new Error(`Project ${i}, milestone at index ${j} has invalid backlogSize (must be > 0 and <= ${MAX_NUMERIC_VALUE}).`)
+        // Floor is 0, not 0.01: backlogSize === 0 is the user-maintained
+        // "milestone completed" sentinel (introduced with the v0.31.2
+        // milestone model). Negative values, NaN, and non-numbers are still
+        // rejected by isValidNumber.
+        if (!isValidNumber(m.backlogSize, 0, MAX_NUMERIC_VALUE)) {
+          throw new Error(`Project ${i}, milestone at index ${j} has invalid backlogSize (must be >= 0 and <= ${MAX_NUMERIC_VALUE}).`)
         }
         if (typeof m.color !== 'string' || !m.color) {
           throw new Error(`Project ${i}, milestone at index ${j} is missing a valid "color".`)
