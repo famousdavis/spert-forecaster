@@ -209,6 +209,13 @@ export function MilestoneList({
                     onBlur={() => commitRename(m)}
                     onKeyDown={(e) => handleRenameKeyDown(e, m)}
                     maxLength={50}
+                    // size=1 keeps the input's intrinsic min-content width tiny so the
+                    // table's auto-layout algorithm doesn't grow the Name column to fit
+                    // the input's default size=20 preference (~200px). w-full then stretches
+                    // the input to fill whatever width the column has settled on from the
+                    // rest of the rows' plain-text content — preventing the layout shift
+                    // the user reported in v0.33.5.
+                    size={1}
                     autoFocus
                     aria-label={`Rename ${m.name}`}
                     className="w-full rounded border border-spert-blue bg-spert-bg-highlight p-[0.2rem] font-medium text-[0.875rem] dark:bg-gray-700 dark:text-gray-100"

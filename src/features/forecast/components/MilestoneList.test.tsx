@@ -69,6 +69,26 @@ describe('MilestoneList — inline rename (v0.33.5)', () => {
     expect(input.getAttribute('name')).toBe('milestoneName')
   })
 
+  it('input has size=1 so the column does not reflow on edit (no-layout-shift guard)', () => {
+    // size=1 keeps the input's intrinsic min-content width tiny, preventing the
+    // browser's table-auto-layout algorithm from growing the Name column to fit
+    // the input's default size=20 (~200px) preference. Without this, clicking a
+    // milestone name shoves Remaining / Cumulative / Color / Chart / Actions
+    // to the right by ~100px.
+    render(
+      <MilestoneList
+        milestones={[makeMilestone({ name: 'MVP Release' })]}
+        unitOfMeasure="story points"
+        onEdit={NOOP}
+        onDelete={NOOP}
+        onRename={NOOP}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'MVP Release' }))
+    const input = screen.getByRole('textbox', { name: 'Rename MVP Release' })
+    expect(input.getAttribute('size')).toBe('1')
+  })
+
   it('Enter commits a changed, non-empty trimmed value via onRename', () => {
     const onRename = vi.fn()
     render(
