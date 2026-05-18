@@ -45,6 +45,13 @@ export function Milestones({ projectId, unitOfMeasure }: MilestonesProps) {
     [reorderMilestones, projectId]
   )
 
+  const handleRename = useCallback(
+    (milestoneId: string, name: string) => {
+      updateMilestone(projectId, milestoneId, { name })
+    },
+    [updateMilestone, projectId]
+  )
+
   return (
     <CollapsibleCrudPanel<Milestone>
       title="Milestones"
@@ -75,6 +82,7 @@ export function Milestones({ projectId, unitOfMeasure }: MilestonesProps) {
           onDelete={onDelete}
           onToggleChart={handleToggleChart}
           onReorder={handleReorder}
+          onRename={handleRename}
           editingId={editingItem?.id ?? null}
         />
       )}

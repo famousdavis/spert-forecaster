@@ -4,7 +4,7 @@
 
 'use client'
 
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { cn } from '@/lib/utils'
 import type { Milestone } from '@/shared/types'
 import { ListRowActions } from '@/shared/components/ListRowActions'
@@ -16,6 +16,7 @@ interface MilestoneListProps {
   onDelete: (id: string) => void
   onToggleChart?: (id: string, showOnChart: boolean) => void
   onReorder?: (milestoneIds: string[]) => void
+  onRename?: (id: string, newName: string) => void
   editingId?: string | null
 }
 
@@ -26,10 +27,51 @@ export function MilestoneList({
   onDelete,
   onToggleChart,
   onReorder,
+  onRename,
   editingId,
 }: MilestoneListProps) {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
+
+  // Inline-rename state (v0.33.5). Power-user shortcut for the common case
+  // of fixing a milestone-name typo without opening the full edit form.
+  // Enter saves; Escape reverts; blur saves if trimmed + non-empty + changed,
+  // reverts otherwise. The full Pencil-button edit path still opens the
+  // complete MilestoneForm for name + backlogSize + color edits.
+  const [renamingId, setRenamingId] = useState<string | null>(null)
+  const [draftName, setDraftName] = useState('')
+  // Stable id base for the inline-rename input; parametrized per-milestone
+  // below so list-rendered inputs don't collide on `id` (form-hygiene rule 5).
+  const renameInputIdBase = useId()
+
+  const startRename = (m: Milestone) => {
+    setRenamingId(m.id)
+    setDraftName(m.name)
+  }
+
+  const commitRename = (m: Milestone) => {
+    const trimmed = draftName.trim()
+    if (trimmed && trimmed !== m.name) {
+      onRename?.(m.id, trimmed)
+    }
+    setRenamingId(null)
+    setDraftName('')
+  }
+
+  const cancelRename = () => {
+    setRenamingId(null)
+    setDraftName('')
+  }
+
+  const handleRenameKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, m: Milestone) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      commitRename(m)
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      cancelRename()
+    }
+  }
 
   if (milestones.length === 0) {
     return (
@@ -156,7 +198,35 @@ export function MilestoneList({
                 </td>
               )}
               <td className="p-2 text-center text-spert-text-muted">{index}</td>
-              <td className="p-2 font-medium dark:text-gray-100">{m.name}</td>
+              <td className="p-2 font-medium dark:text-gray-100">
+                {onRename && renamingId === m.id ? (
+                  <input
+                    id={`${renameInputIdBase}-${m.id}`}
+                    name="milestoneName"
+                    type="text"
+                    value={draftName}
+                    onChange={(e) => setDraftName(e.target.value)}
+                    onBlur={() => commitRename(m)}
+                    onKeyDown={(e) => handleRenameKeyDown(e, m)}
+                    maxLength={50}
+                    autoFocus
+                    aria-label={`Rename ${m.name}`}
+                    className="w-full rounded border border-spert-blue bg-spert-bg-highlight p-[0.2rem] font-medium text-[0.875rem] dark:bg-gray-700 dark:text-gray-100"
+                  />
+                ) : onRename && m.id !== editingId ? (
+                  <button
+                    type="button"
+                    onClick={() => startRename(m)}
+                    title="Click to rename"
+                    draggable={false}
+                    className="cursor-text rounded text-left font-medium decoration-spert-text-muted decoration-dotted underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-spert-blue dark:text-gray-100"
+                  >
+                    {m.name}
+                  </button>
+                ) : (
+                  m.name
+                )}
+              </td>
               <td className="whitespace-nowrap p-2 text-right dark:text-gray-100">
                 {m.backlogSize.toLocaleString()} {unitOfMeasure}
               </td>
