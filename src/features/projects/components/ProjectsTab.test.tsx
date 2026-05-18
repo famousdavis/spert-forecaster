@@ -3,7 +3,7 @@
 // See LICENSE file in the project root for full license text.
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
@@ -113,6 +113,45 @@ describe('ProjectsTab — import wiring', () => {
     })
     render(<ProjectsTab />)
     expect(screen.getByRole('button', { name: /^Load Sample$/i })).toBeTruthy()
+  })
+
+  // v0.33.3 — ProjectForm is hidden on first-touch until the user signals intent.
+  describe('ProjectForm visibility gating (v0.33.3)', () => {
+    it('hides the ProjectForm on first-touch (zero projects, no edit, no focus flag)', () => {
+      render(<ProjectsTab />)
+      expect(screen.queryByLabelText('Project Name')).toBeNull()
+    })
+
+    it('shows the ProjectForm after clicking "Create New Project" in the welcome empty-state', () => {
+      render(<ProjectsTab />)
+      // Welcome empty-state button has visible text "Create New Project".
+      const createBtn = screen.getByRole('button', { name: /Create New Project/i })
+      fireEvent.click(createBtn)
+      expect(screen.getByLabelText('Project Name')).toBeTruthy()
+    })
+
+    it('shows the ProjectForm when shouldFocusNewProjectForm flag is set on mount (cross-tab path)', () => {
+      // Forecast-tab CTA sets the flag, switches tabs, ProjectsTab mounts with flag true.
+      useProjectStore.setState({ shouldFocusNewProjectForm: true })
+      render(<ProjectsTab />)
+      expect(screen.getByLabelText('Project Name')).toBeTruthy()
+    })
+
+    it('shows the ProjectForm when at least one project exists (always-visible-on-populated)', () => {
+      useProjectStore.setState({
+        projects: [
+          {
+            id: 'p1',
+            name: 'Existing',
+            unitOfMeasure: 'pts',
+            createdAt: 't',
+            updatedAt: 't',
+          },
+        ],
+      })
+      render(<ProjectsTab />)
+      expect(screen.getByLabelText('Project Name')).toBeTruthy()
+    })
   })
 
   it('does NOT render the preview section initially (importPreview is null)', () => {

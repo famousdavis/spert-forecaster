@@ -63,6 +63,10 @@ export function ProjectsTab({ onViewHistory }: ProjectsTabProps) {
   } = useImportState()
 
   const [editingProject, setEditingProject] = useState<Project | null>(null)
+  // v0.33.3: form is hidden on first-touch (zero projects, no edit in flight) until
+  // the user explicitly signals intent via the empty-state's "Create New Project" CTA.
+  // Persists through the focus-flag reset so the form doesn't unmount mid-render.
+  const [wantsToCreateNew, setWantsToCreateNew] = useState(false)
   const projectFormRef = useRef<ProjectFormHandle>(null)
   const shouldFocusNewProjectForm = useProjectStore((s) => s.shouldFocusNewProjectForm)
   const setShouldFocusNewProjectForm = useProjectStore((s) => s.setShouldFocusNewProjectForm)
@@ -114,10 +118,17 @@ export function ProjectsTab({ onViewHistory }: ProjectsTabProps) {
     } else {
       addProject(data)
     }
+    // Intent fulfilled — clear the "wants to create new" flag. After a successful add
+    // the form stays visible because projects.length > 0 now satisfies the gate.
+    setWantsToCreateNew(false)
   }
 
   const handleFormCancel = () => {
     setEditingProject(null)
+    // v0.33.3: returning to the welcome view on cancel from a blank first-touch form.
+    // When projects.length > 0 the form stays visible regardless via the projects-exist
+    // branch of the gate.
+    setWantsToCreateNew(false)
   }
 
   const handleExport = () => {
@@ -199,24 +210,55 @@ export function ProjectsTab({ onViewHistory }: ProjectsTabProps) {
   }, [])
 
   // Tab-switch focus handoff: when a sibling tab's empty-state CTA fires, it sets the
-  // shouldFocusNewProjectForm flag and switches to this tab. On mount/render, if the
-  // flag is true, focus the name field via the ProjectForm imperative handle and
-  // immediately reset the flag (so subsequent tab navigations don't refocus).
+  // shouldFocusNewProjectForm flag and switches to this tab. v0.33.3: the in-tab
+  // "Create New Project" CTA also sets the same flag, so both entry points share a
+  // single focus pipeline. On render with the flag set, we (1) flip wantsToCreateNew
+  // so the form stays mounted after we reset the flag, (2) focus the name input via
+  // the imperative handle, and (3) reset the flag so subsequent renders don't refocus.
   // Strict Mode double-fires this in dev; the flag-reset makes the second fire a no-op.
+  //
+  // The form-visibility gate (showProjectForm below) includes shouldFocusNewProjectForm
+  // so the form IS mounted at the moment this effect runs — projectFormRef.current is
+  // non-null and focusNameInput can complete on the same render cycle.
   useEffect(() => {
     if (shouldFocusNewProjectForm) {
+      // setWantsToCreateNew flips a sibling state synchronously inside an effect.
+      // react-hooks/set-state-in-effect flags this as a cascading-renders smell, but
+      // here the setState is a one-shot intent transition driven by an external trigger
+      // (a Zustand-store flag set from outside this component), not a derivation that
+      // would loop. Matches the same eslint-disable pattern adopted in v0.31.5 for
+      // useForecastState's project-change reset effect.
+      /* eslint-disable-next-line react-hooks/set-state-in-effect */
+      setWantsToCreateNew(true)
       projectFormRef.current?.focusNameInput()
       setShouldFocusNewProjectForm(false)
     }
   }, [shouldFocusNewProjectForm, setShouldFocusNewProjectForm])
 
   // Empty-state callbacks: same handlers on both tabs and on this tab's own empty state.
+  // v0.33.3: the in-tab "Create New Project" CTA delegates to the global focus flag,
+  // matching the cross-tab path. The effect above handles both visibility (via
+  // setWantsToCreateNew) and focus, so this callback is one line.
   const handleCreateNewFromEmptyState = useCallback(() => {
-    projectFormRef.current?.focusNameInput()
-  }, [])
+    setShouldFocusNewProjectForm(true)
+  }, [setShouldFocusNewProjectForm])
   const handleLoadSample = useCallback(() => {
     loadSampleProject()
   }, [])
+
+  // v0.33.3 form-visibility gate. Show the form when:
+  //   - the user is editing an existing project (editingProject set);
+  //   - at least one project exists (the form is the always-available "new project"
+  //     surface on a populated tab);
+  //   - the user just clicked "Create New Project" in this tab (wantsToCreateNew);
+  //   - or a cross-tab CTA is requesting focus right now (shouldFocusNewProjectForm).
+  // Otherwise the form is hidden in favor of the welcome empty-state, which leads
+  // with the twin CTAs and skips the visual clutter of empty input fields.
+  const showProjectForm =
+    editingProject !== null ||
+    projects.length > 0 ||
+    wantsToCreateNew ||
+    shouldFocusNewProjectForm
 
   if (!isClient) {
     return <div className="text-muted-foreground">Loading...</div>
@@ -247,13 +289,15 @@ export function ProjectsTab({ onViewHistory }: ProjectsTabProps) {
         </div>
       )}
 
-      <ProjectForm
-        key={editingProject?.id ?? 'new'}
-        ref={projectFormRef}
-        project={editingProject}
-        onSubmit={handleFormSubmit}
-        onCancel={handleFormCancel}
-      />
+      {showProjectForm && (
+        <ProjectForm
+          key={editingProject?.id ?? 'new'}
+          ref={projectFormRef}
+          project={editingProject}
+          onSubmit={handleFormSubmit}
+          onCancel={handleFormCancel}
+        />
+      )}
 
       {/* Welcome empty-state — only when the user has no projects yet. */}
       {projects.length === 0 && !importPreview && (
