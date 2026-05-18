@@ -3,7 +3,7 @@
 // See LICENSE file in the project root for full license text.
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { loadSampleProject, SAMPLE_PROJECT_NAME } from './sample-project'
+import { loadSampleProject, SAMPLE_PROJECT_NAME, generateUniqueProjectName } from './sample-project'
 import { useProjectStore } from '@/shared/state/project-store'
 import { getLastSprintBacklog } from '@/features/forecast/hooks/useForecastInputs'
 import { preCalculateSprintFactors } from '@/features/forecast/lib/productivity'
@@ -145,19 +145,32 @@ describe('loadSampleProject', () => {
     expect(withAdj[3]).toBe(0)
   })
 
-  it('is idempotent against double-click: the second call no-ops', () => {
+  it('appends "(2)" on a second call: idempotency replaced with auto-rename in v0.33.2', () => {
     loadSampleProject()
-    const firstCount = useProjectStore.getState().projects.length
+    expect(useProjectStore.getState().projects).toHaveLength(1)
+    expect(useProjectStore.getState().projects[0].name).toBe(SAMPLE_PROJECT_NAME)
 
     loadSampleProject()
-    const secondCount = useProjectStore.getState().projects.length
-
-    expect(firstCount).toBe(1)
-    expect(secondCount).toBe(1)
+    const state = useProjectStore.getState()
+    expect(state.projects).toHaveLength(2)
+    const names = state.projects.map((p) => p.name).sort()
+    expect(names).toEqual([SAMPLE_PROJECT_NAME, `${SAMPLE_PROJECT_NAME} (2)`])
   })
 
-  it('no-ops when a project with the sample name already exists (any origin)', () => {
-    // User manually creates a project with the sample's exact name.
+  it('appends "(3)" when both the base name and "(2)" already exist (walker advances)', () => {
+    loadSampleProject()
+    loadSampleProject()
+    loadSampleProject()
+    const names = useProjectStore.getState().projects.map((p) => p.name).sort()
+    expect(names).toEqual([
+      SAMPLE_PROJECT_NAME,
+      `${SAMPLE_PROJECT_NAME} (2)`,
+      `${SAMPLE_PROJECT_NAME} (3)`,
+    ])
+  })
+
+  it('uses "(2)" when a user-created project occupies the canonical sample name', () => {
+    // User manually creates a project with the sample's exact name (different content).
     useProjectStore.getState().addProject({
       name: SAMPLE_PROJECT_NAME,
       unitOfMeasure: 'hours',
@@ -165,8 +178,39 @@ describe('loadSampleProject', () => {
     expect(useProjectStore.getState().projects).toHaveLength(1)
 
     loadSampleProject()
-    // Still only one project — the user's. No duplicate seeded.
-    expect(useProjectStore.getState().projects).toHaveLength(1)
-    expect(useProjectStore.getState().projects[0].unitOfMeasure).toBe('hours')
+
+    const state = useProjectStore.getState()
+    expect(state.projects).toHaveLength(2)
+    // User's project is untouched (still 'hours'); the sample lands as "(2)".
+    const user = state.projects.find((p) => p.unitOfMeasure === 'hours')
+    const sample = state.projects.find((p) => p.unitOfMeasure === 'story points')
+    expect(user?.name).toBe(SAMPLE_PROJECT_NAME)
+    expect(sample?.name).toBe(`${SAMPLE_PROJECT_NAME} (2)`)
+  })
+})
+
+describe('generateUniqueProjectName', () => {
+  it('returns the base name when not in the existing set', () => {
+    expect(generateUniqueProjectName('Foo', new Set())).toBe('Foo')
+    expect(generateUniqueProjectName('Foo', new Set(['Bar', 'Baz']))).toBe('Foo')
+  })
+
+  it('returns "(2)" when only the base is taken', () => {
+    expect(generateUniqueProjectName('Foo', new Set(['Foo']))).toBe('Foo (2)')
+  })
+
+  it('returns "(3)" when base and "(2)" are both taken', () => {
+    expect(generateUniqueProjectName('Foo', new Set(['Foo', 'Foo (2)']))).toBe('Foo (3)')
+  })
+
+  it('skips gaps — returns "(2)" when only "(3)" is taken (base is still free)', () => {
+    // Base name not taken → walker doesn't run, base is returned.
+    expect(generateUniqueProjectName('Foo', new Set(['Foo (3)']))).toBe('Foo')
+  })
+
+  it('finds the next gap when "(2)" and "(4)" are taken but "(3)" is free', () => {
+    expect(
+      generateUniqueProjectName('Foo', new Set(['Foo', 'Foo (2)', 'Foo (4)'])),
+    ).toBe('Foo (3)')
   })
 })

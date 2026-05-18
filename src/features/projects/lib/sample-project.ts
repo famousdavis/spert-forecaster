@@ -2,14 +2,20 @@
 // Licensed under the GNU General Public License v3.0.
 // See LICENSE file in the project root for full license text.
 
-// Sample project seeder for the empty-state "Load Sample Project" CTA.
+// Sample project seeder for the "Load Sample Project" CTA.
 // New users see a working forecast on first session instead of staring at empty form fields.
 //
-// Design constraints captured in the v0.31.1 plan:
+// Design constraints captured in the v0.31.1 plan, amended in v0.33.2:
 //  - Generic agile content (NOT NCCI-flavored) to avoid optical concerns
-//  - Name is the IDEMPOTENCY KEY: if a project with this name already exists, the seeder
-//    no-ops and fires a friendly toast (Delta I). No deterministic ids because all
-//    project-store add* actions generate ids internally.
+//  - Originally (v0.31.1) the name was an IDEMPOTENCY KEY — a second call no-op'd with
+//    a friendly toast. This worked when the only entry point was the empty-state CTA
+//    (which itself disappeared once a project existed), so a re-trigger could only fire
+//    on a double-click. v0.33.2 added a persistent toolbar button on the Projects tab,
+//    which makes the sample re-loadable at any time. Re-loading must produce a NEW copy
+//    rather than silently no-op, so trainees can compare an edited sample against a
+//    pristine one. The collision strategy is now a numeric "(N)" suffix walker, matching
+//    the idiom users already know from duplicate-file flows: "Sample: Mobile App Launch",
+//    then "Sample: Mobile App Launch (2)", "(3)", and so on.
 //  - Required Project fields per src/shared/types/index.ts: name, unitOfMeasure, plus
 //    firstSprintStartDate is technically optional in the type but the burn-up chart uses
 //    a non-null assertion on it — undefined would crash. Set it explicitly.
@@ -53,9 +59,28 @@ const SPRINT_CADENCE_WEEKS = 2 as const
 const SPRINT_COUNT = 8
 
 /**
- * Load the sample project into the store. Idempotent against double-clicks via name-guard:
- * if a project named SAMPLE_PROJECT_NAME already exists (regardless of whether the user
- * created it or this seeder did), the call is a no-op and a friendly toast surfaces.
+ * Walk from the base name through "(2)", "(3)", ... until an unused name is found.
+ * Pure helper — no store reads, takes the set of existing names as input so it's trivially
+ * testable. Caller is responsible for passing a fresh snapshot of project names.
+ */
+export function generateUniqueProjectName(
+  baseName: string,
+  existingNames: ReadonlySet<string>,
+): string {
+  if (!existingNames.has(baseName)) return baseName
+  let n = 2
+  while (existingNames.has(`${baseName} (${n})`)) {
+    n++
+  }
+  return `${baseName} (${n})`
+}
+
+/**
+ * Load the sample project into the store. If a project with the canonical sample name
+ * already exists, the new project is created with a numeric suffix — "Sample: Mobile
+ * App Launch (2)", "(3)", and so on — rather than silently no-op'ing (v0.33.2). The
+ * sample's structure (sprints, milestones, productivity adjustment) is identical
+ * regardless of name; only the project name varies.
  *
  * Plain module function — uses useProjectStore.getState() (NOT hooks) because it's invoked
  * from event handlers, not from a React render path.
@@ -63,11 +88,11 @@ const SPRINT_COUNT = 8
 export function loadSampleProject(): void {
   const store = useProjectStore.getState()
 
-  // Idempotency guard (Delta I)
-  if (store.projects.find((p) => p.name === SAMPLE_PROJECT_NAME)) {
-    toast.info(`A project named "${SAMPLE_PROJECT_NAME}" already exists.`)
-    return
-  }
+  // Collision strategy: walk to the next available "(N)" suffix. Snapshot the current
+  // project names so the walker can't race with concurrent adds (Zustand mutations are
+  // synchronous, but reading once is still cleaner than re-querying inside the loop).
+  const existingNames = new Set(store.projects.map((p) => p.name))
+  const projectName = generateUniqueProjectName(SAMPLE_PROJECT_NAME, existingNames)
 
   // First sprint date: walk back 16 weeks from today so the last sprint ends around now.
   // No bespoke "snap to Monday" — calculateSprintFinishDate uses getPrecedingBusinessDay
@@ -76,7 +101,7 @@ export function loadSampleProject(): void {
   const firstSprintStartDate = addWeeks(today(), -16)
 
   store.addProject({
-    name: SAMPLE_PROJECT_NAME,
+    name: projectName,
     unitOfMeasure: 'story points',
     sprintCadenceWeeks: SPRINT_CADENCE_WEEKS,
     firstSprintStartDate,
@@ -86,7 +111,7 @@ export function loadSampleProject(): void {
 
   // addProject generates the id internally — recover it from store state (Zustand set
   // is synchronous, so this works without delay).
-  const newProjectId = useProjectStore.getState().projects.find((p) => p.name === SAMPLE_PROJECT_NAME)?.id
+  const newProjectId = useProjectStore.getState().projects.find((p) => p.name === projectName)?.id
   if (!newProjectId) {
     toast.error('Failed to seed sample project.')
     return
@@ -163,5 +188,5 @@ export function loadSampleProject(): void {
     enabled: true,
   })
 
-  toast.success(`Loaded "${SAMPLE_PROJECT_NAME}" — eight sprints, four milestones, one productivity adjustment.`)
+  toast.success(`Loaded "${projectName}" — eight sprints, four milestones, one productivity adjustment.`)
 }

@@ -91,6 +91,30 @@ describe('ProjectsTab — import wiring', () => {
     expect(screen.getByRole('button', { name: /Export all projects/i })).toBeTruthy()
   })
 
+  it('hides Load Sample toolbar button when projects array is empty (empty-state CTA covers this case)', () => {
+    render(<ProjectsTab />)
+    // Toolbar button has accessible name "Load Sample" (exact); empty-state CTA's
+    // accessible name is "Load Sample Project" (distinct). Anchored regex prevents
+    // the empty-state from matching here.
+    expect(screen.queryByRole('button', { name: /^Load Sample$/i })).toBeNull()
+  })
+
+  it('shows Load Sample toolbar button when at least one project exists (v0.33.2)', () => {
+    useProjectStore.setState({
+      projects: [
+        {
+          id: 'p1',
+          name: 'Test',
+          unitOfMeasure: 'pts',
+          createdAt: 't',
+          updatedAt: 't',
+        },
+      ],
+    })
+    render(<ProjectsTab />)
+    expect(screen.getByRole('button', { name: /^Load Sample$/i })).toBeTruthy()
+  })
+
   it('does NOT render the preview section initially (importPreview is null)', () => {
     render(<ProjectsTab />)
     expect(screen.queryByRole('region', { name: /Review import/i })).toBeNull()

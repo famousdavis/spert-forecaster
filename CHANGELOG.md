@@ -1,5 +1,25 @@
 # Changelog
 
+## v0.33.2 - 2026-05-18
+
+Makes the sample project re-loadable at any time. Before v0.33.2, the "Load Sample Project" button lived only inside the empty-state placeholder, which itself only rendered when the user had zero projects — so once the sample was loaded (or any project at all created), the affordance disappeared and the seeder's name-idempotency guard further prevented re-triggering even if a hand-rolled call sneaked through. Trainees who modified the seeded sample and wanted a fresh comparison copy had no path back short of deleting every project in their workspace.
+
+### Added
+
+- **Persistent "Load Sample Project" button in the Projects-tab toolbar** ([src/features/projects/components/ProjectsTab.tsx](src/features/projects/components/ProjectsTab.tsx)). Sits as a peer to "Export All" and "Import" — gated on `projects.length > 0` so it doesn't double up with the empty-state's twin-CTA when zero projects exist (the empty-state remains the friendlier first-touch surface for true cold starts). The button uses a purple sun/sparkle icon and reuses the existing `handleLoadSample` callback that already drives the empty-state CTA, so the entry point is new but the underlying invocation path is the same code that has shipped since v0.31.1. Mirrors the pattern in SPERT Story Map's product-list toolbar, where Load Sample is a permanent peer of New / Import / Export rather than gated on emptiness.
+
+### Changed
+
+- **`loadSampleProject` switches from "no-op on name collision" to "auto-rename with numeric `(N)` suffix"** in [src/features/projects/lib/sample-project.ts](src/features/projects/lib/sample-project.ts). The original v0.31.1 design used the project name as an idempotency key — if a project named `"Sample: Mobile App Launch"` already existed (regardless of whether the seeder or the user created it), the second call no-op'd and toasted *"A project named ... already exists."* That worked when the only entry point was the empty-state CTA (which disappeared on first project creation, so the only way to re-trigger was a double-click race). With v0.33.2's persistent toolbar button making re-loads explicit, idempotency-as-no-op is wrong — the user clicking the button *wants* a new copy, not a silent rejection. The new strategy walks `(2)`, `(3)`, ... until an unused name is found and creates the new project under that name. The existing project (whatever its content) is never touched. Toast on success now interpolates the actual chosen name, so users can see at a glance whether they got the canonical name or a suffixed duplicate.
+- **`generateUniqueProjectName(baseName, existingNames)` extracted as a named export** for direct unit testing. Pure function — takes a `ReadonlySet<string>` of existing names and returns either the unmodified base or the first available `${base} (N)` form. Tested in isolation with five cases covering base-free, "(2)" walk, "(3)" walk, gap-handling when only `(3)` is taken (base is still preferred), and gap-handling when `(2)` and `(4)` are taken but `(3)` is free (walker finds the lowest available).
+
+### Internal
+
+- **Three rewrites in [src/features/projects/lib/sample-project.test.ts](src/features/projects/lib/sample-project.test.ts)** flip the idempotency-era expectations: *"is idempotent against double-click: the second call no-ops"* becomes *"appends '(2)' on a second call"*; *"no-ops when a project with the sample name already exists (any origin)"* becomes *"uses '(2)' when a user-created project occupies the canonical sample name"* and additionally asserts the user's project is untouched. A new *"appends '(3)' when both the base name and '(2)' already exist"* test exercises the walker advancing two steps. A new `describe('generateUniqueProjectName')` block adds five pure-function tests against the extracted helper.
+- **Two new assertions in [src/features/projects/components/ProjectsTab.test.tsx](src/features/projects/components/ProjectsTab.test.tsx)** mirror the existing Export-All gating tests: *"hides Load Sample toolbar button when projects array is empty"* and *"shows Load Sample toolbar button when at least one project exists"*. The Forecast-tab and Projects-tab empty-state CTAs remain unchanged — they continue to render only when `projects.length === 0`.
+- **File-header comment in `sample-project.ts` updated** to record the v0.33.2 strategy change (idempotency → auto-rename) and the reason — preserved as institutional context for the next contributor reading the file cold.
+- **No schema, no persistence, no math, no Firestore change.** Pure UI plus seeder-logic refinement.
+
 ## v0.33.1 - 2026-05-18
 
 Moves Lognormal to the first position across every distribution-ordered surface in the app. Single-line code change in two source files plus the corresponding test-fixture flip. No math, schema, or persistence change.
