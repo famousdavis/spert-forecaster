@@ -178,7 +178,7 @@ describe('getVisibleDistributions', () => {
   it('returns 5 distributions in subjective mode', () => {
     const dists = getVisibleDistributions('subjective', false)
     expect(dists).toHaveLength(5)
-    expect(dists).toEqual(['truncatedNormal', 'lognormal', 'gamma', 'triangular', 'uniform'])
+    expect(dists).toEqual(['lognormal', 'truncatedNormal', 'gamma', 'triangular', 'uniform'])
   })
 
   it('subjective mode never includes bootstrap regardless of hasBootstrap', () => {
@@ -190,13 +190,13 @@ describe('getVisibleDistributions', () => {
   it('returns 4 distributions in history mode without bootstrap', () => {
     const dists = getVisibleDistributions('history', false)
     expect(dists).toHaveLength(4)
-    expect(dists).toEqual(['truncatedNormal', 'lognormal', 'gamma', 'triangular'])
+    expect(dists).toEqual(['lognormal', 'truncatedNormal', 'gamma', 'triangular'])
   })
 
   it('returns 5 distributions in history mode with bootstrap', () => {
     const dists = getVisibleDistributions('history', true)
     expect(dists).toHaveLength(5)
-    expect(dists).toEqual(['truncatedNormal', 'lognormal', 'gamma', 'triangular', 'bootstrap'])
+    expect(dists).toEqual(['lognormal', 'truncatedNormal', 'gamma', 'triangular', 'bootstrap'])
   })
 
   it('history mode never includes uniform', () => {
@@ -218,10 +218,10 @@ describe('getVisibleDistributions', () => {
   describe('enabledDistributions intersection (v0.31.0)', () => {
     it('returns the mode-visible set unchanged when third argument is omitted', () => {
       expect(getVisibleDistributions('subjective', false)).toEqual([
-        'truncatedNormal', 'lognormal', 'gamma', 'triangular', 'uniform',
+        'lognormal', 'truncatedNormal', 'gamma', 'triangular', 'uniform',
       ])
       expect(getVisibleDistributions('history', true)).toEqual([
-        'truncatedNormal', 'lognormal', 'gamma', 'triangular', 'bootstrap',
+        'lognormal', 'truncatedNormal', 'gamma', 'triangular', 'bootstrap',
       ])
     })
 
@@ -245,9 +245,10 @@ describe('getVisibleDistributions', () => {
     })
 
     it('intersection preserves mode-set ordering (not enabled-array ordering)', () => {
-      // T-Normal comes first in the mode set; should still come first in the result.
-      const result = getVisibleDistributions('history', true, ['bootstrap', 'truncatedNormal', 'gamma'])
-      expect(result).toEqual(['truncatedNormal', 'gamma', 'bootstrap'])
+      // Lognormal comes first in the mode set (v0.33.1); should still come first in
+      // the result even when the enabled-array lists it later.
+      const result = getVisibleDistributions('history', true, ['bootstrap', 'lognormal', 'gamma'])
+      expect(result).toEqual(['lognormal', 'gamma', 'bootstrap'])
     })
 
     it('returns empty array when no overlap', () => {
