@@ -386,7 +386,7 @@ export function ForecastSummary({
           <HelpTooltip
             ariaLabel="About the distribution choices"
             content={
-              <>Only Truncated Normal is shown by default. Add more distributions in
+              <>Only Lognormal is shown by default. Add more distributions in
                 {' '}<strong>Settings → Statistical methods to show</strong>.</>
             }
           />
