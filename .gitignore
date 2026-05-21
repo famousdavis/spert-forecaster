@@ -25,6 +25,7 @@
 *.pem
 
 # proprietary project context
+.claude/
 CLAUDE.md
 
 # debug
