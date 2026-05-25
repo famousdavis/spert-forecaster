@@ -86,4 +86,28 @@ describe('settings-store', () => {
       spy.mockRestore()
     })
   })
+
+  describe('clearSettingsOnSignOut (F2/F3)', () => {
+    it('clears exportName and exportId; leaves other settings intact; emits no sync event', () => {
+      useSettingsStore.setState({
+        exportName: 'Jane Smith',
+        exportId: 'js-123',
+        autoRecalculate: false,
+        trialCount: 25000,
+      })
+      const spy = vi.spyOn(syncBus, 'emit')
+      try {
+        useSettingsStore.getState().clearSettingsOnSignOut()
+        expect(useSettingsStore.getState().exportName).toBe('')
+        expect(useSettingsStore.getState().exportId).toBe('')
+        // Non-attribution preferences carry forward — per-browser defaults are safe
+        expect(useSettingsStore.getState().autoRecalculate).toBe(false)
+        expect(useSettingsStore.getState().trialCount).toBe(25000)
+        // Attribution fields are local-only; no sync emission
+        expect(spy).not.toHaveBeenCalled()
+      } finally {
+        spy.mockRestore()
+      }
+    })
+  })
 })

@@ -81,12 +81,22 @@ export function useCloudSync(user: User | null, mode: 'local' | 'cloud') {
     // hook in v0.26.0 to support cross-app email→uid resolution for the
     // bulk-invitation system.
 
+    // Closure-local sentinel for the snapshot data-loss guard (I1).
+    // Limits the guard to the first snapshot of each cloud session so
+    // access-revocation events on subsequent snapshots propagate to the
+    // local store. Reset implicitly on every effect re-run (sign-out →
+    // re-sign-in creates a new closure with snapshotEverReceived = false).
+    let snapshotEverReceived = false
+
     // --- Async setup: load first, then attach listeners ---
     async function setup() {
       // Initial load from Firestore
       try {
         const projectDocs = await loadProjects(uid)
-        if (cancelled) return
+        // `cancelled` handles teardown; `auth?.currentUser?.uid !== uid` adds
+        // belt-and-suspenders defense for the user-switch edge case where a
+        // different account signs in before the old effect tears down (H2).
+        if (cancelled || auth?.currentUser?.uid !== uid) return
 
         const { projects, sprints } = processProjectDocs(projectDocs, docMetaRef)
 
@@ -104,7 +114,7 @@ export function useCloudSync(user: User | null, mode: 'local' | 'cloud') {
 
         // Load settings
         const settingsDoc = await loadSettings(uid)
-        if (cancelled) return
+        if (cancelled || auth?.currentUser?.uid !== uid) return
         if (settingsDoc) {
           const settings = firestoreDocToSettings(settingsDoc)
           useSettingsStore.getState().replaceSettingsFromCloud(settings)
@@ -127,15 +137,26 @@ export function useCloudSync(user: User | null, mode: 'local' | 'cloud') {
 
       // Subscribe to Firestore snapshots (incoming changes)
       unsubscribeSnapshot = subscribeToUserProjects(uid, (projectDocs) => {
+        // User-guard (H-2). Reject snapshots for a different user (user-switch
+        // race) or when no user is signed in (post-sign-out). `uid` is the
+        // closure variable from subscription setup, NOT a live read.
+        if (auth?.currentUser?.uid !== uid) return
+
         const { projects, sprints } = processProjectDocs(projectDocs, docMetaRef)
 
-        // Same data-loss guard for snapshot updates
-        const localProjects = useProjectStore.getState().projects
-        if (projects.length === 0 && localProjects.length > 0) {
-          console.warn(
-            `Cloud snapshot returned 0 projects but local has ${localProjects.length} — skipping replacement`
-          )
-          return
+        // Data-loss guard (I1) — fires AT MOST ONCE per cloud session. After
+        // the first snapshot, subsequent empty snapshots propagate so that
+        // legitimate access-revocation reaches the local store.
+        if (!snapshotEverReceived) {
+          snapshotEverReceived = true
+          const localProjects = useProjectStore.getState().projects
+          if (projects.length === 0 && localProjects.length > 0) {
+            console.warn(
+              `Cloud snapshot returned 0 projects but local has ${localProjects.length} — ` +
+              `skipping first snapshot to protect local data`
+            )
+            return
+          }
         }
 
         useProjectStore.getState().replaceProjectsFromCloud(projects, sprints)
@@ -277,6 +298,11 @@ export function useCloudSync(user: User | null, mode: 'local' | 'cloud') {
       }
     }
     window.addEventListener('beforeunload', handleBeforeUnload)
+    // D2 — pagehide covers bfcache navigations and iOS Safari, where
+    // beforeunload is not reliably delivered. Both listeners route through
+    // the same handler; flushPendingSaves is idempotent (the second call
+    // finds no pending timers).
+    window.addEventListener('pagehide', handleBeforeUnload)
 
     return () => {
       // Set cancelled = true FIRST. If setup() is suspended at an await, the
@@ -288,6 +314,7 @@ export function useCloudSync(user: User | null, mode: 'local' | 'cloud') {
       unsubscribeSnapshot?.()
       unsubscribeSyncBus?.()
       window.removeEventListener('beforeunload', handleBeforeUnload)
+      window.removeEventListener('pagehide', handleBeforeUnload)
       // Teardown fires on sign-out (credentials revoked) and mode switch.
       // Flushing would send writes against stale auth; cancel instead.
       // The `beforeunload` handler above remains the only flush path.

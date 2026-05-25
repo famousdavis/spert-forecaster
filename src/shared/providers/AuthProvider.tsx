@@ -22,7 +22,9 @@ import { signInWithGoogle, signInWithMicrosoft, signOut, checkRedirectResult } f
 import { cancelPendingSaves } from '@/shared/firebase/firestore-driver'
 import { writeUserProfile } from '@/shared/firebase/profileWrites'
 import { useProjectStore } from '@/shared/state/project-store'
+import { useSettingsStore } from '@/shared/state/settings-store'
 import { useStorageModeStore } from '@/shared/state/storage-mode-store'
+import { bumpSimulationGeneration } from '@/features/forecast/lib/simulation-generation'
 import {
   isTosCached,
   cacheTos,
@@ -82,6 +84,27 @@ function claimPendingInvitationsAndNotify(firebaseUser: User): void {
         )
       }
     })
+}
+
+/**
+ * Sign-out cleanup. Must run BEFORE firebaseSignOut() so cancelPendingSaves
+ * still holds valid credentials at cancellation time (E1/E2 fix).
+ *
+ * Three sign-out paths, all funnel through this function:
+ *   (1) User-initiated:     handleSignOut → performSignOutCleanup() → signOut()
+ *   (2) ToS-mismatch:       handleAuthenticatedUser → performSignOutCleanup() → signOut()
+ *   (3) Externally-revoked: onAuthStateChanged(null) → fallback block → performSignOutCleanup()
+ *
+ * Path (3) is the onAuthStateChanged fallback, NOT handleSignOut. handleSignOut's
+ * `auth?.currentUser` guard returns early when Firebase has already revoked the
+ * session — by design, since path (3) handles that case.
+ */
+function performSignOutCleanup(): void {
+  bumpSimulationGeneration()                              // G1 — discard in-flight simulations
+  cancelPendingSaves()                                    // E1 — cancel queued Firestore writes
+  useProjectStore.getState().clearProjectsOnSignOut()     // zero in-memory project state
+  useSettingsStore.getState().clearSettingsOnSignOut()    // F2/F3 — clear attribution fields
+  useStorageModeStore.getState().setMode('local')         // reset storage mode for next session
 }
 
 interface AuthContextValue {
@@ -168,8 +191,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(firebaseUser)
         setIsLoading(false)
       } else {
-        // Outdated or missing — sign out and force re-consent
+        // Outdated or missing — sign out and force re-consent.
+        // performSignOutCleanup() runs BEFORE signOut() so cancelPendingSaves
+        // still holds valid credentials (E1/E2 fix).
         clearTosCache()
+        performSignOutCleanup()
+        previousUserRef.current = null  // prevents double-cleanup in onAuthStateChanged fallback
         await signOut()
         setUser(null)
         setIsLoading(false)
@@ -210,9 +237,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         //       consumers via Zustand subscriptions
         //   (d) flip React auth state, which triggers useCloudSync teardown
         if (previousUserRef.current !== undefined && previousUserRef.current !== null) {
-          cancelPendingSaves()
-          useProjectStore.getState().clearProjectsOnSignOut()
-          useStorageModeStore.getState().setMode('local')
+          // Fallback for path (3) — externally-revoked sessions. Paths (1)
+          // and (2) set previousUserRef.current = null BEFORE signOut() fires,
+          // so this block is skipped for those paths — no double-cleanup.
+          performSignOutCleanup()
         }
         previousUserRef.current = null
         setUser(null)
@@ -239,6 +267,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const handleSignOut = useCallback(async () => {
+    // No session — silent no-op (consistent with sign-in handlers which only
+    // log on actual errors). Externally-revoked sessions are handled by the
+    // onAuthStateChanged null callback (path 3), not by this function.
+    if (!auth?.currentUser) return
+    performSignOutCleanup()
+    previousUserRef.current = null  // prevents double-cleanup in onAuthStateChanged fallback
     try {
       await signOut()
     } catch (err) {

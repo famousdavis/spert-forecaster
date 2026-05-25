@@ -24,6 +24,7 @@ import {
 } from '../lib/monte-carlo'
 import { useSimulationWorker, type QuadForecastResult } from './useSimulationWorker'
 import { useScopeGrowthState } from './useScopeGrowthState'
+import { currentSimulationGeneration } from '../lib/simulation-generation'
 import { preCalculateSprintFactors } from '../lib/productivity'
 import { generateForecastCsv, downloadCsv, generateFilename } from '../lib/export-csv'
 import { safeParseNumber } from '@/shared/lib/validation'
@@ -255,6 +256,10 @@ export function useForecastState() {
     if (!Number.isFinite(inputs.effectiveMean) || inputs.effectiveMean <= 0) return
     if (!Number.isFinite(inputs.effectiveStdDev) || inputs.effectiveStdDev < 0) return
 
+    // G1 — capture generation before any await; discard if bumped while in flight
+    // (sign-out cleared the store, so writing results into it would be incorrect).
+    const startGen = currentSimulationGeneration()
+
     const config = {
       remainingBacklog: parsedBacklog,
       velocityMean: inputs.effectiveMean,
@@ -288,6 +293,7 @@ export function useForecastState() {
           milestoneThresholds: inputs.cumulativeThresholds,
           scopeGrowthPerSprint: scopeGrowth.scopeGrowthPerSprint,
         })
+        if (currentSimulationGeneration() !== startGen) return  // G1 — stale result, sign-out fired
 
         const { perMilestoneResults, perMilestoneSimData } = extractMilestoneData(
           milestoneResult, inputs.cumulativeThresholds.length
@@ -314,6 +320,7 @@ export function useForecastState() {
           productivityFactors,
           scopeGrowthPerSprint: scopeGrowth.scopeGrowthPerSprint,
         })
+        if (currentSimulationGeneration() !== startGen) return  // G1 — stale result, sign-out fired
 
         setMilestoneResultsState(null)
 

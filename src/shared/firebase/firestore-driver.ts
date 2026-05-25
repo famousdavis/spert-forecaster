@@ -3,8 +3,10 @@
 // See LICENSE file in the project root for full license text.
 
 // Firestore CRUD operations for SPERT Forecaster data.
-// All writes use merge:true to preserve owner/members fields.
-// Saves are debounced at 500ms with beforeunload flush.
+// Project/settings writes use mergeFields so cleared optional scalars are
+// actually removed from Firestore rather than silently surviving (C1/C2).
+// Saves are debounced at 200ms; flushed on both beforeunload AND pagehide
+// (bfcache + iOS Safari compatibility — D1/D2).
 
 import {
   collection,
@@ -23,12 +25,60 @@ import { db } from './config'
 import { COLLECTIONS, type FirestoreProjectDoc, type FirestoreSettingsDoc } from './types'
 import { sanitizeForFirestore, stripFirestoreFields } from './firestore-sanitize'
 
+// --- mergeFields constants (C1/C2) ---
+//
+// setDoc({ mergeFields: [...] }) wholesale-replaces each listed top-level key
+// and leaves everything else on the server untouched. Critically — and unlike
+// merge: true — a listed field that is ABSENT from the source object is
+// DELETED from Firestore. That is precisely the behavior we want: when the
+// user clears projectStartDate locally, sanitizeForFirestore strips the
+// undefined value, the field is absent at write time, and mergeFields removes
+// it from the server. Under merge: true the deep-merge preserved the old
+// value and the date silently resurrected on the next browser refresh.
+//
+// owner/members are deliberately absent from PROJECT_MERGE_FIELDS so the
+// debounced save path cannot overwrite ACL fields.
+
+export const PROJECT_MERGE_FIELDS: (keyof Omit<FirestoreProjectDoc, 'owner' | 'members'>)[] = [
+  'name', 'unitOfMeasure', 'sprintCadenceWeeks',
+  'projectStartDate', 'projectFinishDate', 'firstSprintStartDate',
+  'productivityAdjustments', 'milestones', 'sprints',
+  'createdAt', 'updatedAt', '_originRef', '_changeLog', 'schemaVersion',
+]
+// Compile-time exhaustiveness: TypeScript errors if FirestoreProjectDoc gains
+// a new writable field. Update PROJECT_MERGE_FIELDS to include it.
+type _ProjectWriteKey = Exclude<keyof FirestoreProjectDoc, 'owner' | 'members'>
+const _PROJECT_WRITE_KEYS_GUARD: Record<_ProjectWriteKey, true> = {
+  name: true, unitOfMeasure: true, sprintCadenceWeeks: true,
+  projectStartDate: true, projectFinishDate: true, firstSprintStartDate: true,
+  productivityAdjustments: true, milestones: true, sprints: true,
+  createdAt: true, updatedAt: true, _originRef: true, _changeLog: true,
+  schemaVersion: true,
+}
+void _PROJECT_WRITE_KEYS_GUARD
+
+// Settings: all fields always present when written — no clearable-to-undefined
+// scalars. The mergeFields switch is symmetry-only with saveProject, not a
+// data-resurrection fix.
+export const SETTINGS_MERGE_FIELDS: (keyof FirestoreSettingsDoc)[] = [
+  'autoRecalculate', 'trialCount', 'defaultChartFontSize',
+  'defaultCustomPercentile', 'defaultCustomPercentile2',
+  'defaultResultsPercentiles', 'distributionsEnabled',
+]
+type _SettingsWriteKey = keyof FirestoreSettingsDoc
+const _SETTINGS_WRITE_KEYS_GUARD: Record<_SettingsWriteKey, true> = {
+  autoRecalculate: true, trialCount: true, defaultChartFontSize: true,
+  defaultCustomPercentile: true, defaultCustomPercentile2: true,
+  defaultResultsPercentiles: true, distributionsEnabled: true,
+}
+void _SETTINGS_WRITE_KEYS_GUARD
+
 // --- Debounce infrastructure ---
 
 const pendingSaveTimers = new Map<string, ReturnType<typeof setTimeout>>()
 const pendingSaveFns = new Map<string, () => Promise<void>>()
 
-function debouncedSave(key: string, saveFn: () => Promise<void>, delayMs = 500): void {
+function debouncedSave(key: string, saveFn: () => Promise<void>, delayMs = 200): void {
   const existingTimer = pendingSaveTimers.get(key)
   if (existingTimer) clearTimeout(existingTimer)
 
@@ -120,13 +170,20 @@ export async function loadOwnedProjectIds(uid: string): Promise<Set<string>> {
   return new Set(snap.docs.map((d) => d.id))
 }
 
-/** Save a project document (debounced). Uses merge:true to preserve owner/members. */
+/**
+ * Save a project document (debounced).
+ *
+ * Uses mergeFields so cleared optional scalars are actually deleted from
+ * Firestore (C1/C2). owner/members are stripped here AND excluded from
+ * PROJECT_MERGE_FIELDS — belt-and-braces against accidentally writing ACL
+ * fields from the debounced save path.
+ */
 export function saveProject(projectId: string, data: FirestoreProjectDoc): void {
   debouncedSave(`project:${projectId}`, async () => {
     if (!db) return
     const ref = doc(db, COLLECTIONS.projects, projectId)
     const { owner: _o, members: _m, ...dataWithoutOwnership } = data
-    await setDoc(ref, sanitizeForFirestore(dataWithoutOwnership), { merge: true })
+    await setDoc(ref, sanitizeForFirestore(dataWithoutOwnership), { mergeFields: PROJECT_MERGE_FIELDS })
   })
 }
 
@@ -229,12 +286,12 @@ export async function loadSettings(uid: string): Promise<FirestoreSettingsDoc | 
   return snap.exists() ? (snap.data() as FirestoreSettingsDoc) : null
 }
 
-/** Save user settings (debounced). */
+/** Save user settings (debounced). Uses mergeFields for symmetry with saveProject. */
 export function saveSettings(uid: string, data: FirestoreSettingsDoc): void {
   debouncedSave('settings', async () => {
     if (!db) return
     const ref = doc(db, COLLECTIONS.settings, uid)
-    await setDoc(ref, sanitizeForFirestore(data), { merge: true })
+    await setDoc(ref, sanitizeForFirestore(data), { mergeFields: SETTINGS_MERGE_FIELDS })
   })
 }
 
@@ -242,7 +299,7 @@ export function saveSettings(uid: string, data: FirestoreSettingsDoc): void {
 export async function saveSettingsImmediate(uid: string, data: FirestoreSettingsDoc): Promise<void> {
   if (!db) return
   const ref = doc(db, COLLECTIONS.settings, uid)
-  await setDoc(ref, sanitizeForFirestore(data), { merge: true })
+  await setDoc(ref, sanitizeForFirestore(data), { mergeFields: SETTINGS_MERGE_FIELDS })
 }
 
 // --- Profile operations ---
