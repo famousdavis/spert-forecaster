@@ -4,6 +4,7 @@
 
 'use client'
 
+import { useState, useEffect, useRef } from 'react'
 import { useSettingsStore, TRIAL_COUNT_OPTIONS, type TrialCount } from '@/shared/state/settings-store'
 import { CHART_FONT_SIZE_LABELS, type ChartFontSize, DISTRIBUTION_TYPES, DISTRIBUTION_LABELS, type DistributionType } from '@/shared/types/burn-up'
 import { useTheme, type Theme } from '@/shared/hooks/useTheme'
@@ -72,6 +73,33 @@ export function SettingsTab() {
   } = useSettingsStore()
 
   const { theme, setTheme } = useTheme()
+
+  // A3 — buffer the two custom-percentile inputs locally and commit on blur.
+  // The store setter clamps via Math.max(1, Math.min(99, Math.round(value))),
+  // which made typing "07" over "85" snap to "1" mid-keystroke (the first
+  // digit '0' clamped to 1 before the second arrived). Buffering in local
+  // useState lets the user finish typing before clamping happens.
+  //
+  // Focus refs prevent incoming cloud restores from overwriting the in-progress
+  // draft: the sync useEffects below run on every store change, but skip when
+  // the input owns the user's attention.
+  const [percentile1Draft, setPercentile1Draft] = useState(String(defaultCustomPercentile))
+  const [percentile2Draft, setPercentile2Draft] = useState(String(defaultCustomPercentile2))
+  const isFocused1Ref = useRef(false)
+  const isFocused2Ref = useRef(false)
+  // The lint rule warns against derived-state-in-effect; here we are
+  // synchronizing the local draft with an external source (the Zustand store,
+  // which can update via cloud restore or external setter) — which is exactly
+  // the documented exception in the rule's description. The focus guard avoids
+  // overwriting user input mid-keystroke.
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (!isFocused1Ref.current) setPercentile1Draft(String(defaultCustomPercentile))
+  }, [defaultCustomPercentile])
+  useEffect(() => {
+    if (!isFocused2Ref.current) setPercentile2Draft(String(defaultCustomPercentile2))
+  }, [defaultCustomPercentile2])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleToggleResultsPercentile = (p: number) => {
     const isSelected = defaultResultsPercentiles.includes(p)
@@ -253,10 +281,17 @@ export function SettingsTab() {
                 type="number"
                 min={MIN_PERCENTILE}
                 max={MAX_PERCENTILE}
-                value={defaultCustomPercentile}
-                onChange={(e) => {
-                  const val = parseInt(e.target.value, 10)
-                  if (!isNaN(val)) setDefaultCustomPercentile(val)
+                value={percentile1Draft}
+                onChange={(e) => setPercentile1Draft(e.target.value)}
+                onFocus={() => { isFocused1Ref.current = true }}
+                onBlur={() => {
+                  isFocused1Ref.current = false
+                  const val = parseInt(percentile1Draft, 10)
+                  if (!isNaN(val)) {
+                    setDefaultCustomPercentile(val)
+                  } else {
+                    setPercentile1Draft(String(defaultCustomPercentile))
+                  }
                 }}
                 className={inputClass}
               />
@@ -277,10 +312,17 @@ export function SettingsTab() {
                 type="number"
                 min={MIN_PERCENTILE}
                 max={MAX_PERCENTILE}
-                value={defaultCustomPercentile2}
-                onChange={(e) => {
-                  const val = parseInt(e.target.value, 10)
-                  if (!isNaN(val)) setDefaultCustomPercentile2(val)
+                value={percentile2Draft}
+                onChange={(e) => setPercentile2Draft(e.target.value)}
+                onFocus={() => { isFocused2Ref.current = true }}
+                onBlur={() => {
+                  isFocused2Ref.current = false
+                  const val = parseInt(percentile2Draft, 10)
+                  if (!isNaN(val)) {
+                    setDefaultCustomPercentile2(val)
+                  } else {
+                    setPercentile2Draft(String(defaultCustomPercentile2))
+                  }
                 }}
                 className={inputClass}
               />

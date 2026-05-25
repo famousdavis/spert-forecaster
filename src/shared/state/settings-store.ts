@@ -58,6 +58,10 @@ interface SettingsState {
   setExportId: (value: string) => void
   setSuppressLocalStorageWarning: (value: boolean) => void
 
+  // Sign-out action — clears user-identifying attribution fields so they
+  // don't persist to the next user on a shared browser (F2/F3).
+  clearSettingsOnSignOut: () => void
+
   // Cloud sync actions
   replaceSettingsFromCloud: (settings: {
     autoRecalculate: boolean
@@ -145,6 +149,10 @@ export const useSettingsStore = create<SettingsState>()(
       setExportName: (value) => set({ exportName: value }),
       setExportId: (value) => set({ exportId: value }),
       setSuppressLocalStorageWarning: (value) => set({ suppressLocalStorageWarning: value }),
+
+      // Attribution-only reset. Simulation/display preferences are per-browser
+      // defaults and safe to carry forward across sign-outs.
+      clearSettingsOnSignOut: () => set({ exportName: '', exportId: '' }),
 
       replaceSettingsFromCloud: (settings) => {
         set({

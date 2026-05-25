@@ -2,13 +2,20 @@
 // Licensed under the GNU General Public License v3.0.
 // See LICENSE file in the project root for full license text.
 
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { renderHook, act, waitFor } from '@testing-library/react'
 import { useProjectStore } from '@/shared/state/project-store'
 import type { FirestoreProjectDoc, SyncEvent } from '@/shared/firebase/types'
 import type { Project } from '@/shared/types'
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
+// Hoisted so the auth mock factory below can reference it (factories run before
+// module-level test code). mutableAuth.currentUser is set per test to drive the
+// uid-guard added to setup() and the snapshot callback (Pass 5).
+const mutableAuth = vi.hoisted(() => ({
+  currentUser: { uid: 'user-1' } as import('firebase/auth').User | null,
+}))
+
 vi.mock('@/shared/firebase/firestore-driver', () => ({
   loadProjects: vi.fn(),
   saveProject: vi.fn(),
@@ -28,7 +35,7 @@ vi.mock('@/shared/firebase/sync-bus', () => ({
   },
 }))
 
-vi.mock('@/shared/firebase/config', () => ({ auth: null }))
+vi.mock('@/shared/firebase/config', () => ({ auth: mutableAuth }))
 
 vi.mock('sonner', () => ({
   toast: {
@@ -104,6 +111,9 @@ beforeEach(() => {
 
   // vi.resetAllMocks resets call history AND implementations; re-apply defaults.
   vi.resetAllMocks()
+  // mutableAuth.currentUser is a plain object property — resetAllMocks does
+  // not touch it. Explicitly restore so tests that nullify it don't leak.
+  mutableAuth.currentUser = mockUser
   vi.mocked(loadProjects).mockResolvedValue(new Map())
   vi.mocked(saveProjectImmediate).mockResolvedValue(undefined)
   vi.mocked(deleteProject).mockResolvedValue(undefined)
@@ -121,6 +131,12 @@ beforeEach(() => {
     capturedSyncBusHandler = handler as (event: SyncEvent) => void
     return () => {}
   })
+})
+
+afterEach(() => {
+  // Belt-and-braces: ensure no test leaves mutableAuth.currentUser contaminated
+  // for the next test, regardless of beforeEach ordering on next run.
+  mutableAuth.currentUser = mockUser
 })
 
 // ── cloudDataLoaded hydration signal ─────────────────────────────────────────
@@ -162,6 +178,25 @@ describe('useCloudSync — cloudDataLoaded signal (pitfall #88)', () => {
       unmount()
     })
     expect(useProjectStore.getState().cloudDataLoaded).toBe(false)
+  })
+
+  it('registers pagehide alongside beforeunload; removes both on cleanup (D2)', async () => {
+    const addSpy = vi.spyOn(window, 'addEventListener')
+    const removeSpy = vi.spyOn(window, 'removeEventListener')
+    try {
+      const { unmount } = renderHook(() => useCloudSync(mockUser, 'cloud'))
+      await waitFor(() =>
+        expect(useProjectStore.getState().cloudDataLoaded).toBe(true),
+      )
+      expect(addSpy.mock.calls.filter(([e]) => e === 'beforeunload')).toHaveLength(1)
+      expect(addSpy.mock.calls.filter(([e]) => e === 'pagehide')).toHaveLength(1)
+      act(() => { unmount() })
+      expect(removeSpy.mock.calls.filter(([e]) => e === 'beforeunload')).toHaveLength(1)
+      expect(removeSpy.mock.calls.filter(([e]) => e === 'pagehide')).toHaveLength(1)
+    } finally {
+      addSpy.mockRestore()
+      removeSpy.mockRestore()
+    }
   })
 })
 
@@ -256,5 +291,94 @@ describe('useCloudSync — project:import owner pre-seed (pitfall #7)', () => {
     expect(winnerCall![1]).toMatchObject({ owner: 'user-1', members: {} })
     // Old members were NOT carried over
     expect(winnerCall![1].members).not.toHaveProperty('collab')
+  })
+})
+
+// ── Pass 5: snapshot user-guard and data-loss sentinel (H2 + I1) ─────────────
+//
+// The existing 'sets cloudDataLoaded true when data-loss guard fires' test
+// above covers the INITIAL-LOAD guard inside setup(). The tests here cover
+// the snapshot-callback guard and the closure-local sentinel that allows
+// access-revocation events to propagate after the first non-empty snapshot.
+//
+describe('useCloudSync — snapshot user-guard and data-loss sentinel', () => {
+  it('user-guard: rejects snapshot when auth.currentUser is null (post-sign-out)', async () => {
+    renderHook(() => useCloudSync(mockUser, 'cloud'))
+    await waitFor(() => {
+      expect(useProjectStore.getState().cloudDataLoaded).toBe(true)
+      expect(capturedSnapshotCallback).toBeDefined()
+    })
+    mutableAuth.currentUser = null
+    await act(async () => {
+      capturedSnapshotCallback!(new Map([['p1', makeFirestoreDoc()]]))
+    })
+    expect(useProjectStore.getState().projects).toHaveLength(0)
+  })
+
+  it('user-guard: rejects snapshot when a different user is signed in (user-switch race)', async () => {
+    renderHook(() => useCloudSync(mockUser, 'cloud'))
+    await waitFor(() => expect(capturedSnapshotCallback).toBeDefined())
+    mutableAuth.currentUser = { uid: 'user-2' } as import('firebase/auth').User
+    await act(async () => {
+      capturedSnapshotCallback!(new Map([['p1', makeFirestoreDoc()]]))
+    })
+    expect(useProjectStore.getState().projects).toHaveLength(0)
+  })
+
+  it('sentinel: skips first snapshot when cloud is empty and local has projects', async () => {
+    useProjectStore.setState({ projects: [makeProject({ id: 'local-1' })], sprints: [] })
+    vi.mocked(loadProjects).mockResolvedValue(new Map())
+    renderHook(() => useCloudSync(mockUser, 'cloud'))
+    await waitFor(() => expect(capturedSnapshotCallback).toBeDefined())
+    await act(async () => { capturedSnapshotCallback!(new Map()) })
+    expect(useProjectStore.getState().projects).toHaveLength(1)
+  })
+
+  it('sentinel: second empty snapshot propagates (revocation reaches local store)', async () => {
+    vi.mocked(loadProjects).mockResolvedValue(new Map())
+    renderHook(() => useCloudSync(mockUser, 'cloud'))
+    await waitFor(() => expect(capturedSnapshotCallback).toBeDefined())
+    // First snapshot — non-empty, populates store and flips sentinel = true
+    await act(async () => {
+      capturedSnapshotCallback!(new Map([['p1', makeFirestoreDoc()]]))
+    })
+    await waitFor(() => expect(useProjectStore.getState().projects).toHaveLength(1))
+    // Second snapshot — empty, propagates (access revocation reaches store)
+    await act(async () => { capturedSnapshotCallback!(new Map()) })
+    await waitFor(() => expect(useProjectStore.getState().projects).toHaveLength(0))
+  })
+
+  it('sentinel: resets on sign-out and re-sign-in (new effect closure)', async () => {
+    useProjectStore.setState({ projects: [makeProject({ id: 'local-1' })], sprints: [] })
+    vi.mocked(loadProjects).mockResolvedValue(new Map())
+    const { rerender } = renderHook(
+      ({ user, mode }: { user: typeof mockUser | null; mode: 'cloud' | 'local' }) =>
+        useCloudSync(user, mode),
+      { initialProps: { user: mockUser, mode: 'cloud' as const } },
+    )
+    await waitFor(() => {
+      expect(useProjectStore.getState().cloudDataLoaded).toBe(true)
+      expect(capturedSnapshotCallback).toBeDefined()
+    })
+    // First session: empty first snapshot → sentinel fires, local preserved
+    await act(async () => { capturedSnapshotCallback!(new Map()) })
+    expect(useProjectStore.getState().projects).toHaveLength(1)
+    // Sign out — teardown discards the first closure (its sentinel goes with it)
+    act(() => { rerender({ user: null, mode: 'local' }) })
+    // Restore local state for second session
+    useProjectStore.setState({
+      projects: [makeProject({ id: 'local-1' })],
+      sprints: [],
+      cloudDataLoaded: false,
+    })
+    // Re-sign-in — new effect, new closure, snapshotEverReceived = false
+    act(() => { rerender({ user: mockUser, mode: 'cloud' }) })
+    await waitFor(() => {
+      expect(useProjectStore.getState().cloudDataLoaded).toBe(true)
+      expect(capturedSnapshotCallback).toBeDefined()
+    })
+    // Second session: empty first snapshot → guard fires AGAIN (sentinel reset)
+    await act(async () => { capturedSnapshotCallback!(new Map()) })
+    expect(useProjectStore.getState().projects).toHaveLength(1)
   })
 })
