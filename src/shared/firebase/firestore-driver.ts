@@ -75,10 +75,17 @@ void _SETTINGS_WRITE_KEYS_GUARD
 
 // --- Debounce infrastructure ---
 
+/**
+ * Debounce delay for saveProject / saveSettings. Exported so the new-project
+ * first-write timer in useCloudSync shares a single source of truth with
+ * debouncedSave's default. Any change here propagates to all call sites.
+ */
+export const SAVE_DEBOUNCE_MS = 200
+
 const pendingSaveTimers = new Map<string, ReturnType<typeof setTimeout>>()
 const pendingSaveFns = new Map<string, () => Promise<void>>()
 
-function debouncedSave(key: string, saveFn: () => Promise<void>, delayMs = 200): void {
+function debouncedSave(key: string, saveFn: () => Promise<void>, delayMs = SAVE_DEBOUNCE_MS): void {
   const existingTimer = pendingSaveTimers.get(key)
   if (existingTimer) clearTimeout(existingTimer)
 
@@ -171,7 +178,14 @@ export async function loadOwnedProjectIds(uid: string): Promise<Set<string>> {
 }
 
 /**
- * Save a project document (debounced).
+ * Save a project document (debounced, UPDATE PATH ONLY).
+ *
+ * Do NOT call for a project that does not yet exist in Firestore. This
+ * function strips owner and members and writes with setDoc({ mergeFields }) —
+ * the payload omits owner, which fails the create rule:
+ *   allow create: if isAuth() && request.resource.data.owner == request.auth.uid
+ * Result: PERMISSION_DENIED on first write. For first-ever writes, use
+ * saveProjectImmediate. See pendingCreateTimers in useCloudSync.
  *
  * Uses mergeFields so cleared optional scalars are actually deleted from
  * Firestore (C1/C2). owner/members are stripped here AND excluded from

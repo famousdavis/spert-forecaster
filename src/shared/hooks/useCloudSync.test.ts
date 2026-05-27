@@ -26,6 +26,8 @@ vi.mock('@/shared/firebase/firestore-driver', () => ({
   loadSettings: vi.fn(),
   saveSettings: vi.fn(),
   flushPendingSaves: vi.fn(),
+  // Inlined rather than re-exported so the mock factory doesn't need the real module.
+  SAVE_DEBOUNCE_MS: 200,
 }))
 
 vi.mock('@/shared/firebase/sync-bus', () => ({
@@ -46,13 +48,17 @@ vi.mock('sonner', () => ({
 
 import {
   loadProjects,
+  saveProject,
   saveProjectImmediate,
   deleteProject,
   subscribeToUserProjects,
   loadSettings,
+  SAVE_DEBOUNCE_MS,
 } from '@/shared/firebase/firestore-driver'
 import { syncBus } from '@/shared/firebase/sync-bus'
 import { useCloudSync } from './useCloudSync'
+import { toast } from 'sonner'
+import type { Sprint } from '@/shared/types'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 // Full FirestoreProjectDoc shape — all required fields per types.ts (verified
@@ -380,5 +386,432 @@ describe('useCloudSync — snapshot user-guard and data-loss sentinel', () => {
     // Second session: empty first snapshot → guard fires AGAIN (sentinel reset)
     await act(async () => { capturedSnapshotCallback!(new Map()) })
     expect(useProjectStore.getState().projects).toHaveLength(1)
+  })
+})
+
+// ── v0.35.1: new-project first-write path (Branches A/B/C + delete cases) ────
+//
+// The fix routes first-ever Firestore writes for newly-created projects through
+// saveProjectImmediate (full setDoc, includes owner) instead of the debounced
+// saveProject (mergeFields write that strips owner → fails the create rule).
+// Tests drive the sync-bus handler DIRECTLY via capturedSyncBusHandler — the
+// real syncBus is mocked at the top of this file, so calling addProject on the
+// store would route through the mock and not reach the handler.
+//
+// Timer strategy: render the hook and wait for cloudDataLoaded under REAL
+// timers (waitFor's internal polling uses setTimeout). Switch to fake timers
+// AFTER hydration so the SAVE_DEBOUNCE_MS timer inside Branch A is mockable.
+// vi.advanceTimersByTimeAsync interleaves timer drainage with microtask
+// drainage, which is required because Branch A's promise chain mixes
+// setTimeout with .then/.catch/.finally.
+describe('useCloudSync — new-project create path (v0.35.1)', () => {
+  function deferred() {
+    let resolve!: () => void
+    let reject!: (e: unknown) => void
+    const promise = new Promise<void>((res, rej) => {
+      resolve = res
+      reject = rej
+    })
+    return { promise, resolve, reject }
+  }
+
+  // Minimal Sprint stub. The Firestore converter filters by projectId and
+  // passes through whatever Sprint[] we provide; field validation happens
+  // server-side, not in the local conversion pipeline.
+  function makeSprint(projectId: string, sprintNumber: number): Sprint {
+    return {
+      id: `s-${sprintNumber}`,
+      projectId,
+      sprintNumber,
+      sprintStartDate: '2026-01-01',
+      sprintFinishDate: '2026-01-12',
+      doneValue: 0,
+      includedInForecast: true,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
+  }
+
+  async function setupHook() {
+    const handle = renderHook(() => useCloudSync(mockUser, 'cloud'))
+    await waitFor(() => {
+      expect(useProjectStore.getState().cloudDataLoaded).toBe(true)
+      expect(capturedSyncBusHandler).toBeDefined()
+    })
+    vi.useFakeTimers()
+    return handle
+  }
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('Test 1: burst coalescing — state grows between events, single write captures final state', async () => {
+    const projectId = 'p1'
+    useProjectStore.setState({
+      projects: [makeProject({ id: projectId, name: 'Sample' })],
+      sprints: [],
+    })
+
+    await setupHook()
+
+    // Emit project:save, grow store, emit again — 9 emits total, accumulating
+    // 0 → 8 sprints. If state were read at event time, the first write would
+    // capture 0 sprints. Reading at fire time captures all 8.
+    act(() => {
+      capturedSyncBusHandler!({ type: 'project:save', projectId })
+    })
+    for (let i = 1; i <= 8; i++) {
+      act(() => {
+        useProjectStore.setState((s) => ({
+          ...s,
+          sprints: [...s.sprints, makeSprint(projectId, i)],
+        }))
+        capturedSyncBusHandler!({ type: 'project:save', projectId })
+      })
+    }
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS)
+    })
+
+    expect(vi.mocked(saveProjectImmediate)).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(saveProject)).not.toHaveBeenCalled()
+    const [, doc] = vi.mocked(saveProjectImmediate).mock.calls[0]
+    expect(doc.sprints).toHaveLength(8)
+  })
+
+  it('Test 2: single new-project event produces one saveProjectImmediate (no saveProject)', async () => {
+    const projectId = 'p1'
+    useProjectStore.setState({
+      projects: [makeProject({ id: projectId })],
+      sprints: [],
+    })
+    await setupHook()
+
+    act(() => {
+      capturedSyncBusHandler!({ type: 'project:save', projectId })
+    })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS)
+    })
+
+    expect(vi.mocked(saveProjectImmediate)).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(saveProject)).not.toHaveBeenCalled()
+  })
+
+  it('Test 3: create payload includes owner === current user uid', async () => {
+    const projectId = 'p1'
+    useProjectStore.setState({
+      projects: [makeProject({ id: projectId })],
+      sprints: [],
+    })
+    await setupHook()
+
+    act(() => {
+      capturedSyncBusHandler!({ type: 'project:save', projectId })
+    })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS)
+    })
+
+    const [, doc] = vi.mocked(saveProjectImmediate).mock.calls[0]
+    expect(doc.owner).toBe('user-1')
+  })
+
+  it('Test 4: after create success, next project:save routes through saveProject (update path)', async () => {
+    const projectId = 'p1'
+    const d = deferred()
+    vi.mocked(saveProjectImmediate).mockReturnValue(d.promise)
+
+    useProjectStore.setState({
+      projects: [makeProject({ id: projectId })],
+      sprints: [],
+    })
+    await setupHook()
+
+    act(() => {
+      capturedSyncBusHandler!({ type: 'project:save', projectId })
+    })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS)
+    })
+    expect(vi.mocked(saveProjectImmediate)).toHaveBeenCalledTimes(1)
+
+    // Resolve create; Branch A's .then sets docMetaRef.
+    await act(async () => {
+      d.resolve()
+      await vi.advanceTimersByTimeAsync(0) // drain microtasks
+    })
+
+    // Next save sees docMetaRef populated → Branch C → saveProject.
+    act(() => {
+      capturedSyncBusHandler!({ type: 'project:save', projectId })
+    })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS)
+    })
+
+    expect(vi.mocked(saveProjectImmediate)).toHaveBeenCalledTimes(1) // unchanged
+    expect(vi.mocked(saveProject)).toHaveBeenCalledTimes(1)
+  })
+
+  it('Test 5: after create failure, docMetaRef stays unset and next save retries via Branch A', async () => {
+    const projectId = 'p1'
+    const d = deferred()
+    vi.mocked(saveProjectImmediate).mockReturnValueOnce(d.promise)
+    vi.mocked(saveProjectImmediate).mockResolvedValue(undefined) // retry succeeds
+
+    useProjectStore.setState({
+      projects: [makeProject({ id: projectId })],
+      sprints: [],
+    })
+    await setupHook()
+
+    act(() => {
+      capturedSyncBusHandler!({ type: 'project:save', projectId })
+    })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS)
+    })
+
+    // Fail the create.
+    await act(async () => {
+      d.reject(new Error('PERMISSION_DENIED'))
+      await vi.advanceTimersByTimeAsync(0)
+    })
+
+    expect(vi.mocked(toast.error)).toHaveBeenCalledTimes(1)
+
+    // Retry via Branch A.
+    act(() => {
+      capturedSyncBusHandler!({ type: 'project:save', projectId })
+    })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS)
+    })
+
+    expect(vi.mocked(saveProjectImmediate)).toHaveBeenCalledTimes(2) // retry hit
+    expect(vi.mocked(saveProject)).not.toHaveBeenCalled() // never used update path
+  })
+
+  it('Test 6: delete BEFORE create timer fires — timer cancelled, no cloud calls', async () => {
+    const projectId = 'p1'
+    useProjectStore.setState({
+      projects: [makeProject({ id: projectId })],
+      sprints: [],
+    })
+    await setupHook()
+
+    act(() => {
+      capturedSyncBusHandler!({ type: 'project:save', projectId })
+    })
+    // Don't advance timers — timer still pending.
+    act(() => {
+      capturedSyncBusHandler!({ type: 'project:delete', projectId })
+    })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS)
+    })
+
+    expect(vi.mocked(saveProjectImmediate)).not.toHaveBeenCalled()
+    expect(vi.mocked(deleteProject)).not.toHaveBeenCalled()
+  })
+
+  it('Test 7: delete DURING in-flight create — chained, fires once after create confirms', async () => {
+    const projectId = 'p1'
+    const d = deferred()
+    vi.mocked(saveProjectImmediate).mockReturnValue(d.promise)
+
+    useProjectStore.setState({
+      projects: [makeProject({ id: projectId })],
+      sprints: [],
+    })
+    await setupHook()
+
+    act(() => {
+      capturedSyncBusHandler!({ type: 'project:save', projectId })
+    })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS)
+    })
+
+    // Create now in flight. Issue delete — should NOT call deleteProject yet.
+    act(() => {
+      capturedSyncBusHandler!({ type: 'project:delete', projectId })
+    })
+    expect(vi.mocked(deleteProject)).not.toHaveBeenCalled()
+
+    // Resolve create — chained delete fires.
+    await act(async () => {
+      d.resolve()
+      await vi.advanceTimersByTimeAsync(0)
+    })
+
+    expect(vi.mocked(deleteProject)).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(deleteProject)).toHaveBeenCalledWith(projectId)
+  })
+
+  it('Test 8: delete DURING in-flight create (create fails) — no delete issued', async () => {
+    const projectId = 'p1'
+    const d = deferred()
+    vi.mocked(saveProjectImmediate).mockReturnValue(d.promise)
+
+    useProjectStore.setState({
+      projects: [makeProject({ id: projectId })],
+      sprints: [],
+    })
+    await setupHook()
+
+    act(() => {
+      capturedSyncBusHandler!({ type: 'project:save', projectId })
+    })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS)
+    })
+
+    act(() => {
+      capturedSyncBusHandler!({ type: 'project:delete', projectId })
+    })
+
+    await act(async () => {
+      d.reject(new Error('PERMISSION_DENIED'))
+      await vi.advanceTimersByTimeAsync(0)
+    })
+
+    expect(vi.mocked(deleteProject)).not.toHaveBeenCalled()
+  })
+
+  it('Test 9: edit DURING in-flight create — chained update fires via Branch B', async () => {
+    const projectId = 'p1'
+    const d = deferred()
+    vi.mocked(saveProjectImmediate).mockReturnValue(d.promise)
+
+    useProjectStore.setState({
+      projects: [makeProject({ id: projectId, name: 'Original' })],
+      sprints: [],
+    })
+    await setupHook()
+
+    act(() => {
+      capturedSyncBusHandler!({ type: 'project:save', projectId })
+    })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS)
+    })
+    expect(vi.mocked(saveProjectImmediate)).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(saveProject)).not.toHaveBeenCalled()
+
+    // Edit during round-trip → Branch B.
+    act(() => {
+      useProjectStore.setState((s) => ({
+        ...s,
+        projects: s.projects.map((p) =>
+          p.id === projectId ? { ...p, name: 'Renamed' } : p,
+        ),
+      }))
+      capturedSyncBusHandler!({ type: 'project:save', projectId })
+    })
+    expect(vi.mocked(saveProject)).not.toHaveBeenCalled() // still chained
+
+    // Resolve create — chained update fires.
+    await act(async () => {
+      d.resolve()
+      await vi.advanceTimersByTimeAsync(0)
+    })
+
+    expect(vi.mocked(saveProjectImmediate)).toHaveBeenCalledTimes(1) // no second create
+    expect(vi.mocked(saveProject)).toHaveBeenCalledTimes(1) // chained update fired
+  })
+
+  it('Test 10: project:import cancels pending create timers', async () => {
+    useProjectStore.setState({
+      projects: [
+        makeProject({ id: 'p1' }),
+        makeProject({ id: 'p2' }),
+      ],
+      sprints: [],
+    })
+    await setupHook()
+
+    act(() => {
+      capturedSyncBusHandler!({ type: 'project:save', projectId: 'p1' })
+      capturedSyncBusHandler!({ type: 'project:save', projectId: 'p2' })
+    })
+    // Don't advance — timers still pending.
+
+    act(() => {
+      capturedSyncBusHandler!({
+        type: 'project:import',
+        replacedIdMap: new Map(),
+      })
+    })
+
+    // saveProjectImmediate IS called for each project in the import loop. But
+    // the timers from before were cancelled — drain them and verify the count
+    // hasn't grown (i.e. the timer-driven creates didn't fire).
+    const importCallCount = vi.mocked(saveProjectImmediate).mock.calls.length
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS)
+    })
+
+    expect(vi.mocked(saveProjectImmediate).mock.calls.length).toBe(importCallCount)
+  })
+
+  it('Test 11: effect teardown cancels pending create timers', async () => {
+    const projectId = 'p1'
+    useProjectStore.setState({
+      projects: [makeProject({ id: projectId })],
+      sprints: [],
+    })
+    const handle = await setupHook()
+
+    act(() => {
+      capturedSyncBusHandler!({ type: 'project:save', projectId })
+    })
+    // Timer pending. Unmount triggers cleanup.
+    act(() => {
+      handle.unmount()
+    })
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS)
+    })
+
+    expect(vi.mocked(saveProjectImmediate)).not.toHaveBeenCalled()
+  })
+
+  it('Test 12: existing project (docMetaRef populated) routes to saveProject, not the create path', async () => {
+    const projectId = 'p1'
+    useProjectStore.setState({
+      projects: [makeProject({ id: projectId })],
+      sprints: [],
+    })
+    await setupHook()
+
+    // Simulate the snapshot listener having previously populated docMetaRef
+    // for this project (i.e. it already exists in Firestore). The capturedSnapshotCallback
+    // is the public way to set docMetaRef; firing it routes through processProjectDocs.
+    act(() => {
+      capturedSnapshotCallback!(
+        new Map([[projectId, makeFirestoreDoc({ name: 'Existing' })]]),
+      )
+    })
+
+    act(() => {
+      capturedSyncBusHandler!({ type: 'project:save', projectId })
+    })
+
+    expect(vi.mocked(saveProject)).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(saveProjectImmediate)).not.toHaveBeenCalled()
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS)
+    })
+
+    // Still no create-path activity after timer drainage — proves no Branch-A timer
+    // was scheduled (observable proxy for "no pendingCreateTimers entry exists").
+    expect(vi.mocked(saveProjectImmediate)).not.toHaveBeenCalled()
   })
 })
