@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.35.2 - 2026-05-27
+
+Share button refresh-after-snapshot — fixes a v0.35.1 follow-up bug where loading the sample project (or creating any new project) in cloud mode hid the Share button until the user navigated away from the Projects tab and back. The Share button visibility was already correct after navigation; the missing piece was an automatic refresh trigger when the post-create Firestore snapshot lands.
+
+### Fixed
+
+- **Share button now appears automatically after a newly-created project's Firestore doc lands, without requiring tab navigation.** The `ownedProjectIds` set in [src/features/projects/components/ProjectsTab.tsx](src/features/projects/components/ProjectsTab.tsx) is populated by a one-shot `loadOwnedProjectIds(uid)` Firestore query inside a `useEffect`. Before v0.35.2, that effect keyed on `projects.length`, which produced a stale-empty result for newly-created projects: `addProject` mutated the array (length grows from 0 to 1), the query fired immediately, but the v0.35.1 `pendingCreateTimers` 200 ms debounce plus the Firestore write roundtrip meant the doc wasn't yet visible to the `where('owner', '==', uid)` index — the query returned an empty set, the user-facing share affordance stayed hidden, and `projects.length` didn't change again afterward to re-trigger the effect. The fix keys the effect on the `projects` array reference instead of its length. `replaceProjectsFromCloud` (the snapshot-driven update path in [src/shared/hooks/useCloudSync.ts](src/shared/hooks/useCloudSync.ts)) always installs a new array reference, so the effect re-runs at the exact moment Firestore's owner index becomes consistent with the local state. Tradeoff: the effect now also re-runs on local mutations that don't affect ownership (rename, reorder, sprint edits). `loadOwnedProjectIds` is a single `where('owner', '==', uid)` query against a per-user collection that's small in practice — the extra cost is bounded and acceptable for the user base size.
+
+### Internal
+
+- **Two new tests in [src/features/projects/components/ProjectsTab.test.tsx](src/features/projects/components/ProjectsTab.test.tsx)** verify the refresh-on-snapshot behavior and the local-mode gating. The test infrastructure switched the previously-static `useAuth` and `useStorageMode` mocks to a `vi.hoisted` mutable shape (`mockAuthMode`) so per-test overrides are possible, and `beforeEach` resets it to the prior defaults (`user: null, mode: 'local'`) so the 14 pre-existing import-wiring tests are unaffected. Test count: 1058 → 1060.
+
 ## v0.35.1 - 2026-05-27
 
 Cloud create fix — all four user-reported symptoms in cloud mode (Load Sample Project, delete sample project, Add Project, delete new project) traced to a single root cause latent since v0.21.0. Before v0.35.1, any first-ever write to Firestore for a newly-created project failed with `PERMISSION_DENIED` and surfaced as *"Failed to save changes to the cloud."*; the matching delete attempt failed because the document had never been written in the first place and surfaced as *"Failed to delete project from the cloud."* After v0.35.1, new-project first writes route through `saveProjectImmediate` (full `setDoc` with `owner` in the payload) via a debounced create timer, and edits or deletes that arrive during the Firestore create round-trip are chained behind the create promise so they execute against a document that actually exists.
