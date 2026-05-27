@@ -81,11 +81,20 @@ export function ProjectsTab({ onViewHistory }: ProjectsTabProps) {
 
   // Load the set of project IDs owned by the current user. Used to gate the
   // Share button so editors and viewers don't see an affordance they can't act
-  // on. Refresh whenever the project list changes (a newly-created project
-  // needs to appear in the owned set immediately) or auth state changes.
+  // on. Refresh whenever the project list changes or auth state changes.
   // In non-cloud mode we leave any prior set in place — the Share button is
   // already gated upstream on `mode === 'cloud'`, so a stale set is harmless
   // and skipping the clear avoids a synchronous setState-in-effect.
+  //
+  // Dependency is the `projects` array reference, not `projects.length`. A
+  // newly-created project in cloud mode mutates the array but its first-write
+  // Firestore doc lands ~200ms + roundtrip later (see useCloudSync v0.35.1
+  // pendingCreateTimers). If we keyed on length, the query would run once
+  // (before the doc exists, returning an empty set) and never re-run — the
+  // user would have to navigate away and back to see the Share button. Keying
+  // on the array reference re-runs the query when `replaceProjectsFromCloud`
+  // delivers the post-create snapshot, which is the exact moment Firestore's
+  // owner index becomes consistent with the local state.
   useEffect(() => {
     if (mode !== 'cloud' || !user) return
     let cancelled = false
@@ -99,7 +108,7 @@ export function ProjectsTab({ onViewHistory }: ProjectsTabProps) {
     return () => {
       cancelled = true
     }
-  }, [mode, user, projects.length])
+  }, [mode, user, projects])
 
   const [deleteConfirm, setDeleteConfirm] = useState<{
     isOpen: boolean
