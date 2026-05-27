@@ -20,6 +20,7 @@ import {
   loadSettings,
   saveSettings,
   flushPendingSaves,
+  SAVE_DEBOUNCE_MS,
 } from '@/shared/firebase/firestore-driver'
 import { auth } from '@/shared/firebase/config'
 import {
@@ -75,6 +76,65 @@ export function useCloudSync(user: User | null, mode: 'local' | 'cloud') {
     let cancelled = false
     let unsubscribeSnapshot: (() => void) | null = null
     let unsubscribeSyncBus: (() => void) | null = null
+
+    // First-write timers for projects not yet confirmed in Firestore.
+    // docMetaRef is intentionally NOT populated while a timer is live — that
+    // keeps every event in a rapid-fire burst (e.g. loadSampleProject's 14
+    // synchronous mutations) resetting the timer, so the single write that
+    // fires reads the fully-accumulated store state at fire time. The 200ms
+    // debounce window is shared with saveProject via SAVE_DEBOUNCE_MS.
+    const pendingCreateTimers = new Map<string, ReturnType<typeof setTimeout>>()
+
+    // Promises for saveProjectImmediate calls currently in flight. Saves and
+    // deletes arriving during the Firestore create round-trip chain behind
+    // this promise to prevent PERMISSION_DENIED-on-update (mergeFields write
+    // against a non-existent doc) and the zombie-reappear UX (delete races
+    // ahead of create → snapshot re-inserts the project).
+    const inFlightCreatePromises = new Map<string, Promise<void>>()
+
+    /**
+     * Synchronously fire any pending create timers (used on tab close).
+     * Cancels the timer and dispatches saveProjectImmediate without awaiting,
+     * matching flushPendingSaves' fire-and-let-race behavior. Without this,
+     * a user who adds a project and closes the tab within SAVE_DEBOUNCE_MS
+     * loses the create silently.
+     */
+    function flushPendingCreates(): void {
+      const liveUser = auth?.currentUser
+      if (!liveUser || liveUser.uid !== uid) {
+        for (const t of pendingCreateTimers.values()) clearTimeout(t)
+        pendingCreateTimers.clear()
+        return
+      }
+      for (const [projectId, timer] of pendingCreateTimers) {
+        clearTimeout(timer)
+        const s = useProjectStore.getState()
+        const p = s.projects.find((proj) => proj.id === projectId)
+        if (!p) continue
+        const doc = projectToFirestoreDoc(
+          p,
+          s.sprints,
+          liveUser.uid,
+          undefined,
+          s._originRef || getWorkspaceId(),
+          s._changeLog
+        )
+        const rawPromise = saveProjectImmediate(projectId, doc)
+        inFlightCreatePromises.set(projectId, rawPromise)
+        rawPromise
+          .then(() => {
+            if (auth?.currentUser?.uid !== uid) return
+            docMetaRef.current.set(projectId, doc)
+          })
+          .catch((err) => {
+            console.error('Cloud project creation failed (flush):', err)
+          })
+          .finally(() => {
+            inFlightCreatePromises.delete(projectId)
+          })
+      }
+      pendingCreateTimers.clear()
+    }
 
     // Profile writes are owned by AuthProvider (single source of truth, fires
     // on every auth resolution regardless of storage mode). Removed from this
@@ -177,6 +237,105 @@ export function useCloudSync(user: User | null, mode: 'local' | 'cloud') {
           if (!project) return
 
           const existingDoc = docMetaRef.current.get(event.projectId)
+
+          // ── Branch A: new project, no create in flight ───────────────────
+          // docMetaRef is intentionally NOT set here. Keeping it undefined
+          // causes every event in a rapid-fire burst to re-enter this branch
+          // and reset the timer, so the single write that fires reads the
+          // fully-accumulated store state. saveProjectImmediate (full setDoc,
+          // no mergeFields) is required because saveProject strips owner,
+          // failing the create rule:
+          //   allow create: if isAuth() && resource.data.owner == auth.uid
+          if (existingDoc === undefined && !inFlightCreatePromises.has(event.projectId)) {
+            const existingTimer = pendingCreateTimers.get(event.projectId)
+            if (existingTimer) clearTimeout(existingTimer)
+
+            const projectId = event.projectId
+            pendingCreateTimers.set(
+              projectId,
+              setTimeout(() => {
+                pendingCreateTimers.delete(projectId)
+
+                // Re-read auth at fire time — closure currentUser is up to
+                // SAVE_DEBOUNCE_MS stale. uid is the closure variable from
+                // setup(); abort if the active user changed during the wait.
+                const liveUser = auth?.currentUser
+                if (!liveUser || liveUser.uid !== uid) return
+
+                const s = useProjectStore.getState()
+                const p = s.projects.find((proj) => proj.id === projectId)
+                if (!p) return // deleted before timer fired
+
+                const doc = projectToFirestoreDoc(
+                  p,
+                  s.sprints,
+                  liveUser.uid,
+                  undefined, // existingDoc undefined → owner = liveUser.uid
+                  s._originRef || getWorkspaceId(),
+                  s._changeLog
+                )
+
+                const rawPromise = saveProjectImmediate(projectId, doc)
+                inFlightCreatePromises.set(projectId, rawPromise)
+
+                rawPromise
+                  .then(() => {
+                    if (auth?.currentUser?.uid !== uid) return
+                    // Set docMetaRef only on confirmed success. Next project:save
+                    // sees existingDoc !== undefined → Branch C (update path).
+                    // On failure docMetaRef stays unset so next event retries
+                    // via Branch A.
+                    docMetaRef.current.set(projectId, doc)
+                  })
+                  .catch((err) => {
+                    console.error('Cloud project creation failed:', err)
+                    toast.error('Failed to save changes to the cloud. Please check your connection.')
+                  })
+                  .finally(() => {
+                    inFlightCreatePromises.delete(projectId)
+                  })
+              }, SAVE_DEBOUNCE_MS)
+            )
+            break
+          }
+
+          // ── Branch B: new project, create in flight ──────────────────────
+          // Calling saveProject now would mergeFields-write against a still-
+          // non-existent doc → PERMISSION_DENIED. Chain the update behind the
+          // create promise. By the time this .then fires, Branch A's .then
+          // (same source promise, registered earlier → guaranteed prior
+          // microtask) has set docMetaRef.
+          if (existingDoc === undefined && inFlightCreatePromises.has(event.projectId)) {
+            const rawPromise = inFlightCreatePromises.get(event.projectId)!
+            const chainedId = event.projectId
+            rawPromise
+              .then(() => {
+                const liveUser = auth?.currentUser
+                if (!liveUser || liveUser.uid !== uid) return
+                const s = useProjectStore.getState()
+                const p = s.projects.find((proj) => proj.id === chainedId)
+                if (!p) return // deleted during the create round-trip
+                const latestExistingDoc = docMetaRef.current.get(chainedId)
+                const doc = projectToFirestoreDoc(
+                  p, s.sprints, liveUser.uid, latestExistingDoc,
+                  s._originRef || getWorkspaceId(), s._changeLog
+                )
+                // Belt-and-braces: only update docMetaRef if Branch A's .then
+                // populated it. If undefined (which shouldn't happen given
+                // FIFO microtask ordering), saveProject still runs — the doc
+                // exists in Firestore at this point so the update rule
+                // accepts the mergeFields write.
+                if (latestExistingDoc !== undefined) docMetaRef.current.set(chainedId, doc)
+                saveProject(chainedId, doc)
+              })
+              .catch(() => {
+                // Create failed — skip chained update. Next project:save
+                // retries via Branch A.
+              })
+            break
+          }
+
+          // ── Branch C: existing project — normal debounced update ─────────
           const doc = projectToFirestoreDoc(
             project,
             state.sprints,
@@ -190,6 +349,44 @@ export function useCloudSync(user: User | null, mode: 'local' | 'cloud') {
           break
         }
         case 'project:delete': {
+          // ── Case 1: create timer not yet fired ────────────────────────────
+          // Doc was never written to Firestore. Skip cloud delete — deleteDoc
+          // against a non-existent document evaluates the delete rule against
+          // a null resource → resource.data.owner throws → PERMISSION_DENIED.
+          const pendingTimer = pendingCreateTimers.get(event.projectId)
+          if (pendingTimer) {
+            clearTimeout(pendingTimer)
+            pendingCreateTimers.delete(event.projectId)
+            break
+          }
+
+          // ── Case 2: create in flight — chain delete behind it ────────────
+          // Without chaining: (a) deleteDoc may race ahead of the create →
+          // PERMISSION_DENIED; (b) create lands after delete, snapshot
+          // listener re-inserts the project the user just deleted ("zombie
+          // reappear"). docMetaRef cleanup deliberately happens inside the
+          // .then so Branch A's .then (which runs first) doesn't leave a
+          // stale entry behind.
+          const rawPromise = inFlightCreatePromises.get(event.projectId)
+          if (rawPromise) {
+            const deleteId = event.projectId
+            rawPromise
+              .then(() => {
+                docMetaRef.current.delete(deleteId)
+                deleteProject(deleteId).catch((err) => {
+                  console.error('Cloud delete failed (chained after create):', err)
+                  toast.error('Failed to delete project from the cloud.')
+                })
+              })
+              .catch(() => {
+                // Create failed — doc never written, no delete needed.
+                // docMetaRef was never set by Branch A's .then on failure,
+                // so no cleanup is required here either.
+              })
+            break
+          }
+
+          // ── Case 3: normal delete (doc confirmed in Firestore) ───────────
           docMetaRef.current.delete(event.projectId)
           deleteProject(event.projectId).catch((err) => {
             console.error('Cloud delete failed:', err)
@@ -200,6 +397,15 @@ export function useCloudSync(user: User | null, mode: 'local' | 'cloud') {
         case 'project:import': {
           // Cancel stale debounced saves so they don't overwrite imported data
           cancelPendingSaves()
+
+          // Cancel pending first-write timers. Import replaces all projects;
+          // a pending create that fires after the import either no-ops
+          // (project absent at fire time) or writes stale pre-import data.
+          // In-flight creates (already dispatched) cannot be recalled — the
+          // delete loop below catches them via docMetaRef.keys() if their IDs
+          // are absent from the post-import project set.
+          for (const t of pendingCreateTimers.values()) clearTimeout(t)
+          pendingCreateTimers.clear()
 
           const state = useProjectStore.getState()
           const importedIds = new Set(state.projects.map((p) => p.id))
@@ -292,8 +498,11 @@ export function useCloudSync(user: User | null, mode: 'local' | 'cloud') {
     // routes to cancel instead.
     function handleBeforeUnload() {
       if (auth?.currentUser) {
+        flushPendingCreates()
         flushPendingSaves()
       } else {
+        for (const t of pendingCreateTimers.values()) clearTimeout(t)
+        pendingCreateTimers.clear()
         cancelPendingSaves()
       }
     }
@@ -316,8 +525,13 @@ export function useCloudSync(user: User | null, mode: 'local' | 'cloud') {
       window.removeEventListener('beforeunload', handleBeforeUnload)
       window.removeEventListener('pagehide', handleBeforeUnload)
       // Teardown fires on sign-out (credentials revoked) and mode switch.
-      // Flushing would send writes against stale auth; cancel instead.
-      // The `beforeunload` handler above remains the only flush path.
+      // Flushing would send writes against stale auth; cancel instead. The
+      // beforeunload handler above remains the only flush path. In-flight
+      // creates (saveProjectImmediate already dispatched) cannot be recalled;
+      // their .then user-guards (auth?.currentUser?.uid !== uid) suppress
+      // docMetaRef writes for the user-switch case.
+      for (const t of pendingCreateTimers.values()) clearTimeout(t)
+      pendingCreateTimers.clear()
       cancelPendingSaves()
     }
   }, [isActive, user])
