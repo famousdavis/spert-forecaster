@@ -12,6 +12,7 @@ import {
   updateDoc,
   query,
   where,
+  limit,
   runTransaction,
   deleteField,
   type DocumentReference,
@@ -42,14 +43,25 @@ async function verifyProjectOwner(
   return { ok: true, projectRef }
 }
 
-/** Find a user by email address. Returns null if not found or invalid. */
+/**
+ * Find a user by email address. Returns null if not found or invalid.
+ *
+ * The `limit(1)` is load-bearing, not just an optimization: the
+ * `spertforecaster_profiles` Firestore rule constrains `list` to
+ * `request.query.limit <= 1`, so an unbounded query here is rejected with
+ * PERMISSION_DENIED. Email is unique per profile, so one result is sufficient.
+ * Do not remove it. (This is the legacy single-email share path, reachable
+ * only when INVITATIONS_ENABLED is false; the constraint keeps it rule-safe
+ * regardless of the flag.)
+ */
 export async function findUserByEmail(email: string): Promise<{ uid: string; profile: FirestoreProfileDoc } | null> {
   if (!db) return null
   const cleaned = email.toLowerCase().trim()
   if (!cleaned || cleaned.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleaned)) return null
   const q = query(
     collection(db, COLLECTIONS.profiles),
-    where('email', '==', cleaned)
+    where('email', '==', cleaned),
+    limit(1)
   )
   const snap = await getDocs(q)
   if (snap.empty) return null
