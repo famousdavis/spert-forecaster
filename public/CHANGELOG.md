@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.35.3 - 2026-05-31
+
+Profile-collection read hardening — the companion app-side change for the suite-wide `spertforecaster_profiles` Firestore rule hardening, shipped first so the rule can be tightened without ever leaving a window where the rule is live and a client read against the collection is still unconstrained. Before v0.35.3, the legacy single-email share path resolved an invitee email to a UID with an unbounded `list` query against the profiles collection. The forthcoming rule splits that collection's `allow read: if isAuth()` — which permits bulk enumeration of every Forecaster user's email, displayName, and photoURL — into the canonical suite pattern (`get` for single-doc reads, `list` only when `request.query.limit <= 1`, `write` only to one's own row) that the other seven profile collections already use. After v0.35.3, the query carries an explicit `limit(1)`, so it stays rule-compatible regardless of how the `INVITATIONS_ENABLED` feature flag is set.
+
+### Security
+
+- **`findUserByEmail` in [src/shared/firebase/firestore-sharing.ts](src/shared/firebase/firestore-sharing.ts) now constrains its `spertforecaster_profiles` query to `limit(1)`.** The function backs the legacy single-email share flow, resolving an invitee email via `where('email', '==', cleaned)` with no result limit. Under the forthcoming `list: if isAuth() && request.query.limit <= 1` rule, that unbounded query is rejected with PERMISSION_DENIED. Email is unique per profile and the function already returned only `snap.docs[0]`, so the `limit(1)` is behavior-preserving. The constraint is load-bearing rather than an optimization — it keeps the read rule-safe even if `INVITATIONS_ENABLED` is toggled back to `false`, which re-exposes the legacy share UI that calls this path. The active bulk-invite flow is unaffected: it routes through the `sendInvitationEmail` Cloud Function (Admin SDK, bypasses rules) and never reads the profiles collection client-side. Single-doc profile reads used for collaborator and owner hydration in `getProjectMembers` go through `getDoc`, which the rule's `get` clause leaves untouched. This matches the hardening the rest of the suite already shipped — Scheduler v0.42.6 added the same `limit(1)` to its `findUserByEmail`; CFD and MSB deleted their legacy unbounded-scan paths outright.
+
+### Internal
+
+- No behavior change and no new tests; the existing suite (1060 tests) covers the affected module. A load-bearing comment on `findUserByEmail` documents the rule coupling so the `limit(1)` is not stripped as a redundant-looking constraint in a future refactor.
+
 ## v0.35.2 - 2026-05-27
 
 Share button refresh-after-snapshot — fixes a v0.35.1 follow-up bug where loading the sample project (or creating any new project) in cloud mode hid the Share button until the user navigated away from the Projects tab and back. The Share button visibility was already correct after navigation; the missing piece was an automatic refresh trigger when the post-create Firestore snapshot lands.
