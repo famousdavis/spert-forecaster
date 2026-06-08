@@ -47,8 +47,13 @@ export function useSprintData() {
 
   const forecastStartDate = useMemo(() => {
     if (!selectedProject?.firstSprintStartDate || !selectedProject?.sprintCadenceWeeks) return today()
-    if (projectSprints.length === 0) return today()
 
+    // No `projectSprints.length === 0 → today()` short-circuit here: for a project
+    // with no logged sprints the forecast must anchor on the FIRST sprint's start
+    // (sprint 1 = firstSprintStartDate), not the current date. resolveAnchorDate
+    // already returns firstSprintStartDate for an empty history, so an unstarted
+    // project forecasts from its real schedule (e.g. a future first-sprint date)
+    // rather than today(). Do not reinstate the short-circuit. (v0.35.4)
     return resolveAnchorDate(
       selectedProject.firstSprintStartDate,
       selectedProject.sprintCadenceWeeks,
