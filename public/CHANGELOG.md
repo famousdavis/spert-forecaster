@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.35.5 - 2026-06-19
+
+Dependency security update — closes four published advisories in the development and test toolchain (Vitest and its transitive Vite) flagged by the SPERT Story Map v0.46.2 suite-wide audit. Before v0.35.5, the project tested on `vitest@4.0.18`, which carries a Critical advisory in the Vitest UI server, and resolved `vite@7.3.1` transitively, which carries three dev-server advisories (two High, one Moderate). After v0.35.5, the project tests on `vitest@4.1.4` and pins `vite@7.3.2`, clearing all four. Vite and Vitest are build- and test-time tooling only — neither is shipped in the production bundle (the app builds with Next.js / Turbopack, not Vite) — so there is no runtime or user-facing change; this hardens the local development and CI toolchain.
+
+### Security
+
+- **`vitest` upgraded `4.0.18` → `4.1.4`, closing GHSA-5xrq-8626-4rwp (Critical) — arbitrary file read and execution via the Vitest UI server.** The Vitest UI's underlying server could be coerced into reading and executing files outside the project root; the fix shipped in the 4.1.x line. This is the only Critical advisory in the project's dependency tree that is in scope for this release, and it is the headline reason for the bump.
+
+- **`vite` moved `7.3.1` → `7.3.2`, closing three dev-server advisories: GHSA-p9ff-h696-f583 (High) — arbitrary file read via the dev-server WebSocket; GHSA-v2wj-q39q-566r (High) — `server.fs.deny` bypass via crafted query strings; and GHSA-4w7w-66w2-5vf9 (Moderate) — path traversal through optimized-deps `.map` requests.** All three are fixed in vite 7.3.2. Vite enters the tree only as a transitive dependency of `vitest` and `@vitejs/plugin-react`, so it is pinned rather than bumped — see Internal for why the Vitest upgrade alone did not move it.
+
+- **Two Windows-only advisories remain deferred by design: GHSA-fx2h-pf6j-xcff (`vite` `server.fs.deny` bypass on Windows alternate paths) and GHSA-v6wh-96g9-6wx3 (`launch-editor` NTLMv2 hash disclosure via UNC-path handling on Windows).** Both are fixed only in `vite@7.3.5`, which has not yet cleared the suite's 60-day dependency-age policy. Neither is reachable on the macOS development environment, and adopting 7.3.5 now would pull in a release too new to vet against that policy. Scheduled follow-up to adopt `vite@7.3.5` once it clears the window: on or about 2026-07-31.
+
+### Internal
+
+- **`vite` is pinned to exactly `7.3.2` through a new `overrides` block in [package.json](package.json), not added as a direct dependency.** Vite is a shared transitive dependency of both `vitest@4.1.4` (range `^6.0.0 || ^7.0.0 || ^8.0.0`) and `@vitejs/plugin-react@5.1.4` (range `^4.2.0 || ^5.0.0 || ^6.0.0 || ^7.0.0`), deduplicated to a single copy. Because the already-locked `vite@7.3.1` satisfied both ranges, the `vitest@4.0.18 → 4.1.4` upgrade left Vite untouched. `npm update vite` was rejected as the remedy: it resolves to the newest in-range release, `vite@7.3.5`, which carries the two deferred Windows advisories and has not cleared the 60-day age policy. The `overrides` pin lands Vite at exactly 7.3.2 — closing the three in-scope advisories without overshooting — and is range-compatible with both consumers, so no `--force` or `--legacy-peer-deps` was needed.
+
+- **No source, test, or production-dependency changes.** The full suite passes unchanged on Vitest 4.1.4 — 1064 tests across 55 files — and the production build and ESLint are clean. The remaining advisories surfaced by `npm audit` (in `next`, in `firebase`'s `protobufjs` and `@grpc/grpc-js`, and in `postcss`) are pre-existing, unrelated to this update, and out of scope.
+
 ## v0.35.4 - 2026-06-08
 
 Forecast start date for unstarted projects — fixes the Forecast tab's read-only "Start Date" defaulting to the current date for a project that has a first-sprint date set but no logged sprints yet. Before v0.35.4, opening the Forecast tab for a brand-new project (sprint cadence and first-sprint start configured on the Sprint History tab, zero completed sprints) anchored the entire forecast on today's date rather than the project's first sprint start, so every derived date — sprint-number labels in the results, the CDF chart, the burn-up chart, and the deadline-probability panel — was computed from the wrong origin, and there was no way to correct it because the field is intentionally read-only. After v0.35.4, an unstarted project anchors its forecast on its first sprint's start date, matching the schedule already entered on the Sprint History tab.
