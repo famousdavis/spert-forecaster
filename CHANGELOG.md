@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.35.8 - 2026-06-26
+
+Maintenance — React and React-DOM currency patch, `19.2.4` → `19.2.5` (the highest 19.x past its 60-day soak). This is a within-minor patch carrying upstream bug fixes only: no API change and no source change on our side. The production build, ESLint (`--max-warnings=0`), and all 1,064 tests pass unchanged, and a local smoke confirmed the app boots and the Forecast tab — Monte Carlo inputs, the Recharts velocity-trend chart, milestones — renders correctly under 19.2.5.
+
+### Changed
+
+- **`react` and `react-dom` upgraded `19.2.4` → `19.2.5`** (lockstep, both exact-pinned). A within-minor currency patch with no API-surface change. The lockfile change is isolated to the two packages — no transitive cascade. Build, lint, and the 1,064-test suite are unchanged; a local render smoke (app boot plus the Forecast tab with its velocity-trend chart) passed.
+
 ## v0.35.7 - 2026-06-26
 
 Tooling — TypeScript upgraded `5.9.3` → `6.0.3`, the project's first TypeScript major-version bump. TypeScript 6.0 is a type-system and tooling release with no runtime footprint: it compiles to the same JavaScript, so there is no user-facing or behavioral change. The upgrade was unblocked by v0.35.6's dependency regen, which floated `typescript-eslint` to 8.62 (whose peer range is `typescript <6.1.0`); the project pins TypeScript at 6.0.3 — the highest 6.0.x past its 60-day soak — rather than 6.1+, which that linter peer ceiling does not yet admit. The full type-check passes clean: `next build` type-checks every source and test file in the tsconfig program (there is no `ignoreBuildErrors` escape hatch) and surfaced zero new errors under 6.0, as did ESLint (`--max-warnings=0`) and all 1,064 tests. No source changes were required.
