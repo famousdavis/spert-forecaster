@@ -213,16 +213,13 @@ export function useForecastState() {
   // be a dep). The function has stable identity (wrapped in `useCallback([])`
   // inside useScopeGrowthState), so listing it does not cause re-runs.
   const { resetScopeGrowth } = scopeGrowth
-  // Reset all results state when the selected project changes. React's
-  // react-hooks/set-state-in-effect rule flags setState-in-useEffect as an
-  // anti-pattern, with the recommended alternative being a `key` prop on the
-  // parent for forced remount — too invasive for a tab-switch boundary that
-  // owns this much locally-managed state. The setStates here are
-  // resetting-to-empty, not cascading derivations, so the cascading-renders
-  // concern the rule warns about does not apply.
+  // Reset all results state when the selected project changes. These setStates
+  // reset-to-empty (not cascading derivations), so the cascading-renders concern
+  // does not apply; the alternative of a `key` prop on the parent for forced
+  // remount is too invasive for a tab-switch boundary that owns this much
+  // locally-managed state.
   useEffect(() => {
     if (prevProjectIdRef.current !== selectedProject?.id) {
-      /* eslint-disable react-hooks/set-state-in-effect */
       setResults(null)
       setSimulationData(null)
       setOverallSimulationData(null)
@@ -231,7 +228,6 @@ export function useForecastState() {
       setCustomResults2(EMPTY_CUSTOM_RESULTS)
       setSelectedMilestoneIndex(0)
       setTargetDate('')
-      /* eslint-enable react-hooks/set-state-in-effect */
       resetScopeGrowth()
       hasRunOnceRef.current = false
       prevProjectIdRef.current = selectedProject?.id
