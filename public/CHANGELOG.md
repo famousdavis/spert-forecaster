@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.35.9 - 2026-06-27
+
+Maintenance — currency patches for the two visual-layer dependencies: Recharts `3.8.0` → `3.8.1` (the CDF and burn-up charts) and Tailwind CSS `4.2.1` → `4.2.4` (`tailwindcss` and `@tailwindcss/postcss` in lockstep). Both are within-minor patches carrying upstream fixes only — no API change and no source change. The production build, ESLint (`--max-warnings=0`), and all 1,064 tests pass unchanged, and a local smoke confirmed the full visual layer renders correctly under the new versions: the home and forecast layout (Tailwind), plus both Recharts charts — the cumulative-probability step chart with its P85 reference line, and the multi-line burn-up chart (scope, done, three forecast lines, and milestone markers).
+
+### Changed
+
+- **`recharts` upgraded `3.8.0` → `3.8.1`** (exact-pinned). Within-minor patch; the CDF and burn-up charts were verified rendering correctly. The lockfile change is isolated to `recharts` itself — no transitive cascade.
+- **`tailwindcss` and `@tailwindcss/postcss` upgraded `4.2.1` → `4.2.4`** (lockstep, exact-pinned). Within-minor patch; the bump cascades to Tailwind's native `@tailwindcss/oxide` platform binaries and the transitive `lightningcss` (`1.31.1` → `1.32.0`), all within range. Layout and styling were verified intact.
+
+### Internal
+
+- `tailwindcss` and `@tailwindcss/postcss` were re-derived to the same soaked version (4.2.4) and asserted in lockstep before the bump.
+
 ## v0.35.8 - 2026-06-26
 
 Maintenance — React and React-DOM currency patch, `19.2.4` → `19.2.5` (the highest 19.x past its 60-day soak). This is a within-minor patch carrying upstream bug fixes only: no API change and no source change on our side. The production build, ESLint (`--max-warnings=0`), and all 1,064 tests pass unchanged, and a local smoke confirmed the app boots and the Forecast tab — Monte Carlo inputs, the Recharts velocity-trend chart, milestones — renders correctly under 19.2.5.
