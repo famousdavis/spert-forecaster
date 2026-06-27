@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.35.7 - 2026-06-26
+
+Tooling — TypeScript upgraded `5.9.3` → `6.0.3`, the project's first TypeScript major-version bump. TypeScript 6.0 is a type-system and tooling release with no runtime footprint: it compiles to the same JavaScript, so there is no user-facing or behavioral change. The upgrade was unblocked by v0.35.6's dependency regen, which floated `typescript-eslint` to 8.62 (whose peer range is `typescript <6.1.0`); the project pins TypeScript at 6.0.3 — the highest 6.0.x past its 60-day soak — rather than 6.1+, which that linter peer ceiling does not yet admit. The full type-check passes clean: `next build` type-checks every source and test file in the tsconfig program (there is no `ignoreBuildErrors` escape hatch) and surfaced zero new errors under 6.0, as did ESLint (`--max-warnings=0`) and all 1,064 tests. No source changes were required.
+
+### Changed
+
+- **`typescript` upgraded `5.9.3` → `6.0.3`** — the project's first TypeScript major bump. Type-system and tooling only; it compiles to identical JavaScript, so there is no runtime or user-facing change. `next build` type-checks the full program (all source plus 55 test files) with zero new errors under 6.0; ESLint (`--max-warnings=0`) and the 1,064-test suite are unchanged.
+
+### Internal
+
+- The bump was gated on v0.35.6 floating `typescript-eslint` to 8.62 (peer range `typescript <6.1.0`); TypeScript is held at 6.0.3, the highest soaked 6.0.x, because 6.1+ exceeds that peer ceiling. The lockfile change is isolated to `typescript` itself — no transitive cascade.
+
 ## v0.35.6 - 2026-06-26
 
 Security — a full dependency-tree regeneration that clears 11 of the 16 advisory keys flagged by `npm audit`, spanning the production-facing `next` framework, the `firebase` subtree, and the build-time `postcss` toolchain. Before v0.35.6, the project ran `next@16.1.6`, which carries 19 advisories including HIGH-severity HTTP request smuggling in rewrites, `null`-origin Server Actions CSRF bypass, Server Component denial-of-service, unbounded `next/image` cache growth, and postponed-resume buffering DoS — all production-facing on App Router/Vercel, with a fixed floor of `next<16.2.6`. After v0.35.6 the project runs `next@16.2.9`, clearing all 19. The firebase subtree carried a CRITICAL remote-code-execution advisory in `protobufjs@7.5.4` (the head of an 11-advisory cluster across the `<=7.6.2` range, plus a related moderate in `@protobufjs/utf8`) and two HIGH advisories in `@grpc/grpc-js@1.9.15` (server/client crash on malformed messages, `<1.9.16`); all clear by transitive float on the lockfile regen, within firebase's existing dependency ranges. The `postcss` advisory (moderate XSS via an unescaped `</style>` in CSS stringify output, `<8.5.10`) needed a global `overrides` pin because `next@16.2.9` still exact-pins `postcss@8.4.31` in its own subtree. The five remaining advisories all live in the `vite` dev-server cluster (Windows-only, no production exposure) and are deferred to a ~2026-07-31 revisit. There are no source changes; all 1,064 tests are unchanged.
