@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.35.10 - 2026-06-27
+
+Maintenance — three dependency currency bumps, all build/test-tooling or runtime-state with no user-facing change: Zustand `5.0.11` → `5.0.12` (state store), jsdom `27.4.0` → `29.1.0` (the test-environment DOM, a two-major jump), and lucide-react `0.577.0` → `1.11.0` (an icon library present in the manifest but with zero source imports — UI scaffolding only). The production build, ESLint (`--max-warnings=0`), and all 1,064 tests pass unchanged; the suite ran in full (all 55 files) under the new jsdom 29 with no regressions, and a local smoke confirmed the app boots and the Zustand store loads and persists the sample project correctly under 5.0.12.
+
+### Changed
+
+- **`zustand` upgraded `5.0.11` → `5.0.12`** (exact-pinned). Within-minor patch to the state store; the project/settings store unit tests pass unchanged and a local smoke confirmed store mutation and localStorage persistence.
+- **`jsdom` upgraded `27.4.0` → `29.1.0`** (exact-pinned; a two-major jump, dev/test only). jsdom 29 restructures its internals — it replaces the proxy-agent HTTP stack with `undici`, refreshes its CSS-parsing subtree, and drops its `ws` dependency entirely. All 55 test files ran to completion with 1,064 tests passing; an exact file-count assertion guarded against silent test-collection drift across the major jump.
+- **`lucide-react` upgraded `0.577.0` → `1.11.0`** (exact-pinned; a 0→1 major). Present in the manifest as shadcn/ui scaffolding but with zero source imports, so the bump has no functional effect; pinned for currency.
+
+### Internal
+
+- All three were re-derived to their highest soaked versions at branch-cut (zustand 5.0.12 / 103d, jsdom 29.1.0 / 61d, lucide-react 1.11.0 / 63d). The jsdom transitive churn (`undici`, the `@asamuzakjp/*` CSS subtree, `whatwg-url`/`whatwg-mimetype`) is confined to the test environment — none ships in the Next/Turbopack production bundle.
+
 ## v0.35.9 - 2026-06-27
 
 Maintenance — currency patches for the two visual-layer dependencies: Recharts `3.8.0` → `3.8.1` (the CDF and burn-up charts) and Tailwind CSS `4.2.1` → `4.2.4` (`tailwindcss` and `@tailwindcss/postcss` in lockstep). Both are within-minor patches carrying upstream fixes only — no API change and no source change. The production build, ESLint (`--max-warnings=0`), and all 1,064 tests pass unchanged, and a local smoke confirmed the full visual layer renders correctly under the new versions: the home and forecast layout (Tailwind), plus both Recharts charts — the cumulative-probability step chart with its P85 reference line, and the multi-line burn-up chart (scope, done, three forecast lines, and milestone markers).
