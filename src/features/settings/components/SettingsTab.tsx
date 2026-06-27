@@ -87,19 +87,16 @@ export function SettingsTab() {
   const [percentile2Draft, setPercentile2Draft] = useState(String(defaultCustomPercentile2))
   const isFocused1Ref = useRef(false)
   const isFocused2Ref = useRef(false)
-  // The lint rule warns against derived-state-in-effect; here we are
-  // synchronizing the local draft with an external source (the Zustand store,
-  // which can update via cloud restore or external setter) — which is exactly
-  // the documented exception in the rule's description. The focus guard avoids
+  // Synchronizing the local draft with an external source (the Zustand store,
+  // which can update via cloud restore or external setter) — the documented
+  // exception to the derived-state-in-effect guidance. The focus guard avoids
   // overwriting user input mid-keystroke.
-  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!isFocused1Ref.current) setPercentile1Draft(String(defaultCustomPercentile))
   }, [defaultCustomPercentile])
   useEffect(() => {
     if (!isFocused2Ref.current) setPercentile2Draft(String(defaultCustomPercentile2))
   }, [defaultCustomPercentile2])
-  /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleToggleResultsPercentile = (p: number) => {
     const isSelected = defaultResultsPercentiles.includes(p)
