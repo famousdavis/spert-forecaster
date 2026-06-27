@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.35.12 - 2026-06-27
+
+Tooling — Vitest upgraded `4.1.4` → `4.1.5` (the test runner; dev/test-tooling only, with no runtime footprint). This is a within-minor patch carrying upstream bug fixes only — snapshot, soft-assertion, web-worker, and reporter fixes — none of which touches a pattern this suite exercises, so there is no change to test behavior or results. The bump brings Vitest in line with the rest of the SPERT suite, whose dependency-upgrade campaigns standardized on 4.1.5, and it closes the last caret among the project's dev dependencies: Vitest was the one campaign dependency still floated as `^4.1.4` rather than exact-pinned. 4.1.5 is the highest 4.1.x past its 60-day soak (released 2026-04-21); 4.1.6–4.1.9 have since shipped but are not yet seasoned. Critically, 4.1.5 declares the identical Vite dependency range as 4.1.4 (`^6.0.0 || ^7.0.0 || ^8.0.0`), so the pinned `vite@7.3.2` override is untouched and the deferred `vite@7.3.5` adoption (~2026-07-31, once its own 60-day soak clears) is unaffected. The production build, ESLint (`--max-warnings=0`), and all 1,064 tests pass unchanged under the new runner.
+
+### Changed
+
+- **`vitest` upgraded `4.1.4` → `4.1.5`** (exact-pinned; previously the lone `^`-floated dev dependency). A within-minor patch to the test runner; its `@vitest/*` companion packages (`spy`, `utils`, `expect`, `mocker`, `runner`, `snapshot`, `pretty-format`) move to `4.1.5` in lockstep. All are dev/test-only and ship in no production bundle. The 1,064-test suite (all 55 files) runs to completion under 4.1.5 with no regressions.
+
+### Internal
+
+- 4.1.5's fixes (increased snapshot max-output length, soft-assertion diff-config handling, web-worker `MessagePort` support, UI jsx/tsx highlighting, coverage error messages, the Istanbul `instrumenter` option, and several reporter fixes) were checked against the suite: it uses no snapshots, no soft assertions, and no `@vitest/web-worker`, so the bump is behaviorally inert here and taken purely for currency and suite-wide consistency.
+- 4.1.5 was selected to match the 60-day soak policy and the rest of the SPERT suite rather than the newer 4.1.9. The Vite dependency range is unchanged from 4.1.4, leaving the deferred Windows-only `vite` dev-server advisory cluster (tracked for ~2026-07-31) and its `vite@7.3.2` override pin in place.
+
 ## v0.35.11 - 2026-06-27
 
 Maintenance — Node 24 toolchain alignment. `@types/node` upgraded `22.x` → `24.12.2` (the highest soaked 24.x) and, atomically, the declared runtime moved to Node 24: `engines.node` `22.x` → `24.x` and `.nvmrc` `22` → `24`. This aligns the project's declared and type-checked Node version with the Vercel build runtime (already Node 24). The `@types/node` bump is type-definitions only — it carries no runtime code — and the production build (which type-checks against the new definitions), ESLint (`--max-warnings=0`), and all 1,064 tests pass unchanged. The local gate runs on Node 22 (the only engine notice is a benign `EBADENGINE` install warning); the Node 24 runtime itself is validated by the Vercel deploy.
