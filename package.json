@@ -1,9 +1,9 @@
 {
   "name": "spert-forecaster",
-  "version": "0.35.10",
+  "version": "0.35.11",
   "private": true,
   "engines": {
-    "node": "22.x"
+    "node": "24.x"
   },
   "scripts": {
     "dev": "next dev",
@@ -32,7 +32,7 @@
     "@tailwindcss/postcss": "4.2.4",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.2",
-    "@types/node": "^22",
+    "@types/node": "24.12.2",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "^5.1.2",

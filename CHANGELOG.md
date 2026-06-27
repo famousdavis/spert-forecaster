@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.35.11 - 2026-06-27
+
+Maintenance — Node 24 toolchain alignment. `@types/node` upgraded `22.x` → `24.12.2` (the highest soaked 24.x) and, atomically, the declared runtime moved to Node 24: `engines.node` `22.x` → `24.x` and `.nvmrc` `22` → `24`. This aligns the project's declared and type-checked Node version with the Vercel build runtime (already Node 24). The `@types/node` bump is type-definitions only — it carries no runtime code — and the production build (which type-checks against the new definitions), ESLint (`--max-warnings=0`), and all 1,064 tests pass unchanged. The local gate runs on Node 22 (the only engine notice is a benign `EBADENGINE` install warning); the Node 24 runtime itself is validated by the Vercel deploy.
+
+### Changed
+
+- **`@types/node` upgraded `22.x` → `24.12.2`** (exact-pinned; the highest soaked 24.x — the suite tracks Node 24 LTS, not 25). Type-definitions only; `next build` type-checks clean against the Node 24 definitions. The transitive `undici-types` follows in lockstep (`6.21.0` → `7.16.0`); no advisory.
+- **`engines.node` `22.x` → `24.x`** and **`.nvmrc` `22` → `24`** — the declared and pinned Node runtime now matches the Vercel build environment (Node 24). No code change; the Vercel deploy on Node 24 is the runtime validation.
+
+### Internal
+
+- Closes the dependency upgrade campaign (v0.35.6 → v0.35.11). The five-key Windows-only `vite` dev-server cluster remains the only deferred advisory, tracked for ~2026-07-31 once `vite@7.3.5` clears its 60-day soak.
+
 ## v0.35.10 - 2026-06-27
 
 Maintenance — three dependency currency bumps, all build/test-tooling or runtime-state with no user-facing change: Zustand `5.0.11` → `5.0.12` (state store), jsdom `27.4.0` → `29.1.0` (the test-environment DOM, a two-major jump), and lucide-react `0.577.0` → `1.11.0` (an icon library present in the manifest but with zero source imports — UI scaffolding only). The production build, ESLint (`--max-warnings=0`), and all 1,064 tests pass unchanged; the suite ran in full (all 55 files) under the new jsdom 29 with no regressions, and a local smoke confirmed the app boots and the Zustand store loads and persists the sample project correctly under 5.0.12.
