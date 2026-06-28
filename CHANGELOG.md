@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.35.13 - 2026-06-28
+
+Security — standardized the `postcss` override to a caret range (`8.5.10` → `^8.5.10`), matching the rest of the SPERT suite and allowing future 8.5.x patch uptake. This floats the single hoisted copy from `postcss@8.5.10` to `8.5.16`, keeping GHSA-qx2v-qp2m-jg93 (PostCSS cross-site scripting via an unescaped `</style>` in its CSS stringify output; Moderate, CVSS 6.1; affects `postcss <8.5.10`) closed. PostCSS runs at build time only, so the advisory is not reachable in the production bundle. The pinned `vite@7.3.2` override is untouched. The production build, ESLint, and all 1,064 tests pass unchanged; no application behavior, data-model, or runtime change.
+
+### Changed
+
+- **postcss override `8.5.10` → `^8.5.10`** (resolves to `8.5.16`).
+
 ## v0.35.12 - 2026-06-27
 
 Tooling — Vitest upgraded `4.1.4` → `4.1.5` (the test runner; dev/test-tooling only, with no runtime footprint). This is a within-minor patch carrying upstream bug fixes only — snapshot, soft-assertion, web-worker, and reporter fixes — none of which touches a pattern this suite exercises, so there is no change to test behavior or results. The bump brings Vitest in line with the rest of the SPERT suite, whose dependency-upgrade campaigns standardized on 4.1.5, and it closes the last caret among the project's dev dependencies: Vitest was the one campaign dependency still floated as `^4.1.4` rather than exact-pinned. 4.1.5 is the highest 4.1.x past its 60-day soak (released 2026-04-21); 4.1.6–4.1.9 have since shipped but are not yet seasoned. Critically, 4.1.5 declares the identical Vite dependency range as 4.1.4 (`^6.0.0 || ^7.0.0 || ^8.0.0`), so the pinned `vite@7.3.2` override is untouched and the deferred `vite@7.3.5` adoption (~2026-07-31, once its own 60-day soak clears) is unaffected. The production build, ESLint (`--max-warnings=0`), and all 1,064 tests pass unchanged under the new runner.

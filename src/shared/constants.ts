@@ -4,7 +4,7 @@
 
 // Global application constants
 
-export const APP_VERSION = '0.35.12'
+export const APP_VERSION = '0.35.13'
 export const APP_NAME = 'SPERT Forecaster'
 export const APP_NAME_WITH_TM = 'SPERT® Forecaster'
 export const APP_FULL_NAME = 'SPERT® Suite'
