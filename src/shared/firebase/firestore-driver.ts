@@ -15,6 +15,7 @@ import {
   getDocs,
   setDoc,
   deleteDoc,
+  deleteField,
   onSnapshot,
   query,
   where,
@@ -28,13 +29,23 @@ import { sanitizeForFirestore, stripFirestoreFields } from './firestore-sanitize
 // --- mergeFields constants (C1/C2) ---
 //
 // setDoc({ mergeFields: [...] }) wholesale-replaces each listed top-level key
-// and leaves everything else on the server untouched. Critically — and unlike
-// merge: true — a listed field that is ABSENT from the source object is
-// DELETED from Firestore. That is precisely the behavior we want: when the
-// user clears projectStartDate locally, sanitizeForFirestore strips the
-// undefined value, the field is absent at write time, and mergeFields removes
-// it from the server. Under merge: true the deep-merge preserved the old
-// value and the date silently resurrected on the next browser refresh.
+// and leaves everything else on the server untouched.
+//
+// CRITICAL Web-SDK contract (fixed after a production regression): every path
+// listed in mergeFields MUST be present in the data object, or the SDK throws
+//   "Field 'X' is specified in your field mask but missing from your input data."
+// This is the OPPOSITE of what an earlier version of this comment assumed. The
+// Web SDK does NOT treat an absent masked field as a server-side delete — it
+// rejects the whole write. A brand-new project created without the optional
+// projectStartDate therefore crashed on its first debounced update: the field
+// was in the mask but sanitizeForFirestore had stripped the undefined value.
+//
+// To actually delete a cleared optional scalar server-side (the original C1/C2
+// intent — otherwise merge: true's deep-merge resurrects the old value on the
+// next refresh) the field must be PRESENT in the data as a deleteField()
+// sentinel. buildMergeWrite() below does exactly that for CLEARABLE_PROJECT_FIELDS
+// and, as a backstop, drops any other masked field that is unexpectedly absent
+// so a missing field can never re-trigger the throw.
 //
 // owner/members are deliberately absent from PROJECT_MERGE_FIELDS so the
 // debounced save path cannot overwrite ACL fields.
@@ -56,6 +67,15 @@ const _PROJECT_WRITE_KEYS_GUARD: Record<_ProjectWriteKey, true> = {
   schemaVersion: true,
 }
 void _PROJECT_WRITE_KEYS_GUARD
+
+// Optional project scalars that the user can clear back to undefined. When a
+// value is present it is written normally; when it is absent (cleared →
+// stripped by sanitizeForFirestore) buildMergeWrite substitutes a deleteField()
+// sentinel so the field stays in the mask (no throw) AND is removed server-side.
+// Every entry MUST also appear in PROJECT_MERGE_FIELDS.
+export const CLEARABLE_PROJECT_FIELDS: (keyof FirestoreProjectDoc)[] = [
+  'sprintCadenceWeeks', 'projectStartDate', 'projectFinishDate', 'firstSprintStartDate',
+]
 
 // Settings: all fields always present when written — no clearable-to-undefined
 // scalars. The mergeFields switch is symmetry-only with saveProject, not a
@@ -126,6 +146,33 @@ export function flushPendingSaves(): void {
   }
 }
 
+/**
+ * Prepare a { payload, mask } pair for a setDoc({ mergeFields }) write that
+ * satisfies the Web SDK invariant "every masked path is present in the data".
+ *
+ * - `clearable` fields absent from `data` are re-added as deleteField() so they
+ *   remain in the mask and are deleted server-side (delete-on-clear, C1/C2).
+ * - The returned mask is the requested `mergeFields` intersected with the keys
+ *   actually present in the payload — a backstop so any non-clearable field
+ *   that is unexpectedly missing is quietly dropped rather than crashing the
+ *   whole write.
+ *
+ * `data` must already be sanitized (undefined values stripped) so that a
+ * genuinely-absent optional field is distinguishable from a present one.
+ */
+function buildMergeWrite(
+  data: object,
+  mergeFields: readonly string[],
+  clearable: readonly string[] = [],
+): { payload: Record<string, unknown>; mask: string[] } {
+  const payload: Record<string, unknown> = { ...(data as Record<string, unknown>) }
+  for (const field of clearable) {
+    if (!(field in payload)) payload[field] = deleteField()
+  }
+  const mask = mergeFields.filter((field) => field in payload)
+  return { payload, mask }
+}
+
 // --- Project operations ---
 
 /** Load all projects where the user is owner or member. */
@@ -187,17 +234,24 @@ export async function loadOwnedProjectIds(uid: string): Promise<Set<string>> {
  * Result: PERMISSION_DENIED on first write. For first-ever writes, use
  * saveProjectImmediate. See pendingCreateTimers in useCloudSync.
  *
- * Uses mergeFields so cleared optional scalars are actually deleted from
- * Firestore (C1/C2). owner/members are stripped here AND excluded from
- * PROJECT_MERGE_FIELDS — belt-and-braces against accidentally writing ACL
- * fields from the debounced save path.
+ * Uses mergeFields (via buildMergeWrite) so cleared optional scalars are
+ * actually deleted from Firestore — written as deleteField() sentinels rather
+ * than dropped from the payload, which the Web SDK would reject (C1/C2).
+ * owner/members are stripped here AND excluded from PROJECT_MERGE_FIELDS —
+ * belt-and-braces against accidentally writing ACL fields from the debounced
+ * save path.
  */
 export function saveProject(projectId: string, data: FirestoreProjectDoc): void {
   debouncedSave(`project:${projectId}`, async () => {
     if (!db) return
     const ref = doc(db, COLLECTIONS.projects, projectId)
     const { owner: _o, members: _m, ...dataWithoutOwnership } = data
-    await setDoc(ref, sanitizeForFirestore(dataWithoutOwnership), { mergeFields: PROJECT_MERGE_FIELDS })
+    const { payload, mask } = buildMergeWrite(
+      sanitizeForFirestore(dataWithoutOwnership),
+      PROJECT_MERGE_FIELDS,
+      CLEARABLE_PROJECT_FIELDS,
+    )
+    await setDoc(ref, payload, { mergeFields: mask })
   })
 }
 
@@ -305,7 +359,8 @@ export function saveSettings(uid: string, data: FirestoreSettingsDoc): void {
   debouncedSave('settings', async () => {
     if (!db) return
     const ref = doc(db, COLLECTIONS.settings, uid)
-    await setDoc(ref, sanitizeForFirestore(data), { mergeFields: SETTINGS_MERGE_FIELDS })
+    const { payload, mask } = buildMergeWrite(sanitizeForFirestore(data), SETTINGS_MERGE_FIELDS)
+    await setDoc(ref, payload, { mergeFields: mask })
   })
 }
 
@@ -313,7 +368,8 @@ export function saveSettings(uid: string, data: FirestoreSettingsDoc): void {
 export async function saveSettingsImmediate(uid: string, data: FirestoreSettingsDoc): Promise<void> {
   if (!db) return
   const ref = doc(db, COLLECTIONS.settings, uid)
-  await setDoc(ref, sanitizeForFirestore(data), { mergeFields: SETTINGS_MERGE_FIELDS })
+  const { payload, mask } = buildMergeWrite(sanitizeForFirestore(data), SETTINGS_MERGE_FIELDS)
+  await setDoc(ref, payload, { mergeFields: mask })
 }
 
 // --- Profile operations ---

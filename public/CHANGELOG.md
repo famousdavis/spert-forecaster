@@ -1,5 +1,26 @@
 # Changelog
 
+## v0.35.14 - 2026-07-17
+
+Fixed — a cloud-storage regression that blocked configuring a new project. Signed in with cloud storage, creating a project and then setting its **sprint cadence** or **first sprint start date** on the Sprint History tab raised the red "Failed to save changes to the cloud. Please check your connection." toast, and the change did not persist. The message blamed connectivity, but the real cause was a rejected Firestore write. The debounced project-update path (`saveProject`) writes with `setDoc(data, { mergeFields })`, and that field mask (`PROJECT_MERGE_FIELDS`) statically lists the optional scalars `projectStartDate`, `projectFinishDate`, `firstSprintStartDate`, and `sprintCadenceWeeks`. A freshly created project leaves these unset, so `sanitizeForFirestore` strips the `undefined` values and the field is absent from the write payload — but the Firestore Web SDK **requires every masked field to be present in the data**, and throws `Field 'projectStartDate' is specified in your field mask but missing from your input data` when one is not. (The prior code comment asserted the opposite — that an absent masked field is deleted server-side — which is not how the Web SDK behaves.) The initial project create succeeded because it goes through a full `setDoc` with no field mask, so the crash only appeared on the *first edit* — which is why it looked like a new-project problem even though it affected any cloud edit of a project with one of those optional fields left blank. Latent since v0.35.0 introduced the `mergeFields` save path. The production build, ESLint (`--max-warnings=0`), and all 1,070 tests (six new) pass.
+
+### Fixed
+
+- **Cloud project saves no longer crash when an optional date or cadence field is unset.** `saveProject` — and, for symmetry, `saveSettings`/`saveSettingsImmediate` — now assemble their `mergeFields` write through a new `buildMergeWrite` helper that upholds the Web SDK's "every masked field must be present in the data" rule. A cleared optional project scalar is re-added to the payload as a Firestore `deleteField()` sentinel, which keeps it in the mask (no throw) *and* removes it server-side — preserving the v0.35.0 behavior where clearing an optional field deletes it in the cloud instead of resurrecting on the next refresh, now done the way the Web SDK actually supports. As a backstop, any masked field still missing from the payload is dropped from the mask so it can never re-trigger the error.
+
+### Internal
+
+- Added six `firestore-driver` tests that assert the write-path invariant directly: every `mergeFields` path is present in the `setDoc` payload, cleared optional scalars serialize as `deleteField()`, present values pass through unchanged, and `owner`/`members` are never written from the debounced path. The previous tests only checked the static field-list constants and mocked `setDoc`, so they never exercised the Web SDK's field-mask validation that produced the crash.
+- Rewrote the C1/C2 comment block in `firestore-driver.ts`, which had documented the incorrect "absent masked field ⇒ server-side delete" assumption behind the regression.
+
+## v0.35.13 - 2026-06-28
+
+Security — standardized the `postcss` override to a caret range (`8.5.10` → `^8.5.10`), matching the rest of the SPERT suite and allowing future 8.5.x patch uptake. This floats the single hoisted copy from `postcss@8.5.10` to `8.5.16`, keeping GHSA-qx2v-qp2m-jg93 (PostCSS cross-site scripting via an unescaped `</style>` in its CSS stringify output; Moderate, CVSS 6.1; affects `postcss <8.5.10`) closed. PostCSS runs at build time only, so the advisory is not reachable in the production bundle. The pinned `vite@7.3.2` override is untouched. The production build, ESLint, and all 1,064 tests pass unchanged; no application behavior, data-model, or runtime change.
+
+### Changed
+
+- **postcss override `8.5.10` → `^8.5.10`** (resolves to `8.5.16`).
+
 ## v0.35.12 - 2026-06-27
 
 Tooling — Vitest upgraded `4.1.4` → `4.1.5` (the test runner; dev/test-tooling only, with no runtime footprint). This is a within-minor patch carrying upstream bug fixes only — snapshot, soft-assertion, web-worker, and reporter fixes — none of which touches a pattern this suite exercises, so there is no change to test behavior or results. The bump brings Vitest in line with the rest of the SPERT suite, whose dependency-upgrade campaigns standardized on 4.1.5, and it closes the last caret among the project's dev dependencies: Vitest was the one campaign dependency still floated as `^4.1.4` rather than exact-pinned. 4.1.5 is the highest 4.1.x past its 60-day soak (released 2026-04-21); 4.1.6–4.1.9 have since shipped but are not yet seasoned. Critically, 4.1.5 declares the identical Vite dependency range as 4.1.4 (`^6.0.0 || ^7.0.0 || ^8.0.0`), so the pinned `vite@7.3.2` override is untouched and the deferred `vite@7.3.5` adoption (~2026-07-31, once its own 60-day soak clears) is unaffected. The production build, ESLint (`--max-warnings=0`), and all 1,064 tests pass unchanged under the new runner.
