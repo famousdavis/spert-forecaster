@@ -154,6 +154,17 @@ export type SyncEvent =
       replacedIdMap: Map<string, string>
     }
   | { type: 'settings:save' }
+  /**
+   * The AI pairing must drop its uploaded snapshot.
+   *
+   * Emitted from the three CALL SITES of clearProjectsOnSignOut, not from
+   * inside the action: the action itself documents that it does not emit, and
+   * it could not distinguish its callers anyway. The discriminant is what
+   * decides whether the pairing survives — a sign-out ends the session
+   * entirely, while a cloud→local switch keeps it and removes only the
+   * snapshot.
+   */
+  | { type: 'ai:session-teardown'; reason: 'signout' | 'mode-switch' }
 
 // --- Collection Names ---
 

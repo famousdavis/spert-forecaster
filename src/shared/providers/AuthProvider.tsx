@@ -4,6 +4,7 @@
 
 'use client'
 
+import { syncBus } from '@/shared/firebase/sync-bus'
 import {
   createContext,
   useContext,
@@ -105,6 +106,10 @@ function performSignOutCleanup(): void {
   useProjectStore.getState().clearProjectsOnSignOut()     // zero in-memory project state
   useSettingsStore.getState().clearSettingsOnSignOut()    // F2/F3 — clear attribution fields
   useStorageModeStore.getState().setMode('local')         // reset storage mode for next session
+  // Ends the AI pairing outright: deletes the uploaded snapshot, then the
+  // session. Emitted from the call site rather than from
+  // clearProjectsOnSignOut, which cannot tell a sign-out from a mode switch.
+  syncBus.emit({ type: 'ai:session-teardown', reason: 'signout' })
 }
 
 interface AuthContextValue {

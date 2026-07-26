@@ -62,3 +62,20 @@ export async function callResendInvite(tokenId: string): Promise<ResendInviteRes
   )({ tokenId })
   return r.data
 }
+
+/**
+ * Mint a short-lived, single-use pairing code for an AI session.
+ *
+ * The code is what the user reads aloud or pastes into their AI client; the
+ * session id itself is a capability token and never leaves the browser
+ * through the UI.
+ */
+export async function callGeneratePairingCode(
+  sessionId: string
+): Promise<{ code: string }> {
+  const r = await httpsCallable<{ sessionId: string }, { code: string }>(
+    requireFunctions(),
+    'generatePairingCode'
+  )({ sessionId })
+  return r.data
+}
