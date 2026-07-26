@@ -4,30 +4,71 @@
 
 'use client'
 
-import { useState, useCallback } from 'react'
-import { resolveScopeGrowthPerSprint } from '../lib/scope-growth'
+import { useCallback } from 'react'
+import { resolveScopeGrowthPerSprint } from '@/shared/lib/forecast-derivations'
+import { useForecastResultsStore, VIEW_STATE_LITERAL_SEEDS } from '@/shared/state/forecast-results-store'
 
 /**
- * Manages scope growth modeling state and resolution.
+ * Scope growth modeling state and resolution.
  *
- * Extracted from useForecastState to isolate this independent concern.
- * State is session-only (not persisted) and resets when the project changes.
+ * The three cells moved into the forecast-results store's per-project view
+ * state in v0.36.0 (they feed the run config, so the snapshot builder must
+ * reach them from outside React). Per-project keying replaces the
+ * project-change reset effect that used to clear them.
+ *
+ * BEHAVIOR CHANGE, accepted and reviewed: resetScopeGrowth used to reset
+ * scopeGrowthMode and customScopeGrowth but NOT modelScopeGrowth, so that
+ * toggle survived a project switch. Under per-project keying each project
+ * keeps its own toggle instead.
  */
-export function useScopeGrowthState(averageScopeInjection: number | undefined) {
-  const [modelScopeGrowth, setModelScopeGrowth] = useState(false)
-  const [scopeGrowthMode, setScopeGrowthMode] = useState<'calculated' | 'custom'>('calculated')
-  const [customScopeGrowth, setCustomScopeGrowth] = useState('')
+export function useScopeGrowthState(
+  projectId: string | undefined,
+  averageScopeInjection: number | undefined
+) {
+  const view = useForecastResultsStore((s) => (projectId ? s.viewState[projectId] : undefined))
+  const patchViewState = useForecastResultsStore((s) => s.patchViewState)
 
-  /** Resolved value ready for the simulation engine */
-  const scopeGrowthPerSprint = resolveScopeGrowthPerSprint(
-    modelScopeGrowth, scopeGrowthMode, customScopeGrowth, averageScopeInjection
+  const modelScopeGrowth = view?.modelScopeGrowth ?? VIEW_STATE_LITERAL_SEEDS.modelScopeGrowth
+  const scopeGrowthMode = view?.scopeGrowthMode ?? VIEW_STATE_LITERAL_SEEDS.scopeGrowthMode
+  const customScopeGrowth = view?.customScopeGrowth ?? VIEW_STATE_LITERAL_SEEDS.customScopeGrowth
+
+  const setModelScopeGrowth = useCallback(
+    (value: boolean) => {
+      if (projectId) patchViewState(projectId, { modelScopeGrowth: value })
+    },
+    [projectId, patchViewState]
+  )
+  const setScopeGrowthMode = useCallback(
+    (value: 'calculated' | 'custom') => {
+      if (projectId) patchViewState(projectId, { scopeGrowthMode: value })
+    },
+    [projectId, patchViewState]
+  )
+  const setCustomScopeGrowth = useCallback(
+    (value: string) => {
+      if (projectId) patchViewState(projectId, { customScopeGrowth: value })
+    },
+    [projectId, patchViewState]
   )
 
-  /** Reset to defaults (called on project change) */
+  /** Resolved value ready for the simulation engine. */
+  const scopeGrowthPerSprint = resolveScopeGrowthPerSprint(
+    modelScopeGrowth,
+    scopeGrowthMode,
+    customScopeGrowth,
+    averageScopeInjection
+  )
+
+  /**
+   * Retained for the ScopeGrowthSection "reset" affordance. Project switches
+   * no longer need it — per-project keying handles that — so it resets only
+   * the current project's cells.
+   */
   const resetScopeGrowth = useCallback(() => {
-    setScopeGrowthMode('calculated')
-    setCustomScopeGrowth('')
-  }, [])
+    if (projectId) {
+      patchViewState(projectId, { scopeGrowthMode: 'calculated', customScopeGrowth: '' })
+    }
+  }, [projectId, patchViewState])
 
   return {
     modelScopeGrowth,

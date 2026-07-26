@@ -24,7 +24,7 @@ import { writeUserProfile } from '@/shared/firebase/profileWrites'
 import { useProjectStore } from '@/shared/state/project-store'
 import { useSettingsStore } from '@/shared/state/settings-store'
 import { useStorageModeStore } from '@/shared/state/storage-mode-store'
-import { bumpSimulationGeneration } from '@/features/forecast/lib/simulation-generation'
+import { bumpSimulationGeneration } from '@/shared/lib/simulation-generation'
 import {
   isTosCached,
   cacheTos,

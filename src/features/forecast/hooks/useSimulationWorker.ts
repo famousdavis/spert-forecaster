@@ -4,9 +4,11 @@
 
 'use client'
 
-import { useRef, useEffect, useCallback, useState } from 'react'
+import { useRef, useEffect, useCallback } from 'react'
 import type { ForecastConfig } from '@/shared/types'
-import type { PercentileResults, QuadMilestoneForecastResult } from '../lib/monte-carlo'
+import type { QuadMilestoneForecastResult } from '../lib/monte-carlo'
+import type { PercentileResults } from '@/shared/types/forecast-results'
+import { useForecastResultsStore } from '@/shared/state/forecast-results-store'
 
 export type QuadForecastResult = {
   truncatedNormal: { results: PercentileResults; sprintsRequired: number[] }
@@ -19,6 +21,34 @@ export type QuadForecastResult = {
 
 type WorkerResult = QuadForecastResult | QuadMilestoneForecastResult
 
+interface RunInput {
+  config: ForecastConfig & { sprintCadenceWeeks: number }
+  historicalVelocities?: number[]
+  productivityFactors?: number[]
+  scopeGrowthPerSprint?: number
+  milestoneThresholds?: number[]
+}
+
+/**
+ * Owns the Monte Carlo worker and the in-flight run flag.
+ *
+ * `isSimulating` moved from a useState cell into the forecast-results store
+ * in v0.36.0. It is `{projectId, runToken} | null` rather than a boolean
+ * because the AI snapshot's freshness ladder needs to know WHICH project is
+ * recomputing, and because every path that stops a run must be able to prove
+ * it is clearing its own run rather than a replacement's.
+ *
+ * FIVE PATHS STOP A RUN, and all five clear the flag under a token check:
+ *   1. worker unmount            — below, in the effect cleanup
+ *   2. the success handler       — onmessage
+ *   3. the error handler         — onerror
+ *   4. handleRunForecast's catch — in useForecastState
+ *   5. postMessage unreachable   — the worker ref is null
+ *
+ * Without the token check on 2 and 3, an aborted run's late callback clears
+ * the flag while its replacement is still running, and the UI reports idle
+ * mid-simulation.
+ */
 export function useSimulationWorker() {
   const workerRef = useRef<Worker | null>(null)
   const messageIdRef = useRef(0)
@@ -27,7 +57,6 @@ export function useSimulationWorker() {
     resolve: (value: WorkerResult) => void
     reject: (reason: Error) => void
   } | null>(null)
-  const [isSimulating, setIsSimulating] = useState(false)
 
   useEffect(() => {
     workerRef.current = new Worker(
@@ -37,13 +66,18 @@ export function useSimulationWorker() {
     workerRef.current.onmessage = (e: MessageEvent<WorkerResult & { _messageId?: number }>) => {
       // Drop stale responses from superseded simulations
       if (pendingRef.current && e.data._messageId !== pendingRef.current._messageId) return
-      setIsSimulating(false)
+      if (typeof e.data._messageId === 'number') {
+        useForecastResultsStore.getState().clearIsSimulatingIfToken(e.data._messageId)
+      }
       pendingRef.current?.resolve(e.data)
       pendingRef.current = null
     }
 
     workerRef.current.onerror = (e: ErrorEvent) => {
-      setIsSimulating(false)
+      const token = pendingRef.current?._messageId
+      if (typeof token === 'number') {
+        useForecastResultsStore.getState().clearIsSimulatingIfToken(token)
+      }
       pendingRef.current?.reject(new Error(e.message))
       pendingRef.current = null
     }
@@ -55,59 +89,72 @@ export function useSimulationWorker() {
         pendingRef.current.reject(new Error('Worker terminated'))
         pendingRef.current = null
       }
+      // A store write, not setState: React discards state updates on an
+      // unmounting component, so a setState here would leave the flag stuck
+      // true and the freshness ladder pinned at "recomputing" forever.
+      useForecastResultsStore.getState().setIsSimulating(null)
     }
   }, [])
 
-  const runSimulation = useCallback((input: {
-    config: ForecastConfig & { sprintCadenceWeeks: number }
-    historicalVelocities?: number[]
-    productivityFactors?: number[]
-    scopeGrowthPerSprint?: number
-  }): Promise<QuadForecastResult> => {
-    // Abort any pending simulation
-    if (pendingRef.current) {
-      pendingRef.current.reject(new Error('Simulation aborted'))
-      pendingRef.current = null
-    }
-
-    const id = ++messageIdRef.current
-    setIsSimulating(true)
-
-    return new Promise<QuadForecastResult>((resolve, reject) => {
-      pendingRef.current = {
-        _messageId: id,
-        resolve: resolve as (value: WorkerResult) => void,
-        reject,
+  const post = useCallback(
+    <T extends WorkerResult>(input: RunInput, projectId: string): Promise<T> => {
+      // Abort any pending simulation
+      if (pendingRef.current) {
+        pendingRef.current.reject(new Error('Simulation aborted'))
+        pendingRef.current = null
       }
-      workerRef.current?.postMessage({ ...input, _messageId: id })
-    })
-  }, [])
 
-  const runMilestoneSimulation = useCallback((input: {
-    config: ForecastConfig & { sprintCadenceWeeks: number }
-    historicalVelocities?: number[]
-    productivityFactors?: number[]
-    milestoneThresholds: number[]
-    scopeGrowthPerSprint?: number
-  }): Promise<QuadMilestoneForecastResult> => {
-    // Abort any pending simulation
-    if (pendingRef.current) {
-      pendingRef.current.reject(new Error('Simulation aborted'))
-      pendingRef.current = null
-    }
+      const id = ++messageIdRef.current
+      useForecastResultsStore.getState().setIsSimulating({ projectId, runToken: id })
 
-    const id = ++messageIdRef.current
-    setIsSimulating(true)
+      return new Promise<T>((resolve, reject) => {
+        pendingRef.current = {
+          _messageId: id,
+          resolve: resolve as (value: WorkerResult) => void,
+          reject,
+        }
+        if (!workerRef.current) {
+          // Path 5. This branch sits INSIDE the executor, after pendingRef is
+          // assigned, so clearing the flag alone would leave the promise
+          // permanently unsettled and every later run blocked behind it.
+          pendingRef.current = null
+          useForecastResultsStore.getState().clearIsSimulatingIfToken(id)
+          reject(new Error('Simulation worker unavailable'))
+          return
+        }
+        workerRef.current.postMessage({ ...input, _messageId: id })
+      })
+    },
+    []
+  )
 
-    return new Promise<QuadMilestoneForecastResult>((resolve, reject) => {
-      pendingRef.current = {
-        _messageId: id,
-        resolve: resolve as (value: WorkerResult) => void,
-        reject,
-      }
-      workerRef.current?.postMessage({ ...input, _messageId: id })
-    })
-  }, [])
+  const runSimulation = useCallback(
+    (
+      input: {
+        config: ForecastConfig & { sprintCadenceWeeks: number }
+        historicalVelocities?: number[]
+        productivityFactors?: number[]
+        scopeGrowthPerSprint?: number
+      },
+      projectId: string
+    ): Promise<QuadForecastResult> => post<QuadForecastResult>(input, projectId),
+    [post]
+  )
 
-  return { runSimulation, runMilestoneSimulation, isSimulating }
+  const runMilestoneSimulation = useCallback(
+    (
+      input: {
+        config: ForecastConfig & { sprintCadenceWeeks: number }
+        historicalVelocities?: number[]
+        productivityFactors?: number[]
+        milestoneThresholds: number[]
+        scopeGrowthPerSprint?: number
+      },
+      projectId: string
+    ): Promise<QuadMilestoneForecastResult> =>
+      post<QuadMilestoneForecastResult>(input, projectId),
+    [post]
+  )
+
+  return { runSimulation, runMilestoneSimulation }
 }

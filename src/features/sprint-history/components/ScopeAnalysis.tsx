@@ -16,7 +16,7 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 import type { Sprint } from '@/shared/types'
-import { calculateScopeChangeStats } from '@/features/forecast/lib/statistics'
+import { calculateScopeChangeStats } from '@/shared/lib/statistics'
 import { COLORS } from '@/shared/lib/colors'
 
 interface ScopeAnalysisProps {

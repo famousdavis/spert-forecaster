@@ -30,12 +30,23 @@ export interface SimulationOutput {
   distributionType: DistributionType
 }
 
-export interface PercentileResults {
-  p50: ForecastResult
-  p60: ForecastResult
-  p70: ForecastResult
-  p80: ForecastResult
-  p90: ForecastResult
+// PercentileResults / QuadResults / QuadSimulationData / QuadCustomResults are
+// defined in @/shared/types/forecast-results and re-exported here. The
+// forecast-results store retains QuadResults and QuadSimulationData for a run
+// record's life (D29), and shared/ must not import features/. Every existing
+// import site in this feature still resolves through this module.
+import type {
+  PercentileResults,
+  QuadResults,
+  QuadSimulationData,
+  QuadCustomResults,
+} from '@/shared/types/forecast-results'
+
+export type {
+  PercentileResults,
+  QuadResults,
+  QuadSimulationData,
+  QuadCustomResults,
 }
 
 /**
@@ -365,42 +376,6 @@ export interface SimulationContext {
 // ============================================================================
 // Quadruple distribution types and helpers
 // ============================================================================
-
-/**
- * Percentile results for all distributions (used by results table, summary, etc.)
- */
-export interface QuadResults {
-  truncatedNormal: PercentileResults
-  lognormal: PercentileResults
-  gamma: PercentileResults
-  bootstrap: PercentileResults | null
-  triangular: PercentileResults
-  uniform: PercentileResults
-}
-
-/**
- * Simulation data structure (raw sprint counts from each distribution)
- */
-export interface QuadSimulationData {
-  truncatedNormal: number[]
-  lognormal: number[]
-  gamma: number[]
-  bootstrap: number[] | null
-  triangular: number[]
-  uniform: number[]
-}
-
-/**
- * Custom percentile results for all distributions
- */
-export interface QuadCustomResults {
-  truncatedNormal: ForecastResult | null
-  lognormal: ForecastResult | null
-  gamma: ForecastResult | null
-  bootstrap: ForecastResult | null
-  triangular: ForecastResult | null
-  uniform: ForecastResult | null
-}
 
 /**
  * Calculate custom percentile for all distributions

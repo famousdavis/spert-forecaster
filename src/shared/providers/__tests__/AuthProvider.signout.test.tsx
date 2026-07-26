@@ -82,7 +82,7 @@ vi.mock('@/shared/state/storage-mode-store', () => ({
   },
 }))
 
-vi.mock('@/features/forecast/lib/simulation-generation', () => ({
+vi.mock('@/shared/lib/simulation-generation', () => ({
   bumpSimulationGeneration: hoisted.bumpSimulationGeneration,
   currentSimulationGeneration: vi.fn(() => 0),
 }))

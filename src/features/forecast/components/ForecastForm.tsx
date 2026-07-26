@@ -7,7 +7,7 @@
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { HelpTooltip } from '@/shared/components/HelpTooltip'
-import type { ScopeChangeStats } from '../lib/statistics'
+import type { ScopeChangeStats } from '@/shared/lib/statistics'
 import type { Sprint, ForecastMode } from '@/shared/types'
 import { VelocitySparkline } from './VelocitySparkline'
 import { ScopeGrowthSection } from './ScopeGrowthSection'

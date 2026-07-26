@@ -7,93 +7,61 @@
 import { useMemo } from 'react'
 import { useProjectStore, selectViewingProject } from '@/shared/state/project-store'
 import type { VelocityStats, ForecastMode, Sprint } from '@/shared/types'
-import { DEFAULT_CV, DEFAULT_VOLATILITY_MULTIPLIER, MIN_SPRINTS_FOR_HISTORY } from '../constants'
+import { deriveForecastInputs } from '@/shared/lib/forecast-derivations'
 
-/**
- * Find the most recent defined backlog-at-end value from the given sprint list.
- * Walks back from the highest sprintNumber so sprints without a recorded backlog
- * are skipped. Returns undefined when no sprint in the list has a backlog value.
- *
- * The caller is responsible for pre-filtering to the relevant scope (e.g., the
- * included-in-forecast subset), since this function picks from whatever it's given.
- */
-export function getLastSprintBacklog(sprints: Sprint[]): number | undefined {
-  if (sprints.length === 0) return undefined
-  const descending = [...sprints].sort((a, b) => b.sprintNumber - a.sprintNumber)
-  for (const s of descending) {
-    if (s.backlogAtSprintEnd !== undefined) return s.backlogAtSprintEnd
-  }
-  return undefined
-}
+// getLastSprintBacklog moved to @/shared/lib/forecast-derivations with the rest
+// of this hook's derivations. Re-exported so existing import sites (and its
+// unit tests) keep resolving through this module.
+export { getLastSprintBacklog } from '@/shared/lib/forecast-derivations'
 
 /**
  * Form state for the forecast: backlog, velocity overrides, subjective inputs,
  * and milestone-derived values. Persisted per project via the project store.
  *
+ * The derivations are a useMemo wrapper over deriveForecastInputs (v0.36.0);
+ * only the setters remain hook-local. See useSprintData for why.
+ *
  * The `sprints` parameter should be the *included-in-forecast* subset so that
  * excluding a sprint correctly updates the derived backlog value.
  */
-export function useForecastInputs(calculatedStats: VelocityStats, includedSprintCount: number, sprints: Sprint[]) {
+export function useForecastInputs(
+  calculatedStats: VelocityStats,
+  includedSprintCount: number,
+  sprints: Sprint[]
+) {
   const selectedProject = useProjectStore(selectViewingProject)
   const setForecastInput = useProjectStore((state) => state.setForecastInput)
   const forecastInputs = useProjectStore((state) =>
     selectedProject ? state.forecastInputs[selectedProject.id] : undefined
   )
 
-  // Milestones
   const milestones = useMemo(
     () => selectedProject?.milestones ?? [],
     [selectedProject?.milestones]
   )
 
-  const hasMilestones = milestones.length > 0
-
-  // Cumulative "remaining work to reach milestone i" — the running sum of user-
-  // maintained backlogSize values. milestone.backlogSize is the work the user knows
-  // remains for that release; the user updates it as work progresses, as scope is
-  // added, or as scope is descoped. The simulation reads cumulativeThresholds[i] as
-  // "delivered-in-trial ≥ threshold" → "have we delivered enough to cross milestone i?"
-  // which is exactly what we want under this model. Shipped milestones (backlogSize=0)
-  // contribute no increment, so their cumulative equals the preceding milestone's.
-  const cumulativeThresholds = useMemo(
+  const derived = useMemo(
     () =>
-      milestones.reduce<number[]>((acc, m) => {
-        const prev = acc[acc.length - 1] ?? 0
-        acc.push(prev + m.backlogSize)
-        return acc
-      }, []),
-    [milestones]
+      deriveForecastInputs(
+        selectedProject,
+        forecastInputs,
+        calculatedStats,
+        includedSprintCount,
+        sprints
+      ),
+    [selectedProject, forecastInputs, calculatedStats, includedSprintCount, sprints]
   )
-
-  // Form values — derive backlog from the most recent *included* sprint that has a value recorded.
-  // `derivedBacklogFromIncluded` powers both the pre-fill and the "Reset to N" drift action.
-  const derivedBacklogFromIncluded = getLastSprintBacklog(sprints)
-  const lastSprintBacklog = derivedBacklogFromIncluded
-  const storedBacklog = forecastInputs?.remainingBacklog
-  const remainingBacklog = storedBacklog || (derivedBacklogFromIncluded !== undefined ? String(derivedBacklogFromIncluded) : '')
-
-  const hasBacklogDrift =
-    storedBacklog !== undefined &&
-    storedBacklog !== '' &&
-    derivedBacklogFromIncluded !== undefined &&
-    Number(storedBacklog) !== derivedBacklogFromIncluded
-  const velocityMean = forecastInputs?.velocityMean ?? ''
-  const velocityStdDev = forecastInputs?.velocityStdDev ?? ''
-
-  // Subjective mode inputs
-  const forecastMode = forecastInputs?.forecastMode as ForecastMode | undefined
-  const velocityEstimate = forecastInputs?.velocityEstimate ?? ''
-  const selectedCV = forecastInputs?.selectedCV ?? DEFAULT_CV
-
-  // History mode volatility adjustment
-  const volatilityMultiplier = forecastInputs?.volatilityMultiplier ?? DEFAULT_VOLATILITY_MULTIPLIER
 
   const setRemainingBacklog = (value: string) => {
     if (selectedProject) setForecastInput(selectedProject.id, 'remainingBacklog', value)
   }
   const resetRemainingBacklogToDerived = () => {
-    if (!selectedProject || derivedBacklogFromIncluded === undefined) return
-    setForecastInput(selectedProject.id, 'remainingBacklog', String(derivedBacklogFromIncluded))
+    if (!selectedProject || derived.derivedBacklogFromIncluded === undefined) return
+    setForecastInput(
+      selectedProject.id,
+      'remainingBacklog',
+      String(derived.derivedBacklogFromIncluded)
+    )
   }
   const setVelocityMean = (value: string) => {
     if (selectedProject) setForecastInput(selectedProject.id, 'velocityMean', value)
@@ -114,49 +82,21 @@ export function useForecastInputs(calculatedStats: VelocityStats, includedSprint
     if (selectedProject) setForecastInput(selectedProject.id, 'volatilityMultiplier', multiplier)
   }
 
-  // Resolve effective forecast mode: stored value or auto-detect from sprint count
-  const canUseHistory = includedSprintCount >= MIN_SPRINTS_FOR_HISTORY
-  const resolvedMode: ForecastMode = forecastMode
-    ? forecastMode
-    : (canUseHistory ? 'history' : 'subjective')
-
-  // Effective values depend on forecast mode
-  // In subjective mode: derived entirely from velocity estimate + CV (no fallthrough to calc stats)
-  // In history mode: use calculated stats, manual overrides, or volatility multiplier
-  const velocityEstimateNum = Number(velocityEstimate) || 0
-
-  // In subjective mode, prefer the user's estimate; fall back to calculated mean if available
-  const subjectiveMean = velocityEstimateNum > 0
-    ? velocityEstimateNum
-    : calculatedStats.mean                                       // pre-seed from history if available
-
-  const effectiveMean = velocityMean
-    ? Number(velocityMean)
-    : resolvedMode === 'subjective'
-      ? subjectiveMean
-      : calculatedStats.mean
-
-  const effectiveStdDev = velocityStdDev
-    ? Number(velocityStdDev)
-    : resolvedMode === 'subjective'
-      ? subjectiveMean * selectedCV
-      : calculatedStats.standardDeviation * volatilityMultiplier
-
   return {
     milestones,
-    hasMilestones,
-    cumulativeThresholds,
-    remainingBacklog,
-    lastSprintBacklog,
-    derivedBacklogFromIncluded,
-    hasBacklogDrift,
-    velocityMean,
-    velocityStdDev,
-    effectiveMean,
-    effectiveStdDev,
-    forecastMode,
-    velocityEstimate,
-    selectedCV,
+    hasMilestones: derived.hasMilestones,
+    cumulativeThresholds: derived.cumulativeThresholds,
+    remainingBacklog: derived.remainingBacklog,
+    lastSprintBacklog: derived.lastSprintBacklog,
+    derivedBacklogFromIncluded: derived.derivedBacklogFromIncluded,
+    hasBacklogDrift: derived.hasBacklogDrift,
+    velocityMean: derived.velocityMean,
+    velocityStdDev: derived.velocityStdDev,
+    effectiveMean: derived.effectiveMean,
+    effectiveStdDev: derived.effectiveStdDev,
+    forecastMode: derived.forecastMode,
+    velocityEstimate: derived.velocityEstimate,
+    selectedCV: derived.selectedCV,
     setRemainingBacklog,
     resetRemainingBacklogToDerived,
     setVelocityMean,
@@ -164,7 +104,7 @@ export function useForecastInputs(calculatedStats: VelocityStats, includedSprint
     setForecastMode,
     setVelocityEstimate,
     setSelectedCV,
-    volatilityMultiplier,
+    volatilityMultiplier: derived.volatilityMultiplier,
     setVolatilityMultiplier,
   }
 }
