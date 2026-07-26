@@ -27,6 +27,7 @@ import { FirstRunBanner } from './FirstRunBanner'
 import { InvitationBanner } from './InvitationBanner'
 import { LocalStorageWarningBanner } from './LocalStorageWarningBanner'
 import { AiConnectivityProvider } from '@/features/connect-ai/AiConnectivityProvider'
+import { ConnectAiLauncher } from '@/features/connect-ai/components/ConnectAiLauncher'
 
 export function AppShell() {
   const [activeTab, setActiveTab] = useState<TabId>('projects')
@@ -108,6 +109,7 @@ export function AppShell() {
             <p className="text-sm text-gray-500 dark:text-gray-400 italic">{APP_DESCRIPTION}</p>
           </div>
           <div className="flex items-center gap-2">
+            <ConnectAiLauncher />
             <HeaderThemeToggle />
             <UserMenu onRequestOpen={() => setCloudModalOpen(true)} />
           </div>

@@ -1,5 +1,28 @@
 # Changelog
 
+## v0.38.0 - 2026-07-26
+
+Changed — **Connect AI moved out of Settings and into the app header**, matching how SPERT Story Map and SPERT Scheduler have always exposed it. Where it used to be a section you had to navigate to Settings to find, it is now a small **Connect AI** button beside the theme toggle, visible from every tab. Once you pair, it becomes **AI** with a status dot — grey when an assistant is paired but idle, pulsing blue while one is actually connected. So you can now tell at a glance whether an assistant is attached and live, without leaving your forecast.
+
+The panel behind it is now a dialog rather than an inline block, again matching the siblings, and it gained a Done button and closes on Escape or a click outside. And connecting is no longer repetitive: if you have already given consent at the current version, clicking the button reconnects silently and takes you straight to the pairing code. Previously every connect re-opened the consent dialog, even for a browser that had consented minutes earlier.
+
+Two places Forecaster deliberately differs from its siblings, both for the same reason — their headers sit inside a single project and Forecaster's is global. The button is **hidden entirely when you have no projects**, rather than appearing and then telling you to create one. And it does not name a project, because your pairing follows whichever project you are viewing rather than belonging to one; "an assistant is paired to this browser" is the honest claim, and showing a project name would imply otherwise.
+
+Nothing about the connection itself changed — same session model, same read-only guarantee, same Read Mode behaviour. The production build, ESLint (`--max-warnings=0`), and all 1,168 tests (2 new) pass, and the whole flow was exercised end to end in a browser: button hidden with no projects, appearing when one exists, consent dialog, pairing code, the dot turning blue when a real assistant connected through the live server, and Disconnect tearing the session down.
+
+### Changed
+
+- **Connect AI is now a header button, not a Settings section.** It sits in the header control cluster to the left of the theme toggle — the same relative position both sibling apps use. The Settings section has been removed entirely rather than kept as a second entry point: two entry points would be two things to keep in sync, and neither sibling has one.
+- **The pairing panel is a modal**, with a Done button, Escape-to-close, click-outside-to-close, and no background scrolling. It closes itself after a successful Disconnect.
+- **Consent is not re-requested unnecessarily.** Clicking Connect AI when this browser has already consented at the current consent version resumes the session silently and opens the panel. The consent dialog now appears only on a genuinely first connection, or after the consent copy changes materially enough to warrant re-acceptance.
+- **The pairing code stops refreshing while the panel is closed.** It previously rotated on a ten-minute timer regardless of whether anything was on screen to rotate.
+
+### Internal
+
+- Added `ConnectAiLauncher`, which owns the button and both modals; `ConnectAiSection` is deleted. The connection itself remains in `AiConnectivityProvider` at `AppShell` level, unchanged from v0.37.1.
+- The wiring test that guards the v0.37.1 defect moved to the launcher rather than being deleted with the section, and gained two cases covering the no-projects gate. It remains deliberately structural — asserting the launcher renders *nothing* without a provider above it, which is the only form of assertion that can distinguish "owns a connection" from "consumes one".
+- Recorded as decision D-F15 in the suite's AI Connect decision register, with a new conformance section covering entry-point parity across all three apps.
+
 ## v0.37.1 - 2026-07-26
 
 Fixed — a Connect AI defect found by the v0.37.0 production smoke, in which the AI stopped seeing your work the moment you left the Settings tab. Pair an assistant, navigate to the Forecast tab, run a forecast, and the assistant would keep reading the snapshot from *before* the run — reporting `absent` when a forecast had plainly just completed, or `fresh` numbers that were several edits old. After roughly 90 seconds the pairing would also start reading as disconnected. Since Settings is precisely where you are *not* while forecasting, this affected essentially every real session.
