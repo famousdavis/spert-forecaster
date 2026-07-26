@@ -11,6 +11,8 @@ import { buildPairingPrompt } from '../copyPrompt'
 import type { AiSessionState } from '../hooks/useAiConnectivity'
 
 interface ConnectAiPanelProps {
+  open: boolean
+  onClose: () => void
   sessionState: AiSessionState
   onChangePermissions: (consentRead: boolean) => Promise<boolean>
   onDisconnect: () => Promise<void>
@@ -19,8 +21,16 @@ interface ConnectAiPanelProps {
 /** Ten minutes; a code expires in fifteen. */
 const CODE_REFRESH_MS = 10 * 60 * 1000
 
+/**
+ * The paired-session panel: pairing code, Read Mode toggle, Disconnect.
+ *
+ * A modal opened from the header button, matching SPERT Story Map's
+ * ConnectPanel and SPERT Scheduler's ConnectAiPanel. It was an inline block
+ * inside a Settings section until v0.38.0; see ConnectAiLauncher for why that
+ * moved.
+ */
 export function ConnectAiPanel({
-  sessionState, onChangePermissions, onDisconnect,
+  open, onClose, sessionState, onChangePermissions, onDisconnect,
 }: ConnectAiPanelProps) {
   const [code, setCode] = useState<string | null>(null)
   const [codeLoading, setCodeLoading] = useState(false)
@@ -51,16 +61,30 @@ export function ConnectAiPanel({
   // sibling app carries the same disable for the same reason.
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- see above
-    if (sessionId) void fetchCode()
-  }, [sessionId, fetchCode])
+    if (open && sessionId) void fetchCode()
+  }, [open, sessionId, fetchCode])
 
-  // Refresh while the panel is idle, but stop once the AI is actually
-  // connected — rotating the code under a live pairing serves no purpose.
+  // Refresh while the panel is open and idle, but stop once the AI is
+  // actually connected — rotating the code under a live pairing serves no
+  // purpose, and a closed panel has no code on screen to rotate.
   useEffect(() => {
-    if (!sessionId || sessionState.aiConnected) return
+    if (!open || !sessionId || sessionState.aiConnected) return
     refreshTimerRef.current = setInterval(() => void fetchCode(), CODE_REFRESH_MS)
     return () => { if (refreshTimerRef.current) clearInterval(refreshTimerRef.current) }
-  }, [sessionId, sessionState.aiConnected, fetchCode])
+  }, [open, sessionId, sessionState.aiConnected, fetchCode])
+
+  // Escape closes, and the body does not scroll behind the modal — matching
+  // ConfirmDialog, which is this app's modal reference.
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', onKey)
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = ''
+    }
+  }, [open, onClose])
 
   const copy = async (kind: 'code' | 'prompt') => {
     if (!code) return
@@ -84,13 +108,42 @@ export function ConnectAiPanel({
     setDisconnecting(true)
     try {
       await onDisconnect()
+      // Nothing left to show once the pairing is gone.
+      onClose()
     } finally {
       setDisconnecting(false)
     }
   }
 
+  if (!open) return null
+
   return (
-    <div className="mt-3 rounded border border-spert-border p-4 dark:border-gray-600">
+    <div className="fixed inset-0 z-50 flex items-center justify-center" role="presentation">
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} aria-hidden="true" />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="connect-ai-panel-title"
+        className="relative z-10 mx-4 w-full max-w-lg rounded-lg bg-white p-6 shadow-xl dark:bg-gray-800"
+      >
+      <div className="mb-3 flex items-start justify-between">
+        <h3
+          id="connect-ai-panel-title"
+          className="text-lg font-semibold text-spert-text dark:text-gray-100"
+        >
+          Connect AI
+        </h3>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+          className="-mr-1 -mt-1 rounded p-1 text-spert-muted hover:text-spert-text dark:text-gray-400 dark:hover:text-gray-100"
+        >
+          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
       <div className="flex items-center gap-2 text-sm">
         <span
           className={`inline-block h-2 w-2 rounded-full ${
@@ -168,7 +221,7 @@ export function ConnectAiPanel({
         </p>
       )}
 
-      <div className="mt-4">
+      <div className="mt-5 flex items-center justify-between">
         <button
           type="button"
           onClick={() => void handleDisconnect()}
@@ -177,6 +230,14 @@ export function ConnectAiPanel({
         >
           {disconnecting ? 'Disconnecting…' : 'Disconnect'}
         </button>
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded border border-spert-border px-4 py-1.5 text-sm dark:border-gray-600 dark:text-gray-200"
+        >
+          Done
+        </button>
+      </div>
       </div>
     </div>
   )

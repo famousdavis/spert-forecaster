@@ -12,7 +12,6 @@ import { MIN_PERCENTILE, MAX_PERCENTILE, SELECTABLE_PERCENTILES } from '@/featur
 import { cn } from '@/lib/utils'
 import { StorageModeSection } from '@/features/auth/components/StorageModeSection'
 import { ExportProjectsSection } from './ExportProjectsSection'
-import { ConnectAiSection } from '@/features/connect-ai/components/ConnectAiSection'
 
 const sectionHeaderClass = 'text-lg font-semibold text-spert-blue mb-4'
 const labelClass = 'text-sm font-semibold text-spert-text-secondary dark:text-gray-300'
@@ -445,8 +444,6 @@ export function SettingsTab() {
       </section>
 
       {/* Export Projects */}
-      <ConnectAiSection />
-
       <ExportProjectsSection />
     </div>
   )
