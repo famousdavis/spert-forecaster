@@ -77,6 +77,23 @@ export function AboutTab() {
       </section>
 
       <section className="mb-8">
+        <h3 className="text-xl mb-3 text-spert-blue">Connect AI Guide</h3>
+        <p className="leading-relaxed text-spert-text-secondary mb-3">
+          Pair a compatible AI assistant with your project so it can read your sprint
+          history and forecast results, and explain what the numbers mean. The connection
+          is read-only. Download the Connect AI guide to get started.
+        </p>
+        <a
+          href="/SPERTForecaster_Connect_AI_Guide.pdf"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-block px-6 py-3 bg-spert-blue text-white no-underline rounded font-semibold mt-2"
+        >
+          Open Connect AI Guide (PDF)
+        </a>
+      </section>
+
+      <section className="mb-8">
         <h3 className="text-xl mb-3 text-spert-blue">Your Data &amp; Storage</h3>
         <p className="leading-relaxed text-spert-text-secondary mb-4">
           SPERT Forecaster offers two storage modes, configurable in <strong>Settings</strong>.

@@ -2,6 +2,9 @@
 // Licensed under the GNU General Public License v3.0.
 // See LICENSE file in the project root for full license text.
 
+/** Suite-wide AI privacy notice (shared across SPERT apps). */
+export const AI_PRIVACY_URL = 'https://spertsuite.com/ai-privacy'
+
 /** Session id for the current AI pairing, if any. */
 export const AI_SESSION_ID_KEY = 'spert_forecaster_ai_session_id'
 
