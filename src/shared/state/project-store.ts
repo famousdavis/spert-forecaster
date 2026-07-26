@@ -4,12 +4,13 @@
 
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { Project, Sprint, ProductivityAdjustment, Milestone, ForecastMode } from '@/shared/types'
+import type { Project, Sprint, ProductivityAdjustment, Milestone, ForecastInputs } from '@/shared/types'
 import { storage, STORAGE_KEY, getWorkspaceId, getStorageMode, appendChangeLogEntry, type ChangeLogEntry } from './storage'
 import { auth } from '@/shared/firebase/config'
 import { APP_VERSION } from '@/shared/constants'
 import { type BurnUpConfig, DEFAULT_BURN_UP_CONFIG } from '@/shared/types/burn-up'
 import { validateImportData, type ExportData } from './import-validation'
+import { useForecastResultsStore } from './forecast-results-store'
 import { useSettingsStore } from './settings-store'
 import { syncBus } from '@/shared/firebase/sync-bus'
 import {
@@ -22,16 +23,9 @@ import {
 } from './import-utils'
 export { validateImportData, type ExportData } from './import-validation'
 
-// Session-only forecast inputs (per project, not persisted to localStorage)
-interface ForecastInputs {
-  remainingBacklog: string
-  velocityMean: string
-  velocityStdDev: string
-  forecastMode?: ForecastMode // undefined = auto-detect based on sprint count
-  velocityEstimate?: string   // Subjective mode: user's velocity guess
-  selectedCV?: number         // Subjective mode: selected coefficient of variation
-  volatilityMultiplier?: number // History mode: SD multiplier (1.0 = match history)
-}
+// ForecastInputs (session-only, per project, never persisted) moved to
+// @/shared/types in v0.36.0 so deriveForecastInputs in shared/lib can take it
+// as a parameter without shared/lib importing shared/state.
 
 interface ProjectState {
   projects: Project[]
@@ -268,6 +262,10 @@ export const useProjectStore = create<ProjectState>()(
             _changeLog: appendChangeLogEntry(state._changeLog, { op: 'delete', entity: 'project', id }),
           }
         })
+        // Drop this project's run record and its per-project forecast view
+        // state (target date, percentile selections, scope-growth toggles) —
+        // the same reasoning that drops its forecastInputs above.
+        useForecastResultsStore.getState().clearForProject(id)
         if (!get()._isCloudUpdate) {
           syncBus.emit({ type: 'project:delete', projectId: id })
         }
@@ -503,6 +501,9 @@ export const useProjectStore = create<ProjectState>()(
           forecastInputs: {},
           burnUpConfigs: {},
         }))
+        // Every project id is gone, so the whole record + view-state map goes
+        // with them.
+        useForecastResultsStore.getState().clearAll()
         // Replace-All discards old owner/members (the user explicitly chose to
         // wipe the workspace). No name-conflict replaces occur in this path —
         // replacedIdMap is empty.
@@ -603,6 +604,17 @@ export const useProjectStore = create<ProjectState>()(
             viewingProjectId: newViewingProjectId,
           }
         })
+        // Forecast run record + view state for every replaced project slot.
+        // A replaced project's data is substituted wholesale from the incoming
+        // file, so a record describing the OLD contents would be served under
+        // the new ones. Mirrors the burnUpConfigs clear above, which uses the
+        // same replacedExistingIds set for the same reason.
+        if (outcome.ok) {
+          const forecastResults = useForecastResultsStore.getState()
+          for (const existingId of outcome.result.replacedExistingIds) {
+            forecastResults.clearForProject(existingId)
+          }
+        }
         // C28: syncBus only fires on success. A no-op set() should not trigger
         // cloud sync of unchanged data. replacedIdMap powers owner/members
         // preservation on name-conflict replaces in cloud mode (pitfall #7).
@@ -645,6 +657,11 @@ export const useProjectStore = create<ProjectState>()(
           _changeLog: [],
           cloudDataLoaded: false,
         })
+        // Same rationale, one store over: the run record holds a previous
+        // user's raw trial arrays, and the view-state map holds their target
+        // dates and percentile selections. Called from all three of this
+        // action's call sites — sign-out and both cloud→local switches.
+        useForecastResultsStore.getState().clearAll()
       },
 
       setForecastInput: (projectId, field, value) =>

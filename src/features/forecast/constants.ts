@@ -4,6 +4,18 @@
 
 // Forecast-specific constants
 
+// MIN_SPRINTS_FOR_BOOTSTRAP, MIN_SPRINTS_FOR_HISTORY, DEFAULT_CV and
+// DEFAULT_VOLATILITY_MULTIPLIER now live in @/shared/lib/forecast-constants,
+// because the pure derivations extracted from useForecastInputs / useSprintData
+// depend on them and must be callable from outside React. Re-exported here so
+// every existing `from '../constants'` import site keeps working.
+export {
+  MIN_SPRINTS_FOR_BOOTSTRAP,
+  MIN_SPRINTS_FOR_HISTORY,
+  DEFAULT_CV,
+  DEFAULT_VOLATILITY_MULTIPLIER,
+} from '@/shared/lib/forecast-constants'
+
 export const DEFAULT_TRIAL_COUNT = 10000
 
 export const DEFAULT_PERCENTILES = [50, 60, 70, 80, 90] as const
@@ -18,9 +30,6 @@ export const SELECTABLE_PERCENTILES = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55
  *  forecast spread without overwhelming first-time users. They can add more in the
  *  Forecast Results pill selector. */
 export const DEFAULT_SELECTED_PERCENTILES: readonly number[] = [10, 50, 90] as const
-
-// Minimum number of included sprints required for bootstrap simulation
-export const MIN_SPRINTS_FOR_BOOTSTRAP = 5
 
 // Safety limit for maximum sprints in a single trial
 // Prevents infinite loops when velocity is near zero
@@ -43,9 +52,6 @@ export const DEFAULT_MILESTONE_COLORS = [
 // Subjective forecasting (cold-start mode)
 // ============================================================================
 
-/** Minimum included sprints for history-based forecasting (also enables bootstrap) */
-export const MIN_SPRINTS_FOR_HISTORY = MIN_SPRINTS_FOR_BOOTSTRAP
-
 /** CV elicitation options for subjective mode */
 export interface CVOption {
   label: string
@@ -60,8 +66,6 @@ export const CV_OPTIONS: CVOption[] = [
   { label: 'Quite volatile', cv: 0.55 },
   { label: 'Wildly uncertain', cv: 0.65 },
 ]
-
-export const DEFAULT_CV = 0.35
 
 // ============================================================================
 // History mode volatility adjustment
@@ -79,8 +83,6 @@ export const VOLATILITY_OPTIONS: VolatilityOption[] = [
   { label: 'Slightly more volatile', multiplier: 1.25 },
   { label: 'Much more volatile',     multiplier: 1.5  },
 ]
-
-export const DEFAULT_VOLATILITY_MULTIPLIER = 1.0
 
 /**
  * Get the rounding increment for cosmetic range display.

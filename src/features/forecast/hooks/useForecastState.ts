@@ -4,12 +4,20 @@
 
 'use client'
 
-import { useState, useMemo, useRef, useEffect } from 'react'
+import { useMemo, useRef, useEffect } from 'react'
 import { toast } from 'sonner'
 import {
   useProjectStore,
   selectViewingProject,
 } from '@/shared/state/project-store'
+import {
+  useForecastResultsStore,
+  selectRecordFor,
+  type ForecastScope,
+  type ForecastRunRecord,
+} from '@/shared/state/forecast-results-store'
+import { readForecastInputSnapshot } from '@/shared/state/forecast-snapshot-source'
+import { isRecordStale } from '@/shared/lib/forecast-staleness'
 import { useSettingsStore } from '@/shared/state/settings-store'
 import { useIsClient, useDebounce } from '@/shared/hooks'
 import { useSprintData } from './useSprintData'
@@ -24,7 +32,7 @@ import {
 } from '../lib/monte-carlo'
 import { useSimulationWorker, type QuadForecastResult } from './useSimulationWorker'
 import { useScopeGrowthState } from './useScopeGrowthState'
-import { currentSimulationGeneration } from '../lib/simulation-generation'
+import { currentSimulationGeneration } from '@/shared/lib/simulation-generation'
 import { preCalculateSprintFactors } from '../lib/productivity'
 import { generateForecastCsv, downloadCsv, generateFilename } from '../lib/export-csv'
 import { safeParseNumber } from '@/shared/lib/validation'
@@ -45,7 +53,7 @@ const EMPTY_CUSTOM_RESULTS: QuadCustomResults = {
 }
 
 /** Extract QuadResults + QuadSimulationData from a QuadForecastResult */
-function extractQuadData(raw: QuadForecastResult): { results: QuadResults; simData: QuadSimulationData } {
+export function extractQuadData(raw: QuadForecastResult): { results: QuadResults; simData: QuadSimulationData } {
   return {
     results: {
       truncatedNormal: raw.truncatedNormal.results,
@@ -67,7 +75,7 @@ function extractQuadData(raw: QuadForecastResult): { results: QuadResults; simDa
 }
 
 /** Reshape QuadMilestoneForecastResult into per-milestone QuadResults[] + QuadSimulationData[] */
-function extractMilestoneData(
+export function extractMilestoneData(
   raw: QuadMilestoneForecastResult,
   milestoneCount: number
 ): { perMilestoneResults: QuadResults[]; perMilestoneSimData: QuadSimulationData[] } {
@@ -94,9 +102,14 @@ function extractMilestoneData(
   return { perMilestoneResults, perMilestoneSimData }
 }
 
+/** A record whose only scope is the whole project — i.e. a non-milestone run. */
+function isProjectScopeRecord(record: ForecastRunRecord | null): boolean {
+  return record?.scopes[0]?.kind === 'project'
+}
+
 export function useForecastState() {
   const isClient = useIsClient()
-  const { runSimulation, runMilestoneSimulation, isSimulating } = useSimulationWorker()
+  const { runSimulation, runMilestoneSimulation } = useSimulationWorker()
   const projects = useProjectStore((state) => state.projects)
   const selectedProject = useProjectStore(selectViewingProject)
   const setViewingProjectId = useProjectStore((state) => state.setViewingProjectId)
@@ -104,6 +117,9 @@ export function useForecastState() {
   // Global settings
   const trialCount = useSettingsStore((s) => s.trialCount)
   const autoRecalculate = useSettingsStore((s) => s.autoRecalculate)
+  const defaultPercentile = useSettingsStore((s) => s.defaultCustomPercentile)
+  const defaultPercentile2 = useSettingsStore((s) => s.defaultCustomPercentile2)
+  const defaultResultsPercentiles = useSettingsStore((s) => s.defaultResultsPercentiles)
 
   // Composed hooks
   const sprintData = useSprintData()
@@ -111,6 +127,64 @@ export function useForecastState() {
   // derived backlog value for the Forecast tab's Remaining Backlog field (Item 2 fix).
   const inputs = useForecastInputs(sprintData.calculatedStats, sprintData.includedSprintCount, sprintData.includedSprints)
   const charts = useChartSettings()
+
+  const projectId = selectedProject?.id
+
+  // ── Lifted state (v0.36.0) ────────────────────────────────────────────────
+  // Results and view state live in the forecast-results store so they survive
+  // a tab switch (AppShell unmounts the Forecast tab), and so the freshness
+  // check can read them from outside React.
+  const record = useForecastResultsStore((s) => selectRecordFor(s, projectId))
+  const isSimulatingState = useForecastResultsStore((s) => s.isSimulating)
+  const view = useForecastResultsStore((s) => (projectId ? s.viewState[projectId] : undefined))
+  const ensureViewState = useForecastResultsStore((s) => s.ensureViewState)
+  const patchViewState = useForecastResultsStore((s) => s.patchViewState)
+  const setSelectedMilestoneIndexAction = useForecastResultsStore((s) => s.setSelectedMilestoneIndex)
+  const publishRecord = useForecastResultsStore((s) => s.publishRecord)
+  const clearIsSimulatingIfToken = useForecastResultsStore((s) => s.clearIsSimulatingIfToken)
+
+  const isSimulating = !!isSimulatingState && isSimulatingState.projectId === projectId
+
+  // Lazy per-project creation, seeded from settings where a default exists.
+  //
+  // ACCEPTED BEHAVIOR CHANGE: customPercentile, customPercentile2 and
+  // selectedResultsPercentiles used to re-seed from settings-store on EVERY
+  // mount of this hook — i.e. on every re-entry to the Forecast tab. Entries
+  // are now created on first read only, so changing a Settings default stops
+  // applying to a project already visited this session. That is the point of
+  // per-project persistence; the old behavior silently discarded per-project
+  // choices on every tab switch.
+  useEffect(() => {
+    if (!projectId) return
+    ensureViewState(projectId, {
+      customPercentile: defaultPercentile,
+      customPercentile2: defaultPercentile2,
+      selectedResultsPercentiles:
+        defaultResultsPercentiles?.length > 0
+          ? [...defaultResultsPercentiles]
+          : [...DEFAULT_SELECTED_PERCENTILES],
+    })
+  }, [projectId, ensureViewState, defaultPercentile, defaultPercentile2, defaultResultsPercentiles])
+
+  const customPercentile = view?.customPercentile ?? defaultPercentile
+  const customPercentile2 = view?.customPercentile2 ?? defaultPercentile2
+  const fallbackResultsPercentiles = useMemo(
+    () =>
+      defaultResultsPercentiles?.length > 0
+        ? [...defaultResultsPercentiles]
+        : [...DEFAULT_SELECTED_PERCENTILES],
+    [defaultResultsPercentiles]
+  )
+  const selectedResultsPercentiles = view?.selectedResultsPercentiles ?? fallbackResultsPercentiles
+
+  // Session-only target date for the Deadline Probability panel (v0.33.0).
+  //
+  // It used to live in this hook so a project-change reset effect could clear
+  // it — "a target date from project A shouldn't bleed into project B when
+  // the user switches." Per-project keying in the view-state map replaces that
+  // mechanism; the invariant is unchanged, and this comment travels with the
+  // field so the next reader does not restore the effect.
+  const targetDate = view?.targetDate ?? ''
 
   // Forecast mode: auto-detect or user override
   const canUseHistory = sprintData.includedSprintCount >= MIN_SPRINTS_FOR_HISTORY
@@ -133,45 +207,50 @@ export function useForecastState() {
     [inputs.milestones]
   )
 
-  // Track previous project to clear results on change
-  const prevProjectIdRef = useRef<string | undefined>(selectedProject?.id)
+  const scopeGrowth = useScopeGrowthState(projectId, sprintData.scopeChangeStats?.averageScopeInjection)
 
-  // Track whether a forecast has been run at least once (for auto-recalc guard)
-  const hasRunOnceRef = useRef(false)
+  // ── Results, derived from the record ──────────────────────────────────────
+  const milestoneResultsState = useMemo<MilestoneResults | null>(() => {
+    if (!record || isProjectScopeRecord(record)) return null
+    return {
+      milestoneResults: record.quadResults,
+      milestoneSimulationData: record.simData,
+    }
+  }, [record])
 
-  // Results state
-  const [results, setResults] = useState<QuadResults | null>(null)
-  const [simulationData, setSimulationData] = useState<QuadSimulationData | null>(null)
-  // Overall (total backlog) simulation data — used by burn-up chart; not swapped by milestone dropdown
-  const [overallSimulationData, setOverallSimulationData] = useState<QuadSimulationData | null>(null)
-  const [milestoneResultsState, setMilestoneResultsState] = useState<MilestoneResults | null>(null)
-  const defaultPercentile = useSettingsStore((s) => s.defaultCustomPercentile)
-  const [customPercentile, setCustomPercentile] = useState(defaultPercentile)
-  const [customResults, setCustomResults] = useState<QuadCustomResults>(EMPTY_CUSTOM_RESULTS)
+  const selectedMilestoneIndex = view?.selectedMilestoneIndex ?? 0
+  const activeScopeIndex = useMemo(() => {
+    if (!record) return 0
+    if (isProjectScopeRecord(record)) return 0
+    return Math.max(0, Math.min(selectedMilestoneIndex, record.scopes.length - 1))
+  }, [record, selectedMilestoneIndex])
 
-  // Second custom percentile slider (Feature 3)
-  const defaultPercentile2 = useSettingsStore((s) => s.defaultCustomPercentile2)
-  const [customPercentile2, setCustomPercentile2] = useState(defaultPercentile2)
-  const [customResults2, setCustomResults2] = useState<QuadCustomResults>(EMPTY_CUSTOM_RESULTS)
+  const results = record?.quadResults[activeScopeIndex] ?? null
+  const simulationData = record?.simData[activeScopeIndex] ?? null
+  // Overall (total backlog) simulation data — used by the burn-up chart; not
+  // swapped by the milestone dropdown, so it is always the LAST scope.
+  const overallSimulationData = record ? (record.simData[record.simData.length - 1] ?? null) : null
 
-  // User-selectable results table percentiles (Feature 2)
-  const defaultResultsPercentiles = useSettingsStore((s) => s.defaultResultsPercentiles)
-  const [selectedResultsPercentiles, setSelectedResultsPercentiles] = useState<number[]>(
-    () => defaultResultsPercentiles?.length > 0 ? [...defaultResultsPercentiles] : [...DEFAULT_SELECTED_PERCENTILES]
-  )
+  // customResults / customResults2 are DERIVED now, not imperative state.
+  //
+  // ACCEPTED BEHAVIOR CHANGE: as useState cells they retained their previous
+  // value when the write guard was false (mid-switch, missing cadence).
+  // Derived, they yield the empty value in that frame. The byte-identity gate
+  // covers the steady state, not this frame.
+  const cadence = selectedProject?.sprintCadenceWeeks
+  const customResults = useMemo<QuadCustomResults>(() => {
+    if (!simulationData || !cadence) return EMPTY_CUSTOM_RESULTS
+    return calculateAllCustomPercentiles(
+      simulationData, customPercentile, sprintData.forecastStartDate, cadence
+    )
+  }, [simulationData, customPercentile, sprintData.forecastStartDate, cadence])
 
-  // Scope growth modeling (session only, extracted hook)
-  const scopeGrowth = useScopeGrowthState(sprintData.scopeChangeStats?.averageScopeInjection)
-
-  // Milestone chart selector (which milestone to show on CDF/histogram)
-  const [selectedMilestoneIndex, setSelectedMilestoneIndex] = useState(0)
-
-  // Deadline Probability panel target date (v0.33.0). Session-only string. Lives
-  // here rather than inside DeadlineProbabilityPanel so the project-change
-  // reset effect below can clear it alongside the other forecast state — a
-  // target date from project A shouldn't bleed into project B when the user
-  // switches.
-  const [targetDate, setTargetDate] = useState<string>('')
+  const customResults2 = useMemo<QuadCustomResults>(() => {
+    if (!simulationData || !cadence) return EMPTY_CUSTOM_RESULTS
+    return calculateAllCustomPercentiles(
+      simulationData, customPercentile2, sprintData.forecastStartDate, cadence
+    )
+  }, [simulationData, customPercentile2, sprintData.forecastStartDate, cadence])
 
   // Centralized prerequisite check shared by:
   //  - the auto-recalculate effect below (silent-path gate)
@@ -206,136 +285,154 @@ export function useForecastState() {
     [prereqInputs]
   )
 
-  // Clear results when project changes. `resetScopeGrowth` is extracted to
-  // a local binding so exhaustive-deps sees a plain identifier dep rather
-  // than the `scopeGrowth.*` member access (which would force the whole
-  // `scopeGrowth` object — including frequently-changing toggle state — to
-  // be a dep). The function has stable identity (wrapped in `useCallback([])`
-  // inside useScopeGrowthState), so listing it does not cause re-runs.
-  const { resetScopeGrowth } = scopeGrowth
-  // Reset all results state when the selected project changes. These setStates
-  // reset-to-empty (not cascading derivations), so the cascading-renders concern
-  // does not apply; the alternative of a `key` prop on the parent for forced
-  // remount is too invasive for a tab-switch boundary that owns this much
-  // locally-managed state.
-  useEffect(() => {
-    if (prevProjectIdRef.current !== selectedProject?.id) {
-      setResults(null)
-      setSimulationData(null)
-      setOverallSimulationData(null)
-      setMilestoneResultsState(null)
-      setCustomResults(EMPTY_CUSTOM_RESULTS)
-      setCustomResults2(EMPTY_CUSTOM_RESULTS)
-      setSelectedMilestoneIndex(0)
-      setTargetDate('')
-      resetScopeGrowth()
-      hasRunOnceRef.current = false
-      prevProjectIdRef.current = selectedProject?.id
-    }
-  }, [selectedProject?.id, resetScopeGrowth])
-
   const handleRunForecast = async () => {
-    // Belt-and-braces: same prereq check used by the UI's button-disabled state.
-    // If the UI is wired correctly, canRun gates the button so this guard never
-    // fires from a user click — but the auto-recalc effect and any future caller
-    // also funnels through here, so we keep the runtime guard.
-    if (!selectedProject || !canRun) return
+    // Resolve from the store rather than the closure: this is the same value
+    // the publish-time re-resolution compares against, and the auto-recalc
+    // effect reaches this function through a ref.
+    const project = selectViewingProject(useProjectStore.getState())
+    if (!project || !canRun) return
 
     // canRun already guarantees cadence + firstSprintStartDate are set, but the
-    // type system can't see that narrowing across a helper boundary. Re-check
-    // here so TypeScript can narrow `number | undefined` → `number` at every
-    // downstream use site. Runtime-redundant, type-system-essential.
-    if (!selectedProject.sprintCadenceWeeks || !selectedProject.firstSprintStartDate) return
+    // type system can't see that narrowing across a helper boundary.
+    if (!project.sprintCadenceWeeks || !project.firstSprintStartDate) return
 
-    const parsedBacklog = safeParseNumber(inputs.remainingBacklog)
-    if (parsedBacklog === null || parsedBacklog <= 0) return
-    if (!Number.isFinite(inputs.effectiveMean) || inputs.effectiveMean <= 0) return
-    if (!Number.isFinite(inputs.effectiveStdDev) || inputs.effectiveStdDev < 0) return
-
-    // G1 — capture generation before any await; discard if bumped while in flight
-    // (sign-out cleared the store, so writing results into it would be incorrect).
+    // ── RUN-START CAPTURE ───────────────────────────────────────────────────
+    // The project id (trap 2), the generation token, and the run config are
+    // captured together, BEFORE any await.
+    //
+    // runConfig comes from readForecastInputSnapshot — the SAME builder that
+    // produces the staleness comparand. Building it at publish time instead
+    // would describe the store's *current* inputs, so an input edited during a
+    // long run yields a record that is fresh by construction and
+    // mis-attributed. Building it from this function's React closures would
+    // let the two sides diverge, which makes every record instantly stale and
+    // turns the auto-recalculate gate into a continuous worker loop under the
+    // shipped autoRecalculate: true default.
+    const runProjectId = project.id
     const startGen = currentSimulationGeneration()
+    const runConfig = readForecastInputSnapshot(project)
 
+    if (runConfig.remainingBacklog <= 0) return
+    if (!Number.isFinite(runConfig.velocityMean) || runConfig.velocityMean <= 0) return
+    if (!Number.isFinite(runConfig.velocityStdDev) || runConfig.velocityStdDev < 0) return
+
+    // The worker payload is read straight off runConfig, so the record
+    // provably describes what the simulation consumed.
     const config = {
-      remainingBacklog: parsedBacklog,
-      velocityMean: inputs.effectiveMean,
-      velocityStdDev: inputs.effectiveStdDev,
-      startDate: sprintData.forecastStartDate,
-      trialCount,
-      sprintCadenceWeeks: selectedProject.sprintCadenceWeeks,
+      remainingBacklog: runConfig.remainingBacklog,
+      velocityMean: runConfig.velocityMean,
+      velocityStdDev: runConfig.velocityStdDev,
+      startDate: runConfig.startDate,
+      trialCount: runConfig.trialCount,
+      sprintCadenceWeeks: runConfig.sprintCadenceWeeks,
     }
+    const scopeGrowthArg = runConfig.scopeGrowthPerSprint ?? undefined
 
-    // Pre-calculate productivity factors if enabled adjustments exist
-    // Use the cascade-resolved forecastStartDate as anchor, with sprint index 1,
-    // so future sprint date ranges align with any custom finish date shifts
+    // Pre-calculate productivity factors if enabled adjustments exist.
+    // Anchored on runConfig.startDate with sprint index 1, so future sprint
+    // date ranges align with any custom finish date shifts.
     const enabledAdjustments = productivityAdjustments.filter((a) => a.enabled !== false)
     let productivityFactors: number[] | undefined
     if (enabledAdjustments.length > 0) {
       const { factors } = preCalculateSprintFactors(
-        sprintData.forecastStartDate,
-        selectedProject.sprintCadenceWeeks,
+        runConfig.startDate,
+        runConfig.sprintCadenceWeeks,
         1,
         enabledAdjustments
       )
       productivityFactors = factors
     }
 
+    const thresholds = inputs.cumulativeThresholds
+    const useMilestones = inputs.hasMilestones && thresholds.length > 0
+    const milestoneNames = inputs.milestones.map((m) => m.name)
+
+    /**
+     * Publish, unless the resolved project changed under us.
+     *
+     * TRAP 2: selectViewingProject falls back to projects[0]. If a
+     * collaborator deletes the viewed project mid-run, publishing under the
+     * PUBLISH-time resolved id would stamp project B's arrays with project
+     * A's id — the D13 read gate would then match, and the results would be
+     * served under the wrong project's name. The choice is to SUPPRESS
+     * entirely, not to publish under the captured id: the captured project
+     * may no longer exist at all.
+     */
+    const publishIfStillCurrent = (
+      quadResults: QuadResults[],
+      simData: QuadSimulationData[],
+      scopes: ForecastScope[]
+    ): boolean => {
+      const stillCurrent = selectViewingProject(useProjectStore.getState())
+      if (stillCurrent?.id !== runProjectId) return false
+      publishRecord({
+        projectId: runProjectId,
+        runAt: new Date().toISOString(),
+        runConfig,
+        simData,
+        quadResults,
+        scopes,
+      })
+      return true
+    }
+
     try {
-      if (inputs.hasMilestones && inputs.cumulativeThresholds.length > 0) {
+      if (useMilestones) {
         const milestoneResult = await runMilestoneSimulation({
           config,
           historicalVelocities: sprintData.canUseBootstrap ? sprintData.historicalVelocities : undefined,
           productivityFactors,
-          milestoneThresholds: inputs.cumulativeThresholds,
-          scopeGrowthPerSprint: scopeGrowth.scopeGrowthPerSprint,
-        })
+          milestoneThresholds: thresholds,
+          scopeGrowthPerSprint: scopeGrowthArg,
+        }, runProjectId)
         if (currentSimulationGeneration() !== startGen) return  // G1 — stale result, sign-out fired
 
         const { perMilestoneResults, perMilestoneSimData } = extractMilestoneData(
-          milestoneResult, inputs.cumulativeThresholds.length
+          milestoneResult, thresholds.length
         )
-        setMilestoneResultsState({ milestoneResults: perMilestoneResults, milestoneSimulationData: perMilestoneSimData })
-
         const lastIdx = perMilestoneResults.length - 1
-        setOverallSimulationData(perMilestoneSimData[lastIdx])
-        setSimulationData(perMilestoneSimData[lastIdx])
-        setResults(perMilestoneResults[lastIdx])
-        setSelectedMilestoneIndex(lastIdx)
-        setCustomResults(calculateAllCustomPercentiles(
-          perMilestoneSimData[lastIdx], customPercentile,
-          sprintData.forecastStartDate, selectedProject.sprintCadenceWeeks
-        ))
-        setCustomResults2(calculateAllCustomPercentiles(
-          perMilestoneSimData[lastIdx], customPercentile2,
-          sprintData.forecastStartDate, selectedProject.sprintCadenceWeeks
-        ))
+        // D20: with milestones, cumulative-final REPLACES the last milestone
+        // entry, so N milestones yield N scopes.
+        const scopes: ForecastScope[] = thresholds.map((threshold, i) => ({
+          kind: i === lastIdx ? 'cumulative-final' : 'milestone',
+          milestoneIndex: i,
+          label: milestoneNames[i] ?? `Milestone ${i + 1}`,
+          cumulativeThreshold: threshold,
+          // Threshold above the backlog, and NOTHING ELSE. A trial that exits
+          // by completion has crossed every threshold <= backlog regardless of
+          // scope growth, because the crossing test runs in the same loop
+          // iteration `remaining` goes non-positive. Growth delays crossings;
+          // it does not prevent them. Do not add a scope-growth disjunct.
+          thresholdUnreachable: threshold > runConfig.remainingBacklog,
+        }))
+        if (publishIfStillCurrent(perMilestoneResults, perMilestoneSimData, scopes)) {
+          setSelectedMilestoneIndexAction(runProjectId, lastIdx)
+        }
       } else {
         const quadResults = await runSimulation({
           config,
           historicalVelocities: sprintData.canUseBootstrap ? sprintData.historicalVelocities : undefined,
           productivityFactors,
-          scopeGrowthPerSprint: scopeGrowth.scopeGrowthPerSprint,
-        })
+          scopeGrowthPerSprint: scopeGrowthArg,
+        }, runProjectId)
         if (currentSimulationGeneration() !== startGen) return  // G1 — stale result, sign-out fired
 
-        setMilestoneResultsState(null)
-
         const { results: quadResultsMapped, simData } = extractQuadData(quadResults)
-        setOverallSimulationData(simData)
-        setSimulationData(simData)
-        setResults(quadResultsMapped)
-        setCustomResults(calculateAllCustomPercentiles(
-          simData, customPercentile,
-          sprintData.forecastStartDate, selectedProject.sprintCadenceWeeks
-        ))
-        setCustomResults2(calculateAllCustomPercentiles(
-          simData, customPercentile2,
-          sprintData.forecastStartDate, selectedProject.sprintCadenceWeeks
-        ))
+        const scopes: ForecastScope[] = [{
+          kind: 'project',
+          milestoneIndex: null,
+          label: project.name,
+          cumulativeThreshold: runConfig.remainingBacklog,
+          thresholdUnreachable: false,
+        }]
+        publishIfStillCurrent([quadResultsMapped], [simData], scopes)
       }
-      hasRunOnceRef.current = true
     } catch {
-      // Aborted simulation (new run started) — ignore
+      // Path 4 of the five that stop a run: an aborted or failed simulation.
+      // Clearing under the token means a replacement run already in flight
+      // keeps its own flag.
+      const inFlight = useForecastResultsStore.getState().isSimulating
+      if (inFlight) clearIsSimulatingIfToken(inFlight.runToken)
     }
   }
 
@@ -343,8 +440,7 @@ export function useForecastState() {
   // ref to the latest handleRunForecast closure so the effect below (which has
   // a static dep array of input values, NOT the function itself) calls the most
   // recent version with up-to-date captured state. Ref updated in a render-free
-  // effect per React's lint rule react-hooks/refs (the in-render assignment was
-  // a footgun for React Compiler's render-purity analysis).
+  // effect per React's lint rule react-hooks/refs.
   const runForecastRef = useRef(handleRunForecast)
   useEffect(() => {
     runForecastRef.current = handleRunForecast
@@ -363,13 +459,23 @@ export function useForecastState() {
     // only) that didn't include cadence / firstSprintStartDate, so auto-recalc
     // would silently call handleRunForecast for missing-cadence projects and
     // handleRunForecast would then silently bail — two layers of silent fail.
-    // Centralizing here keeps both paths aligned and gives the UI a single
-    // place to surface the blockedReason to the user.
     if (!canRun) return
-    // Previously gated on hasRunOnceRef.current — required an initial manual click of
-    // "Run Forecast" before auto-recalc would fire. That made auto-recalc effectively
-    // opt-in twice (Settings + first click) and left trainees staring at an empty
-    // forecast despite valid inputs. canRun is the only correctness gate we need.
+
+    // D14: run only when the resolved project's record is ABSENT or STALE.
+    // Without this gate the effect fires on every dependency change including
+    // one its own publish caused.
+    //
+    // TRAP 1: the record AND the comparand both come from getState(), never
+    // from a reactive value. Reading the undebounced derivations directly here
+    // would either trip react-hooks/exhaustive-deps or, with the dep array
+    // widened to satisfy it, fire a simulation on every keystroke.
+    const project = selectViewingProject(useProjectStore.getState())
+    if (!project) return
+    const resultsState = useForecastResultsStore.getState()
+    if (resultsState.isSimulating) return
+    const current = selectRecordFor(resultsState, project.id)
+    if (!isRecordStale(current?.runConfig ?? null, readForecastInputSnapshot(project))) return
+
     runForecastRef.current()
   }, [
     autoRecalculate,
@@ -387,57 +493,34 @@ export function useForecastState() {
     debouncedEstimate,
     inputs.selectedCV,
     inputs.volatilityMultiplier,
+    // The record itself: a publish must re-evaluate the gate, which is what
+    // turns "absent" into "fresh" and stops the effect re-firing.
+    record,
   ])
 
   const handleCustomPercentileChange = (percentile: number) => {
-    setCustomPercentile(percentile)
-
-    const activeSimData = milestoneResultsState && selectedMilestoneIndex < milestoneResultsState.milestoneSimulationData.length
-      ? milestoneResultsState.milestoneSimulationData[selectedMilestoneIndex]
-      : simulationData
-
-    if (activeSimData && selectedProject?.sprintCadenceWeeks) {
-      setCustomResults(calculateAllCustomPercentiles(
-        activeSimData, percentile,
-        sprintData.forecastStartDate, selectedProject.sprintCadenceWeeks
-      ))
-    }
+    if (projectId) patchViewState(projectId, { customPercentile: percentile })
   }
 
   const handleCustomPercentile2Change = (percentile: number) => {
-    setCustomPercentile2(percentile)
-
-    const activeSimData = milestoneResultsState && selectedMilestoneIndex < milestoneResultsState.milestoneSimulationData.length
-      ? milestoneResultsState.milestoneSimulationData[selectedMilestoneIndex]
-      : simulationData
-
-    if (activeSimData && selectedProject?.sprintCadenceWeeks) {
-      setCustomResults2(calculateAllCustomPercentiles(
-        activeSimData, percentile,
-        sprintData.forecastStartDate, selectedProject.sprintCadenceWeeks
-      ))
-    }
+    if (projectId) patchViewState(projectId, { customPercentile2: percentile })
   }
 
+  const setSelectedResultsPercentiles = (percentiles: number[]) => {
+    if (projectId) patchViewState(projectId, { selectedResultsPercentiles: percentiles })
+  }
+
+  const setTargetDate = (value: string) => {
+    if (projectId) patchViewState(projectId, { targetDate: value })
+  }
+
+  /**
+   * TRAP 5: this re-slices existing results with no re-run, so it is a store
+   * write of the index alone. Publishing a record here would stamp a new
+   * runAt and reset freshness for a change that altered nothing.
+   */
   const handleMilestoneIndexChange = (index: number) => {
-    setSelectedMilestoneIndex(index)
-
-    if (milestoneResultsState && index < milestoneResultsState.milestoneSimulationData.length) {
-      const simData = milestoneResultsState.milestoneSimulationData[index]
-      setSimulationData(simData)
-      setResults(milestoneResultsState.milestoneResults[index])
-
-      if (selectedProject?.sprintCadenceWeeks) {
-        setCustomResults(calculateAllCustomPercentiles(
-          simData, customPercentile,
-          sprintData.forecastStartDate, selectedProject.sprintCadenceWeeks
-        ))
-        setCustomResults2(calculateAllCustomPercentiles(
-          simData, customPercentile2,
-          sprintData.forecastStartDate, selectedProject.sprintCadenceWeeks
-        ))
-      }
-    }
+    if (projectId) setSelectedMilestoneIndexAction(projectId, index)
   }
 
   const handleExportCsv = () => {
@@ -572,7 +655,7 @@ export function useForecastState() {
     customResults2,
     selectedResultsPercentiles,
     setSelectedResultsPercentiles,
-    selectedMilestoneIndex,
+    selectedMilestoneIndex: activeScopeIndex,
 
     // Deadline Probability panel (v0.33.0)
     targetDate,

@@ -5,7 +5,7 @@
 'use client'
 
 import type { Sprint } from '@/shared/types'
-import { calculateVelocityStats } from '@/features/forecast/lib/statistics'
+import { calculateVelocityStats } from '@/shared/lib/statistics'
 import { HelpTooltip } from '@/shared/components/HelpTooltip'
 
 interface VelocityStatsProps {

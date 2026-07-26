@@ -84,3 +84,22 @@ export interface PercentileResult {
 }
 
 export type ForecastMode = 'history' | 'subjective'
+
+/**
+ * Session-only forecast inputs, held per project in the project store and
+ * never persisted to localStorage.
+ *
+ * Declared here rather than in project-store.ts since v0.36.0:
+ * deriveForecastInputs in shared/lib takes this shape as a parameter, and a
+ * shared/lib -> shared/state import (even a type-only one) is a direction this
+ * codebase does not otherwise take.
+ */
+export interface ForecastInputs {
+  remainingBacklog: string
+  velocityMean: string
+  velocityStdDev: string
+  forecastMode?: ForecastMode // undefined = auto-detect based on sprint count
+  velocityEstimate?: string   // Subjective mode: user's velocity guess
+  selectedCV?: number         // Subjective mode: selected coefficient of variation
+  volatilityMultiplier?: number // History mode: SD multiplier (1.0 = match history)
+}

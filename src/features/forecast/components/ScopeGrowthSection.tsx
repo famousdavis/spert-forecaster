@@ -5,7 +5,7 @@
 'use client'
 
 import { cn } from '@/lib/utils'
-import type { ScopeChangeStats } from '../lib/statistics'
+import type { ScopeChangeStats } from '@/shared/lib/statistics'
 
 interface ScopeGrowthSectionProps {
   scopeChangeStats: ScopeChangeStats

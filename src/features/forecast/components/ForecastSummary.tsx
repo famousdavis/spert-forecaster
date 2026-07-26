@@ -4,7 +4,7 @@
 
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useMemo } from 'react'
 import { toast } from 'sonner'
 import { calculatePercentileResult, cumulativeProbabilityAtSprint, type PercentileResults, type QuadResults, type QuadSimulationData } from '../lib/monte-carlo'
 import type { MilestoneResults } from '../hooks/useForecastState'
@@ -16,6 +16,11 @@ import { indefiniteArticle } from '@/shared/lib/grammar'
 import { HelpTooltip } from '@/shared/components/HelpTooltip'
 import type { MilestoneCompletionInfo } from '../lib/milestones'
 import { PROJECT_SCOPE, type ScopeSelection } from '../lib/scope'
+import {
+  useForecastResultsStore,
+  VIEW_STATE_LITERAL_SEEDS,
+} from '@/shared/state/forecast-results-store'
+import { useProjectStore, selectViewingProject } from '@/shared/state/project-store'
 
 interface ForecastSummaryProps {
   results: QuadResults
@@ -154,12 +159,33 @@ export function ForecastSummary({
   velocityStdDev,
   volatilityMultiplier,
 }: ForecastSummaryProps) {
-  // Initial value aligned with the v0.32.0 Settings default. The actual rendered selection is
-  // `effectiveDistribution` below, which falls back to the first enabled distribution if this
-  // value isn't visible in the current Settings.
-  const [selectedDistribution, setSelectedDistribution] = useState<DistributionType>('lognormal')
-  const [selectedPercentile, setSelectedPercentile] = useState(80)
-  const [selectedScope, setSelectedScope] = useState<ScopeSelection>(PROJECT_SCOPE)
+  // These three cells were local useState until v0.36.0. They moved into the
+  // forecast-results store's per-project view state because they select which
+  // numbers the user is actually reading, and that has to be legible from
+  // outside this component. Their seed literals are unchanged — 'lognormal',
+  // 80 and PROJECT_SCOPE now live in VIEW_STATE_LITERAL_SEEDS, and MUST stay
+  // equal to the former initializers or the first render differs.
+  //
+  // The actual RENDERED selections are effectiveDistribution and
+  // effectiveScope below, which fall back when the stored choice is no longer
+  // offered. Lifting a cell does not make it equal to what is on screen.
+  const summaryProjectId = useProjectStore(selectViewingProject)?.id
+  const view = useForecastResultsStore((s) =>
+    summaryProjectId ? s.viewState[summaryProjectId] : undefined
+  )
+  const patchViewState = useForecastResultsStore((s) => s.patchViewState)
+  const selectedDistribution = view?.summaryDistribution ?? VIEW_STATE_LITERAL_SEEDS.summaryDistribution
+  const selectedPercentile = view?.summaryPercentile ?? VIEW_STATE_LITERAL_SEEDS.summaryPercentile
+  const selectedScope: ScopeSelection = view?.summaryScope ?? VIEW_STATE_LITERAL_SEEDS.summaryScope
+  const setSelectedDistribution = (value: DistributionType) => {
+    if (summaryProjectId) patchViewState(summaryProjectId, { summaryDistribution: value })
+  }
+  const setSelectedPercentile = (value: number) => {
+    if (summaryProjectId) patchViewState(summaryProjectId, { summaryPercentile: value })
+  }
+  const setSelectedScope = (value: ScopeSelection) => {
+    if (summaryProjectId) patchViewState(summaryProjectId, { summaryScope: value })
+  }
   const distributionsEnabled = useSettingsStore((s) => s.distributionsEnabled)
 
   const distributionOptions = useMemo(
