@@ -202,6 +202,54 @@ describe('Effect B — the browser is the only consent enforcement point', () =>
   }, 10_000)
 })
 
+describe('the connection outlives the Settings tab (v0.37.0 production defect)', () => {
+  // NOTE ON REACH: this test models the SHAPE — a long-lived connection with a
+  // short-lived consumer — and passes either way, because the hook itself was
+  // never broken. What was broken was the WIRING: which component called it.
+  // The assertion that actually guards that lives in
+  // components/ConnectAiSection.wiring.test.tsx. Both are kept: this one
+  // proves the hook tolerates a consumer coming and going, that one proves the
+  // section is such a consumer.
+  it('keeps publishing after the consumer that renders the controls unmounts', async () => {
+    // WHAT THIS CAUGHT. useAiConnectivity was first called inside
+    // ConnectAiSection, which lives in the Settings tab — and AppShell renders
+    // tabs conditionally. Leaving Settings unmounted the hook, so the snapshot
+    // publisher and the heartbeat both stopped. The user would pair, go to the
+    // Forecast tab, run a forecast, and the AI would keep reading the snapshot
+    // from BEFORE the run. Observed in production; invisible to every other
+    // test here, because they all render the hook directly where it never
+    // unmounts.
+    //
+    // The hook now lives in AiConnectivityProvider at AppShell level. This
+    // test models the shape that matters: the thing holding the connection
+    // stays mounted while a consumer comes and goes.
+    const connection = renderHook(() => useAiConnectivity())
+    await act(async () => { await connection.result.current.startSession(true) })
+    await waitFor(() => expect(snapshotWrites().length).toBeGreaterThan(0))
+
+    // A separate consumer mounts (the Settings section) and then unmounts
+    // (the user navigates to another tab).
+    const consumer = renderHook(() => useAiConnectivity())
+    consumer.unmount()
+
+    // A forecast-relevant change arrives while the controls are unmounted.
+    const before = snapshotWrites().length
+    act(() => {
+      useProjectStore.setState({
+        forecastInputs: {
+          [PROJECT_ID]: { remainingBacklog: '480', velocityMean: '20', velocityStdDev: '4' },
+        },
+      })
+    })
+
+    await waitFor(
+      () => expect(snapshotWrites().length).toBeGreaterThan(before),
+      { timeout: 5_000 }
+    )
+    connection.unmount()
+  }, 15_000)
+})
+
 describe('teardown', () => {
   it('deletes the snapshot before ending the session, and clears local keys', async () => {
     const { result } = renderHook(() => useAiConnectivity())

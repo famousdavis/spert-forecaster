@@ -26,6 +26,7 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { FirstRunBanner } from './FirstRunBanner'
 import { InvitationBanner } from './InvitationBanner'
 import { LocalStorageWarningBanner } from './LocalStorageWarningBanner'
+import { AiConnectivityProvider } from '@/features/connect-ai/AiConnectivityProvider'
 
 export function AppShell() {
   const [activeTab, setActiveTab] = useState<TabId>('projects')
@@ -80,6 +81,9 @@ export function AppShell() {
 
   return (
     <TooltipProvider>
+    {/* Mounted here, not in the Settings section: the snapshot publisher and
+        heartbeat must survive leaving the Settings tab. */}
+    <AiConnectivityProvider>
     <div className="min-h-screen bg-white dark:bg-gray-900 transition-colors flex flex-col">
       <div className="max-w-[1200px] w-full mx-auto px-2 sm:px-4 md:px-8 p-4 sm:p-6 md:p-8 flex-1 flex flex-col">
         <header className="mb-6 flex items-start justify-between">
@@ -136,6 +140,7 @@ export function AppShell() {
         onClose={() => setCloudModalOpen(false)}
       />
     </div>
+    </AiConnectivityProvider>
     </TooltipProvider>
   )
 }

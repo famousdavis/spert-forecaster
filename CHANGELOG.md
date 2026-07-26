@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.37.1 - 2026-07-26
+
+Fixed — a Connect AI defect found by the v0.37.0 production smoke, in which the AI stopped seeing your work the moment you left the Settings tab. Pair an assistant, navigate to the Forecast tab, run a forecast, and the assistant would keep reading the snapshot from *before* the run — reporting `absent` when a forecast had plainly just completed, or `fresh` numbers that were several edits old. After roughly 90 seconds the pairing would also start reading as disconnected. Since Settings is precisely where you are *not* while forecasting, this affected essentially every real session.
+
+The cause was where the connection was mounted rather than anything wrong with the connection itself. The Connect AI controls live in Settings, and the code that owns the pairing — the snapshot publisher, the heartbeat, and the session listener — was invoked from that same component. The app renders tabs conditionally, so leaving Settings unmounted the component and took the pairing's whole background half with it. The connection now lives at the application shell, mounted once for the life of the page; the Settings section holds only the controls and reads the connection from context.
+
+Worth naming because it is the interesting part: **no unit test could have caught this, and none did.** Every test rendered the connection directly, where it never unmounts — so the code under test behaved perfectly in every case the suite could express. What was wrong was which component called it, which is a fact about wiring rather than behaviour. The fix therefore adds a deliberately structural test: the Settings section must render *nothing* when no connection is provided above it, which is only true if it does not create one of its own. That assertion was confirmed to fail against the shipped arrangement.
+
+No data was at risk, and no snapshot was left uploaded that should not have been — teardown, sign-out and Read Mode all behaved correctly throughout. The production build, ESLint (`--max-warnings=0`), and all 1,166 tests (3 new) pass.
+
+### Fixed
+
+- **The AI connection now survives leaving the Settings tab.** `useAiConnectivity` moved from `ConnectAiSection` into a new `AiConnectivityProvider` mounted once in `AppShell`. Snapshot publishing, the 30-second heartbeat, and the session-document listener continue for as long as the page is open, regardless of which tab is showing.
+
+### Internal
+
+- Added a wiring test asserting `ConnectAiSection` renders nothing without a provider above it — the only form of assertion that can distinguish "owns a connection" from "consumes one", and the one that reproduces the shipped defect.
+- Both the provider and the section carry a comment explaining what breaks if the hook is moved back, since the tidier-looking arrangement is the broken one.
+
 ## v0.37.0 - 2026-07-25
 
 Added — **Connect AI**, in Settings. Pair an AI assistant — Claude, ChatGPT, Copilot, Gemini and others — with the project you have open, so it can read your forecast and explain it. You generate a short pairing code, paste it (and a supplied prompt) into your assistant, and it can then read the same numbers you are looking at: your sprint history and velocity statistics, the inputs the forecast ran on, the percentile results per distribution and per milestone, your productivity adjustments, and your deadline probability. It is the difference between asking "what does P80 mean?" in the abstract and asking "why does *my* P80 land in February?"

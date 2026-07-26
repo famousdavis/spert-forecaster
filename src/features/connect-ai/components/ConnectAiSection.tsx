@@ -8,7 +8,7 @@ import { useState } from 'react'
 import { isFirebaseAvailable } from '@/shared/firebase/config'
 import { useIsClient } from '@/shared/hooks'
 import { useProjectStore, selectViewingProject } from '@/shared/state/project-store'
-import { useAiConnectivity } from '../hooks/useAiConnectivity'
+import { useAiConnectivityContext } from '../AiConnectivityProvider'
 import { ConnectAiConsentModal } from './ConnectAiConsentModal'
 import { ConnectAiPanel } from './ConnectAiPanel'
 
@@ -19,15 +19,21 @@ import { ConnectAiPanel } from './ConnectAiPanel'
  * environment-dependent, so evaluating it during the server render and again
  * on the client produces a hydration mismatch. The app works fully without
  * Firebase configured, and in that case this section simply does not appear.
+ *
+ * This component owns the CONTROLS ONLY. The connection itself lives in
+ * AiConnectivityProvider at AppShell level, because AppShell renders tabs
+ * conditionally and the publisher and heartbeat must survive leaving Settings.
+ * See that file's header for what breaks if the hook moves back in here.
  */
 export function ConnectAiSection() {
   const isClient = useIsClient()
   const [consentOpen, setConsentOpen] = useState(false)
   const [startError, setStartError] = useState(false)
-  const { sessionState, startSession, stopSession, changePermissions } = useAiConnectivity()
+  const connectivity = useAiConnectivityContext()
   const hasProject = !!useProjectStore(selectViewingProject)
 
-  if (!isClient || !isFirebaseAvailable) return null
+  if (!isClient || !isFirebaseAvailable || !connectivity) return null
+  const { sessionState, startSession, stopSession, changePermissions } = connectivity
 
   const handleConfirm = async (consentRead: boolean) => {
     setConsentOpen(false)
