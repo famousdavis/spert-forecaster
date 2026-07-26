@@ -5,6 +5,7 @@
 import Link from 'next/link'
 import { APP_VERSION } from '@/shared/constants'
 import { TOS_URL, PRIVACY_URL } from '@/features/auth/lib/tos'
+import { AI_PRIVACY_URL } from '@/features/connect-ai/constants'
 
 export function Footer() {
   return (
@@ -46,6 +47,15 @@ export function Footer() {
             className="text-blue-600 hover:text-blue-700"
           >
             Privacy Policy
+          </a>
+          {' | '}
+          <a
+            href={AI_PRIVACY_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-600 hover:text-blue-700"
+          >
+            AI Privacy Notice
           </a>
           {' | '}
           <a

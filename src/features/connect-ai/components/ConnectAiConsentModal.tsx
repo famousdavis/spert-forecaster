@@ -6,6 +6,8 @@
 
 import { useState } from 'react'
 
+import { AI_PRIVACY_URL } from '../constants'
+
 interface ConnectAiConsentModalProps {
   open: boolean
   onCancel: () => void
@@ -88,21 +90,31 @@ export function ConnectAiConsentModal({
           </ul>
         </div>
 
-        <div className="mt-6 flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="rounded border border-spert-border px-4 py-2 text-sm dark:border-gray-600 dark:text-gray-200"
+        <div className="mt-6 flex items-center justify-between gap-4">
+          <a
+            href={AI_PRIVACY_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-blue-600 hover:underline dark:text-blue-400"
           >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={() => onConfirm(consentRead)}
-            className="rounded bg-spert-blue px-4 py-2 text-sm font-medium text-white"
-          >
-            Connect
-          </button>
+            AI privacy notice
+          </a>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={onCancel}
+              className="rounded border border-spert-border px-4 py-2 text-sm dark:border-gray-600 dark:text-gray-200"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => onConfirm(consentRead)}
+              className="rounded bg-spert-blue px-4 py-2 text-sm font-medium text-white"
+            >
+              Connect
+            </button>
+          </div>
         </div>
       </div>
     </div>

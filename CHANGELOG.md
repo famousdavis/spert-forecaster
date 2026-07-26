@@ -1,5 +1,28 @@
 # Changelog
 
+## v0.38.1 - 2026-07-26
+
+Added — **the Connect AI Guide**, a printable walkthrough for pairing an AI assistant with SPERT Forecaster, now downloadable from the About tab beside the Quick Reference Guide. v0.38.0 put the Connect AI button in the header but shipped no documentation to go with it, so anyone who pressed it met a consent dialog and a pairing code with nothing on hand explaining what to do with either. The guide covers connecting the SPERT Suite MCP server to Claude Code or Claude Desktop and pairing it with your project. The **Quick Reference Guide has been refreshed** in the same pass, so the printable overview of the app is current with everything through v0.38.0.
+
+Also closed a documentation gap that has been open since Connect AI arrived. The suite-wide **AI Privacy Notice** — the document explaining what leaves your browser when Read Mode is on, and how long it is kept — is now linked from the footer alongside Terms of Service, Privacy Policy, and License, matching SPERT Scheduler and SPERT Story Map. It is also linked from the Connect AI consent dialog itself, which is the moment somebody is actually deciding whether to share their data and therefore the moment the link is worth most. Forecaster shipped Connect AI in v0.37.0 with the notice linked from neither place; both sibling apps link it from both today.
+
+Nothing about the connection, the forecast, or your data changed — this release adds two documents and three links. The production build, ESLint (`--max-warnings=0`), and all 1,169 tests (one new) pass.
+
+### Added
+
+- **Connect AI Guide (PDF)** on the About tab, in a new section directly beneath the Quick Reference Guide, which is where both sibling apps place theirs. Served from `public/`, with a copy at the repository root so it is readable straight from GitHub.
+- **AI Privacy Notice** in the footer, between Privacy Policy and License, pointing at the suite-wide notice at `spertsuite.com/ai-privacy`.
+- **AI privacy notice** link in the Connect AI consent dialog, at the bottom-left of the button row — the same placement SPERT Scheduler uses.
+
+### Changed
+
+- **The Quick Reference Guide PDF has been replaced** with a refreshed edition. The About tab link is unchanged; the file behind it is new.
+
+### Internal
+
+- Added a guard test asserting that every PDF the About tab links actually exists in `public/`. A renamed or dropped asset otherwise survives the build, ESLint, and every type check, and fails only in front of a user.
+- Resynced `public/CHANGELOG.md`, which had drifted four releases behind the root `CHANGELOG.md` since v0.35.14. The in-app changelog page reads the root file, so the stale copy affected only a reader fetching `/CHANGELOG.md` directly.
+
 ## v0.38.0 - 2026-07-26
 
 Changed — **Connect AI moved out of Settings and into the app header**, matching how SPERT Story Map and SPERT Scheduler have always exposed it. Where it used to be a section you had to navigate to Settings to find, it is now a small **Connect AI** button beside the theme toggle, visible from every tab. Once you pair, it becomes **AI** with a status dot — grey when an assistant is paired but idle, pulsing blue while one is actually connected. So you can now tell at a glance whether an assistant is attached and live, without leaving your forecast.
