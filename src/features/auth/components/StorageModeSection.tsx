@@ -4,6 +4,7 @@
 
 'use client'
 
+import { syncBus } from '@/shared/firebase/sync-bus'
 import { useState } from 'react'
 import { useAuth } from '@/shared/providers/AuthProvider'
 import { useStorageMode } from '@/shared/hooks/useStorageMode'
@@ -56,6 +57,9 @@ export function StorageModeSection() {
     // want to keep specific cloud projects locally should Export first,
     // then Import after the switch. See v0.24.2 release notes.
     useProjectStore.getState().clearProjectsOnSignOut()
+    // Mode switch, not sign-out: the AI pairing and its session survive, and
+    // only the uploaded snapshot is removed.
+    syncBus.emit({ type: 'ai:session-teardown', reason: 'mode-switch' })
     setMode('local')
     setMigrationResult(null)
     setShowLocalConfirm(false)

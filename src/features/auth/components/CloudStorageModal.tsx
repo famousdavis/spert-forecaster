@@ -4,6 +4,7 @@
 
 'use client'
 
+import { syncBus } from '@/shared/firebase/sync-bus'
 import { useEffect, useCallback, useState } from 'react'
 import { useAuth } from '@/shared/providers/AuthProvider'
 import { useStorageMode } from '@/shared/hooks/useStorageMode'
@@ -104,6 +105,9 @@ export function CloudStorageModal({ isOpen, onClose }: CloudStorageModalProps) {
 
   const handleConfirmSwitchToLocal = useCallback(() => {
     useProjectStore.getState().clearProjectsOnSignOut()
+    // Mode switch, not sign-out: the AI pairing and its session survive, and
+    // only the uploaded snapshot is removed.
+    syncBus.emit({ type: 'ai:session-teardown', reason: 'mode-switch' })
     setMode('local')
     setShowSwitchToLocalConfirm(false)
   }, [setMode])
