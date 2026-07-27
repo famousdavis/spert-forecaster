@@ -359,6 +359,11 @@ describe('randomUniform', () => {
     // Uniform(10, 90): mean = (10+90)/2 = 50
     const samples = Array.from({ length: 10000 }, () => randomUniform(10, 90))
     const avg = mean(samples)
-    expect(avg).toBeCloseTo(50, 0)
+    // Unseeded RNG, so assert a band rather than a point. sigma = 80/sqrt(12)
+    // = 23.09, so the sample mean has SE = 23.09/sqrt(10000) = 0.231. The old
+    // toBeCloseTo(50, 0) allowed only 0.5 — a 2.16-sigma band that failed ~3%
+    // of runs. 1.2 is ~5.2 sigma (~1 in 5M) while still catching a genuinely
+    // wrong distribution: Uniform(10, 80) would have mean 45 and fail loudly.
+    expect(Math.abs(avg - 50)).toBeLessThan(1.2)
   })
 })
