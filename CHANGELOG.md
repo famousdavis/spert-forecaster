@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.38.2 - 2026-07-26
+
+Internal repository maintenance only. No functional, data, or interface changes — the app behaves identically to v0.38.1. Removes this repository's local copy of `firestore.rules`: Firestore security rules are deployed from the Firebase Console and mirrored in the SPERT® Suite landing-page repository, which is their single source of truth. The copy kept here was never deployed from and could only drift out of date; it was never bundled into the app, so cloud behaviour is unchanged. Also **de-flakes a statistical unit test** — `randomUniform`'s mean check asserted a 2.16-sigma band, which failed roughly 3% of runs at random; it now asserts a 5.2-sigma band, which still fails loudly on a genuinely wrong distribution but no longer trips on ordinary sampling noise. Version surfaces resynchronised: `package-lock.json` had been stranded at 0.35.14 while `package.json` read 0.38.1 — both now read 0.38.2.
+
 ## v0.38.1 - 2026-07-26
 
 Added — **the Connect AI Guide**, a printable walkthrough for pairing an AI assistant with SPERT Forecaster, now downloadable from the About tab beside the Quick Reference Guide. v0.38.0 put the Connect AI button in the header but shipped no documentation to go with it, so anyone who pressed it met a consent dialog and a pairing code with nothing on hand explaining what to do with either. The guide covers connecting the SPERT Suite MCP server to Claude Code or Claude Desktop and pairing it with your project. The **Quick Reference Guide has been refreshed** in the same pass, so the printable overview of the app is current with everything through v0.38.0.
