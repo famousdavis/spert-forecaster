@@ -1,12 +1,57 @@
 # Changelog
 
+## v0.38.4 - 2026-07-29
+
+Licensing, plus two changelog entries that were rendering blank in the app. No functional, data, or interface changes — the app forecasts identically to v0.38.3.
+
+The `LICENSE` file now **reserves the SPERT® brand explicitly**, and this repository's copy — which was missing a section of the GNU GPL v3 — has been made whole. The license has always required that the original author attribution be preserved, but it said nothing at all about the brand, which left room to read the GPL's redistribute-and-modify freedom as carrying the *name* along with the code. That was never the intent.
+
+Separately, the changelog entries for **v0.38.2 and v0.38.3 have been rendering as empty headings** on the in-app Changelog page since they were written. Both were composed as a single prose paragraph with no subsections, and the page's parser only collects `###` headings and `-` list items — prose is silently discarded. Of 109 entries in this file, those two were the only ones affected. Both now carry structured sections containing the same information, so they display in full.
+
+### Changed
+
+- **`LICENSE` now reserves the SPERT® brand.** A new **Trademark Reservation** clause under GPL v3 §7(e) names "SPERT", "Statistical PERT" and "Estimation Made Easy" as trademarks registered with the USPTO, and "GanttApp" and "MyScrumBudget" as unregistered common-law marks, and grants no right to use any of them — whether alone, in combination with other words such as "SPERT Suite", or as a logo.
+- **Modified versions must be renamed.** A companion **Marking of Modified Versions** clause under GPL v3 §7(c) requires any fork to adopt a name that cannot reasonably be confused with those marks. Between them the two clauses draw the line the license always meant to draw: the code is free to take, change and redistribute, the author attribution has to travel with it, and the brand stays behind.
+- **Both clauses are non-removable.** They fall inside the categories GPL v3 Section 7 permits, which matters — Section 7's closing paragraph lets a recipient strip any additional term falling *outside* that list, as a "further restriction". The section header and its opening sentence now cite Section 7 rather than Section 7(b), because the terms draw on 7(b) for attribution, 7(c) for renaming modified versions and 7(e) for the trademark reservation.
+
+### Fixed
+
+- **The GNU GPL v3 text in this repository was incomplete.** The final appendix — "How to Apply These Terms to Your New Programs", 54 lines covering the standard per-file notice and the interactive-mode notice — was absent, leaving the file at 648 lines against the canonical 726. The omission was in the appendix rather than the operative terms, so it did not change what the license permits, but the file was not a complete copy of the GPL and now is.
+- **The header block had lost its formatting.** Lines 4 through 8 had run together, dropping the blank lines and the `---` separator that divide the project identification from the license text proper.
+- **v0.38.2 and v0.38.3 rendered as empty entries in-app.** Both are now split into `###` sections so the changelog parser collects them. The prose paragraphs are retained unchanged above each set of sections; nothing was rewritten, only restructured.
+
+### Internal
+
+- **`LICENSE` is now a byte-for-byte copy of the canonical file** in the SPERT® Suite landing-page repository, which is its single source of truth, differing only in the project repository URL on line 4. Of the nine suite repositories audited, only MyScrumBudget was an exact copy beforehand.
+- The in-app Changelog page reads the **root** `CHANGELOG.md` at build time via `readFileSync`, while `public/CHANGELOG.md` serves direct requests to `/CHANGELOG.md`. Both were updated and verified identical.
+
 ## v0.38.3 - 2026-07-29
 
 Bug fix. Shared project members showed a **blank name** in the sharing panel instead of a name or email address. `getProjectMembers` resolved profiles against `spertforecaster_profiles` only — that document is written by this app's own sign-in, whereas the cross-app invitation Cloud Function resolves an invitee **by** their `spertsuite_profiles` document and then writes only `members.{uid}`, never seeding a per-app profile. Anyone who had used another SPERT® Suite app but had never personally signed into SPERT Forecaster therefore had no per-app profile, and because the sharing panel renders `displayName || email` with no identifier fallback, the row appeared empty rather than merely cryptic. The lookup now falls back to `spertsuite_profiles/{uid}` when the per-app document is absent; both carry the same payload, and `firestore.rules` already permits `get` on the suite mirror for any authenticated user, so no rules change and no data backfill were required — affected members render correctly on next load. The fallback re-reads **only** the uids that actually missed, in a single second batch, so the parallel `Promise.allSettled` fan-out keeps its O(1) wall-time. Guarded by four new cases in `firestore-sharing.test.ts`; two fail with the fix reverted. Suite-wide defect rather than a Forecaster quirk — first found in SPERT Story Map v0.49.3.
 
+### Fixed
+
+- **Shared project members showed a blank name.** The sharing panel rendered an empty row where a name or email address should have been. It affected anyone who had been added to a project through an emailed invitation and who had used another SPERT® Suite app but had never personally signed into SPERT Forecaster.
+- **Root cause: the per-app profile document was never seeded for invited members.** `getProjectMembers` resolved profiles against `spertforecaster_profiles` only. That document is written by this app's own sign-in flow, whereas the cross-app invitation Cloud Function resolves an invitee **by** their `spertsuite_profiles` document and then writes only `members.{uid}` — it never creates a per-app profile. With no per-app document to read, and with the sharing panel rendering `displayName || email` and no identifier fallback behind it, the row came out empty rather than merely cryptic.
+- **The fix is a read fallback, not a migration.** The lookup now falls back to `spertsuite_profiles/{uid}` whenever the per-app document is absent. Both documents carry the same payload, and `firestore.rules` already permits `get` on the suite mirror for any authenticated user, so no rules change and no data backfill were required. Affected members render correctly on the next load with no action from anyone.
+- **Wall-time was preserved.** The fallback re-reads **only** the uids that actually missed, and reads them together in a single second batch, so the parallel `Promise.allSettled` fan-out keeps its O(1) wall-time instead of degrading to O(N).
+- **Guarded by four new cases** in `firestore-sharing.test.ts`; two of them fail with the fix reverted.
+
 ## v0.38.2 - 2026-07-26
 
 Internal repository maintenance only. No functional, data, or interface changes — the app behaves identically to v0.38.1. Removes this repository's local copy of `firestore.rules`: Firestore security rules are deployed from the Firebase Console and mirrored in the SPERT® Suite landing-page repository, which is their single source of truth. The copy kept here was never deployed from and could only drift out of date; it was never bundled into the app, so cloud behaviour is unchanged. Also **de-flakes a statistical unit test** — `randomUniform`'s mean check asserted a 2.16-sigma band, which failed roughly 3% of runs at random; it now asserts a 5.2-sigma band, which still fails loudly on a genuinely wrong distribution but no longer trips on ordinary sampling noise. Version surfaces resynchronised: `package-lock.json` had been stranded at 0.35.14 while `package.json` read 0.38.1 — both now read 0.38.2.
+
+### Changed
+
+- **Removed this repository's local copy of `firestore.rules`.** Firestore security rules are deployed from the Firebase Console and mirrored in the SPERT® Suite landing-page repository, which is their single source of truth. The copy kept here was never deployed from and could only drift out of date. It was never bundled into the app, so cloud behaviour is unchanged — this is a repository-hygiene change, not a security-rules change.
+
+### Fixed
+
+- **De-flaked a statistical unit test.** `randomUniform`'s mean check asserted a 2.16-sigma band, which failed roughly 3% of runs purely at random. It now asserts a 5.2-sigma band, which still fails loudly on a genuinely wrong distribution but no longer trips on ordinary sampling noise. No production code was involved — the distribution itself was always correct.
+
+### Internal
+
+- **Version surfaces resynchronised.** `package-lock.json` had been stranded at 0.35.14 while `package.json` read 0.38.1. Both now read 0.38.2.
 
 ## v0.38.1 - 2026-07-26
 
