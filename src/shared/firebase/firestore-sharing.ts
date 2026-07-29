@@ -182,16 +182,40 @@ export async function getProjectMembers(projectId: string): Promise<ProjectMembe
     uids.map((uid) => getDoc(doc(db!, COLLECTIONS.profiles, uid)))
   )
 
-  const resolveProfile = (uid: string, result: PromiseSettledResult<Awaited<ReturnType<typeof getDoc>>>): FirestoreProfileDoc | null => {
+  // Suite-wide fallback pass. COLLECTIONS.profiles is written by this app's own
+  // sign-in, but the cross-app invitation Cloud Function resolves an invitee BY
+  // their spertsuite_profiles doc and then writes only members.{uid} — it never
+  // seeds a per-app profile. A member who has used another SPERT app but never
+  // opened Forecaster therefore has no per-app profile, and SharingSection
+  // renders `member.displayName || member.email`: both empty, so the row shows
+  // a BLANK name rather than even a UID. Only the uids that actually missed are
+  // re-read, together, so the parallel fan-out above keeps its O(1) wall-time.
+  const missedIdx = profileResults.flatMap((r, i) =>
+    r.status === 'fulfilled' && !r.value.exists() ? [i] : []
+  )
+  const suiteByIdx = new Map<number, FirestoreProfileDoc>()
+  if (missedIdx.length > 0) {
+    const suiteResults = await Promise.allSettled(
+      missedIdx.map((i) => getDoc(doc(db!, COLLECTIONS.suiteProfiles, uids[i]!)))
+    )
+    suiteResults.forEach((r, k) => {
+      if (r.status === 'fulfilled' && r.value.exists()) {
+        suiteByIdx.set(missedIdx[k]!, r.value.data() as FirestoreProfileDoc)
+      }
+    })
+  }
+
+  const resolveProfile = (uid: string, result: PromiseSettledResult<Awaited<ReturnType<typeof getDoc>>>, idx: number): FirestoreProfileDoc | null => {
     if (result.status === 'rejected') {
       console.warn(`[firestore-sharing] profile fetch failed for ${uid}:`, result.reason)
       return null
     }
     const snap = result.value
-    return snap.exists() ? (snap.data() as FirestoreProfileDoc) : null
+    if (snap.exists()) return snap.data() as FirestoreProfileDoc
+    return suiteByIdx.get(idx) ?? null
   }
 
-  const ownerProfile = resolveProfile(ownerUid, profileResults[0]!)
+  const ownerProfile = resolveProfile(ownerUid, profileResults[0]!, 0)
   const members: ProjectMember[] = [
     {
       uid: ownerUid,
@@ -202,7 +226,7 @@ export async function getProjectMembers(projectId: string): Promise<ProjectMembe
   ]
 
   memberEntries.forEach(([uid, role], i) => {
-    const profile = resolveProfile(uid, profileResults[i + 1]!)
+    const profile = resolveProfile(uid, profileResults[i + 1]!, i + 1)
     members.push({
       uid,
       email: profile?.email || '',
