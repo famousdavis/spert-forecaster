@@ -172,6 +172,9 @@ export const COLLECTIONS = {
   projects: 'spertforecaster_projects',
   settings: 'spertforecaster_settings',
   profiles: 'spertforecaster_profiles',
+  // Cross-app profile mirror, written alongside `profiles` on every sign-in.
+  // Read only as a display fallback — see getProjectMembers.
+  suiteProfiles: 'spertsuite_profiles',
 } as const
 
 // --- Project Member Info (for sharing UI) ---

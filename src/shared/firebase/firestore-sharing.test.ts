@@ -220,3 +220,83 @@ describe('getProjectMembers', () => {
     expect(getDocSpy).toHaveBeenCalledTimes(1)
   })
 })
+
+// Regression: SharingSection renders `member.displayName || member.email`, with
+// no uid fallback — so an unresolved profile produced a BLANK name, not even a
+// UID. getProjectMembers resolved profiles against spertforecaster_profiles
+// only, which is written on THIS app's sign-in. The cross-app invitation Cloud
+// Function resolves an invitee BY their spertsuite_profiles doc and then writes
+// only members.{uid}; it never seeds a per-app profile. Anyone who had used
+// another SPERT app but never opened Forecaster therefore had no per-app
+// profile at all.
+// Suite-wide sweep 2026-07-29; first found in SPERT Story Map v0.49.3.
+describe('getProjectMembers — suite profile fallback', () => {
+  const OWNER = 'owner-uid-0000000000000000'
+  const MEMBER = 'nT5V5xk8pcNHpHE7IjMxJtmQBPa2'
+  const suiteKey = (uid: string) => `spertsuite_profiles/${uid}`
+
+  beforeEach(() => {
+    dispatch.set(PROJECT_KEY, {
+      kind: 'fulfilled',
+      snap: fulfilled({ owner: OWNER, members: { [MEMBER]: 'editor' } }),
+    })
+    dispatch.set(profileKey(OWNER), {
+      kind: 'fulfilled',
+      snap: fulfilled({ displayName: 'William W Davis', email: 'davisw2@ufl.edu' }),
+    })
+  })
+
+  it('falls back to spertsuite_profiles when the per-app profile is missing', async () => {
+    dispatch.set(profileKey(MEMBER), { kind: 'fulfilled', snap: missing() })
+    dispatch.set(suiteKey(MEMBER), {
+      kind: 'fulfilled',
+      snap: fulfilled({ displayName: 'William W Davis', email: 'famousdavispmp@gmail.com' }),
+    })
+
+    const result = await getProjectMembers(PROJECT_ID)
+    const m = result.find((x) => x.uid === MEMBER)
+    expect(m?.email).toBe('famousdavispmp@gmail.com')
+    expect(m?.displayName).toBe('William W Davis')
+  })
+
+  it('does not read the suite mirror when the per-app profile exists', async () => {
+    dispatch.set(profileKey(MEMBER), {
+      kind: 'fulfilled',
+      snap: fulfilled({ displayName: 'Local Profile', email: 'local@example.com' }),
+    })
+    dispatch.set(suiteKey(MEMBER), {
+      kind: 'fulfilled',
+      snap: fulfilled({ displayName: 'Suite Profile', email: 'suite@example.com' }),
+    })
+
+    const result = await getProjectMembers(PROJECT_ID)
+    expect(result.find((x) => x.uid === MEMBER)?.displayName).toBe('Local Profile')
+    const readKeys = docSpy.mock.calls.map((c) => `${c[1]}/${c[2]}`)
+    expect(readKeys).not.toContain(suiteKey(MEMBER))
+  })
+
+  it('only re-reads the uids that actually missed', async () => {
+    // Owner resolves per-app; only MEMBER should reach the mirror.
+    dispatch.set(profileKey(MEMBER), { kind: 'fulfilled', snap: missing() })
+    dispatch.set(suiteKey(MEMBER), {
+      kind: 'fulfilled',
+      snap: fulfilled({ email: 'famousdavispmp@gmail.com' }),
+    })
+
+    await getProjectMembers(PROJECT_ID)
+    const suiteReads = docSpy.mock.calls
+      .map((c) => `${c[1]}/${c[2]}`)
+      .filter((k) => k.startsWith('spertsuite_profiles/'))
+    expect(suiteReads).toEqual([suiteKey(MEMBER)])
+  })
+
+  it('leaves the member blank when neither profile exists', async () => {
+    dispatch.set(profileKey(MEMBER), { kind: 'fulfilled', snap: missing() })
+    dispatch.set(suiteKey(MEMBER), { kind: 'fulfilled', snap: missing() })
+
+    const result = await getProjectMembers(PROJECT_ID)
+    const m = result.find((x) => x.uid === MEMBER)
+    expect(m?.email).toBe('')
+    expect(m?.displayName).toBe('')
+  })
+})
