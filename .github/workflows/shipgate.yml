@@ -23,9 +23,14 @@ jobs:
   shipgate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      # Actions are pinned to exact, soaked versions rather than floating major
+      # tags. The suite's 60-day dependency soak window applies here too: `@v6`
+      # would silently admit a release published days ago. These are the newest
+      # versions that have soaked (checkout 2026-01-09, setup-node 2026-04-20),
+      # and both run on Node 24 — the v4 line targets the deprecated Node 20.
+      - uses: actions/checkout@v6.0.2
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6.4.0
         with:
           node-version: '24'
           cache: npm
