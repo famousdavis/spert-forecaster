@@ -1,0 +1,43 @@
+# Copyright (C) 2026 William W. Davis, MSPM, PMP. All rights reserved.
+# Licensed under the GNU General Public License v3.0.
+# See LICENSE file in the project root for full license text.
+
+# The SPERT® Suite ship gate, run automatically.
+#
+# Until now no SPERT repository had any CI at all: a green `gh pr checks` meant
+# Vercel had built a preview and nothing more, so a branch whose entire test
+# suite failed showed all-green and merged cleanly.
+#
+# This runs the same `npm run shipgate` a human runs locally — there is one gate
+# definition, invoked two ways, so the two can never disagree. Everything
+# repo-specific lives in shipgate.config.json, not here.
+
+name: Ship gate
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  shipgate:
+    runs-on: ubuntu-latest
+    steps:
+      # Actions are pinned to exact, soaked versions rather than floating major
+      # tags. The suite's 60-day dependency soak window applies here too: `@v6`
+      # would silently admit a release published days ago. These are the newest
+      # versions that have soaked (checkout 2026-01-09, setup-node 2026-04-20),
+      # and both run on Node 24 — the v4 line targets the deprecated Node 20.
+      - uses: actions/checkout@v6.0.2
+
+      - uses: actions/setup-node@v6.4.0
+        with:
+          node-version: '24'
+          cache: npm
+
+      # `npm ci` installs strictly from package-lock.json. It fails outright if
+      # the lockfile and package.json disagree, which makes it a second,
+      # independent check on the version drift the gate looks for.
+      - run: npm ci
+
+      - run: npm run shipgate

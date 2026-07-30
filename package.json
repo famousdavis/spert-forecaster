@@ -1,6 +1,6 @@
 {
   "name": "spert-forecaster",
-  "version": "0.38.4",
+  "version": "0.38.5",
   "private": true,
   "engines": {
     "node": "24.x"
@@ -10,8 +10,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "vitest",
-    "test:run": "vitest run"
+    "test": "vitest run",
+    "test:run": "vitest run",
+    "test:watch": "vitest",
+    "shipgate": "node scripts/shipgate.mjs"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.1",
