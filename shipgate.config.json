@@ -1,0 +1,17 @@
+{
+  "repo": "spert-forecaster",
+  "versionConstant": {
+    "file": "src/shared/constants.ts",
+    "export": "APP_VERSION"
+  },
+  "changelog": {
+    "file": "CHANGELOG.md",
+    "headingPattern": "^## v(\\d+\\.\\d+\\.\\d+)\\s*-\\s*\\d{4}-\\d{2}-\\d{2}"
+  },
+  "claudeMdVersionPatterns": [],
+  "commands": [
+    { "name": "lint", "run": "npm run lint" },
+    { "name": "test", "run": "npm run test:run" },
+    { "name": "build (next build — typechecks)", "run": "npm run build" }
+  ]
+}

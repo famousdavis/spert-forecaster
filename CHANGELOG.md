@@ -1,5 +1,31 @@
 # Changelog
 
+## v0.38.5 - 2026-07-29
+
+Release-process hardening, plus one more changelog entry that was rendering blank. No functional, data, or interface changes — the app forecasts identically to v0.38.4.
+
+Until now no SPERT® Suite repository had any continuous integration. A green check on a pull request meant Vercel had built a preview; it did not mean the tests had run, because nothing ran them — not on push, not on pull request, not on merge. A branch whose entire suite failed showed all-green and merged cleanly. This release adds a ship gate that runs automatically, and it is deliberately the *same* gate that runs locally: `npm run shipgate` is one definition invoked two ways, so the two cannot drift apart. Everything repo-specific lives in `shipgate.config.json` rather than in the script or the workflow.
+
+The gate is split into two tiers, which is the part worth explaining. Checks that should be true at every moment — the public changelog is in sync, the `LICENSE` matches the canonical copy, every changelog entry renders with content in it — live in the test suite and run constantly. Checks that are only meaningfully true at a release boundary — every version surface agreeing — live in the release gate. Putting "the newest changelog entry matches `APP_VERSION`" in the test suite would have made it fail from the moment a version was bumped until the entry was written, taxing ordinary development for nothing; at a release boundary it is exactly the right assertion.
+
+Each guard was verified to fail against the real defect before being trusted to pass. The LICENSE check is a hash of the canonical text rather than a list of expected phrases, so it catches any drift rather than only the four kinds that have happened so far.
+
+### Added
+
+- **`npm run shipgate` — the release gate.** Checks that every version surface agrees: `package.json`, both version fields in `package-lock.json`, the `APP_VERSION` constant, and the newest `CHANGELOG.md` entry. It reports each disagreement individually rather than failing on the first, so one run tells you everything left to do.
+- **Continuous integration, for the first time in this repository.** A GitHub Actions workflow runs the ship gate on every pull request and every push to `main`. It installs with `npm ci`, which refuses to run at all if `package-lock.json` and `package.json` disagree — an independent second check on exactly the drift the gate looks for.
+- **A guard that every changelog entry renders non-empty.** It runs the real parser over the real `CHANGELOG.md` and asserts that every entry reaches the page with content beneath it. This is the failure that has no other symptom: the markdown is valid, the build succeeds, types check, lint passes, and the page is silently blank.
+- **A guard that `public/CHANGELOG.md` stays byte-identical to the root file.** Nothing in the app reads the public copy, so no build, type check, lint run or test could ever have noticed it rotting — and it had fallen four releases behind before v0.38.1 resynced it. Byte-identity rather than a version-heading comparison, because the drift this caught in testing had the *same* newest heading in both files and differed only in the body.
+- **A guard that `LICENSE` matches the canonical SPERT® Suite licence.** One SHA-256 of the licence body, normalised for the repository URL on line 4, which is the only line that legitimately differs across the nine repositories.
+
+### Fixed
+
+- **The v0.21.2 entry's "Security Audit Summary" section rendered as an empty heading.** It was written as a single prose paragraph, and the changelog parser collects only `###` headings and `-` list items, so the text was silently discarded — the same defect class fixed for v0.38.2 and v0.38.3 in the last release, one level further down. The section now carries bullets alongside the prose, so it displays in full. The new guard is what found it.
+
+### Changed
+
+- **`npm test` now runs the suite once and exits.** It was the only repository in the suite where `npm test` opened a watcher instead, which made it behave differently from the other seven for anyone running it by hand. `npm run test:watch` gives the old behaviour; `npm run test:run` still works.
+
 ## v0.38.4 - 2026-07-29
 
 Licensing, plus two changelog entries that were rendering blank in the app. No functional, data, or interface changes — the app forecasts identically to v0.38.3.
@@ -1201,6 +1227,10 @@ v0.31.2 re-introduces the v0.31.0 + v0.31.1 work (rolled back from production vi
 ### Security Audit Summary
 
 Full audit of Firebase config, Firestore rules, auth flows, input validation, XSS/injection, data exposure, dependencies, and security headers. No critical vulnerabilities found. Verified secure: CSP headers, Firestore CRUD rules, OAuth implementation, HTML/CSV escaping, import validation, file upload restrictions, data sanitization, sharing authorization, cloud sync guards, localStorage handling, dependency versions, and worker communication.
+
+- **Scope of the audit.** Firebase config, Firestore rules, auth flows, input validation, XSS/injection, data exposure, dependencies, and security headers.
+- **No critical vulnerabilities were found.**
+- **Verified secure.** CSP headers, Firestore CRUD rules, OAuth implementation, HTML/CSV escaping, import validation, file upload restrictions, data sanitization, sharing authorization, cloud sync guards, localStorage handling, dependency versions, and worker communication.
 
 ## v0.21.1 - 2026-03-08
 
