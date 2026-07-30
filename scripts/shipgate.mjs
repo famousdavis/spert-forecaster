@@ -55,7 +55,8 @@ const RESET = '\x1b[0m'
 const failures = []
 
 function pass(label, detail) {
-  console.log(`  ${GREEN}✓${RESET} ${label}${detail ? ` ${DIM}${detail}${RESET}` : ''}`)
+  const suffix = detail ? ` ${DIM}${detail}${RESET}` : ''
+  console.log(`  ${GREEN}✓${RESET} ${label}${suffix}`)
 }
 
 function fail(label, detail) {
@@ -238,6 +239,10 @@ if (!process.argv.includes('--checks-only')) {
     let output = ''
     let exitCode = 0
     try {
+      // `step.run` comes from this repo's own committed shipgate.config.json — not
+      // from user input, argv or the network. Anyone able to edit that file can
+      // already run arbitrary npm scripts.
+      // eslint-disable-next-line sonarjs/os-command
       output = execSync(step.run, { cwd: ROOT, encoding: 'utf-8', stdio: 'pipe' })
     } catch (err) {
       output = `${err.stdout ?? ''}${err.stderr ?? ''}`
