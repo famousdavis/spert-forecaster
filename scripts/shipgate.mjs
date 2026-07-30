@@ -102,17 +102,21 @@ if (!lockRaw) {
   const rootVersion = lock.version
   const pkgsVersion = lock.packages?.['']?.version
 
-  rootVersion === version
-    ? pass('package-lock.json  .version')
-    : fail('package-lock.json  .version', `expected ${version}, found ${rootVersion}`)
+  if (rootVersion === version) {
+    pass('package-lock.json  .version')
+  } else {
+    fail('package-lock.json  .version', `expected ${version}, found ${rootVersion}`)
+  }
 
-  pkgsVersion === version
-    ? pass('package-lock.json  packages[""].version')
-    : fail(
-        'package-lock.json  packages[""].version',
-        `expected ${version}, found ${pkgsVersion}\n` +
-          'Hand-edit both fields. Do NOT run `npm install` to fix this.',
-      )
+  if (pkgsVersion === version) {
+    pass('package-lock.json  packages[""].version')
+  } else {
+    fail(
+      'package-lock.json  packages[""].version',
+      `expected ${version}, found ${pkgsVersion}\n` +
+        'Hand-edit both fields. Do NOT run `npm install` to fix this.',
+    )
+  }
 }
 
 // The version constant. `spert-ahp` has no displayed constant — it renders
@@ -210,14 +214,14 @@ if (config.claudeMdVersionPatterns?.length) {
         continue
       }
       const stale = found.filter((m) => m[1] !== version)
-      stale.length === 0
-        ? pass(`CLAUDE.md ${pattern}`, `${found.length} claim(s) at ${version}`)
-        : fail(
-            `CLAUDE.md ${pattern}`,
-            stale
-              .map((m) => `stale claim "${m[0].trim()}" — repo is at ${version}`)
-              .join('\n'),
-          )
+      if (stale.length === 0) {
+        pass(`CLAUDE.md ${pattern}`, `${found.length} claim(s) at ${version}`)
+      } else {
+        fail(
+          `CLAUDE.md ${pattern}`,
+          stale.map((m) => `stale claim "${m[0].trim()}" — repo is at ${version}`).join('\n'),
+        )
+      }
     }
   }
 }
@@ -241,8 +245,10 @@ if (!process.argv.includes('--checks-only')) {
     try {
       // `step.run` comes from this repo's own committed shipgate.config.json — not
       // from user input, argv or the network. Anyone able to edit that file can
-      // already run arbitrary npm scripts.
-      // eslint-disable-next-line sonarjs/os-command
+      // already run arbitrary npm scripts. Linters that flag this (sonarjs/os-command)
+      // are silenced in the consuming repo's own eslint config, NOT with a directive
+      // here: a plugin-specific disable comment is a hard error in any repo that does
+      // not install that plugin, and this file must stay byte-identical across all of them.
       output = execSync(step.run, { cwd: ROOT, encoding: 'utf-8', stdio: 'pipe' })
     } catch (err) {
       output = `${err.stdout ?? ''}${err.stderr ?? ''}`
@@ -268,9 +274,11 @@ if (!process.argv.includes('--checks-only')) {
       continue
     }
 
-    exitCode === 0
-      ? pass(step.name)
-      : fail(step.name, output.trim().split('\n').slice(-20).join('\n'))
+    if (exitCode === 0) {
+      pass(step.name)
+    } else {
+      fail(step.name, output.trim().split('\n').slice(-20).join('\n'))
+    }
   }
 }
 
