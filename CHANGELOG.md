@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.38.6 - 2026-07-31
+
+Tooling only — no functional, data, or interface changes. The app forecasts identically to v0.38.5.
+
+The ship gate added in v0.38.5 was told to run on "Node 24", written directly into the workflow file. That is not the same as the version this repository pins: it resolves to whichever 24.x release the runner happens to have on hand, and the `.nvmrc` kept alongside the source was never read. The workflow now reads that file, so the version is stated in exactly one place rather than two that were free to drift apart — which is the same failure shape the ship gate itself exists to catch.
+
+The version actually selected here is unchanged, because this `.nvmrc` names the `24` line rather than an exact release; that line-level pin is deliberate, so each build takes the newest secure patch in the line. What changes is that `spert-admin-tool`, which caps at `24.15.x - 24.17.x` on purpose to avoid a Node ≥24.18 regression that breaks server-rendered pages, will have that cap honoured when it gains the same gate instead of silently overridden.
+
+### Changed
+- **CI resolves Node from `.nvmrc` rather than a hardcoded major.** `shipgate.yml` stays byte-identical across all nine suite repositories — `setup-node` resolves the path per repository, so no per-repo divergence was needed.
+
 ## v0.38.5 - 2026-07-29
 
 Release-process hardening, plus one more changelog entry that was rendering blank. No functional, data, or interface changes — the app forecasts identically to v0.38.4.

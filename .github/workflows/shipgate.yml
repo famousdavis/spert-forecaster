@@ -32,7 +32,17 @@ jobs:
 
       - uses: actions/setup-node@v6.4.0
         with:
-          node-version: '24'
+          # Read the version from the repo's own .nvmrc rather than hardcoding a
+          # major. `node-version: '24'` FLOATS to the newest 24.x on the runner —
+          # it resolved to 24.18.0 on 2026-07-30 — so CI silently ignored every
+          # repo’s pin. That matters because the pins are not decorative:
+          # spert-admin-tool caps at "24.15.x - 24.17.x" to dodge a Node >=24.18
+          # regression (raised Buffer.poolSize makes React's streaming SSR call
+          # ArrayBuffer.transfer() on a pooled buffer → "ArrayBuffer is not
+          # detachable"). A hardcoded major would run that gate on the exact
+          # version it exists to forbid. Every repo carries an .nvmrc, so this
+          # line stays byte-identical across all of them.
+          node-version-file: '.nvmrc'
           cache: npm
 
       # `npm ci` installs strictly from package-lock.json. It fails outright if
