@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.38.7 - 2026-07-31
+
+Tooling only — no functional, data, or interface changes. The app forecasts identically to v0.38.6.
+
+The ship gate could only ever be told about **one** changelog file, so the served copy under `public/` was invisible to it — this project keeps two, and nothing compared them. `shipgate.config.json` now declares `public/CHANGELOG.md` as a `changelog.extraSurfaces` entry in `identical` mode, so the gate fails if the two ever differ by a single byte.
+
+The failure this guards against has already happened elsewhere in the suite: SPERT® Scheduler's served copy went five months stale, because no build, test or check read it. This project's copy was in sync, and now cannot quietly stop being so.
+
+Each failure path was verified by mutation before the change was accepted — a drifted copy, a removed entry and a deleted file each fail the gate.
+
+### Changed
+- **The ship gate now checks `public/CHANGELOG.md`.** `changelog.extraSurfaces` added to `shipgate.config.json`; `scripts/shipgate.mjs` gains support for it and stays byte-identical across all nine suite repositories.
+
 ## v0.38.6 - 2026-07-31
 
 Tooling only — no functional, data, or interface changes. The app forecasts identically to v0.38.5.

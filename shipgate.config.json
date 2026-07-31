@@ -6,7 +6,15 @@
   },
   "changelog": {
     "file": "CHANGELOG.md",
-    "headingPattern": "^## v(\\d+\\.\\d+\\.\\d+)\\s*-\\s*\\d{4}-\\d{2}-\\d{2}"
+    "headingPattern": "^## v(\\d+\\.\\d+\\.\\d+)\\s*-\\s*\\d{4}-\\d{2}-\\d{2}",
+
+    "extraSurfaces": [
+      {
+        "file": "public/CHANGELOG.md",
+        "match": "identical",
+        "note": "Served copy. Keep byte-identical — copy the root file, do not hand-edit both."
+      }
+    ]
   },
   "claudeMdVersionPatterns": [],
   "commands": [

@@ -188,6 +188,77 @@ if (config.changelog) {
   }
 }
 
+// Changelog surfaces the declared file does not cover.
+//
+// `changelog.file` names exactly ONE path, so every other copy of the changelog
+// in a repo was invisible to this gate: a release could pass green with the
+// in-app changelog or the served copy left stale. That is precisely the drift
+// this script exists to prevent, sitting just outside what it had been told to
+// look at. Six of the nine repos had at least one such surface.
+//
+//   match: 'identical'    — a byte-for-byte copy of `changelog.file`.
+//                           public/CHANGELOG.md is NOT a backup: spert-story-map's
+//                           ChangelogView.tsx does fetch('/CHANGELOG.md') at runtime,
+//                           so the served copy is the surface users actually read and
+//                           the root copy is the one nothing renders.
+//
+//   match: 'firstVersion' — an in-app data file whose FIRST `version: 'X.Y.Z'` must
+//                           equal package.json, i.e. the newest entry. Supply
+//                           `pattern` to override the shape for an unusual file.
+//
+// Repo-specific detail belongs in shipgate.config.json, never here — this file
+// stays byte-identical across all nine repositories.
+if (config.changelog?.extraSurfaces?.length) {
+  const canonicalPath = config.changelog.file
+  const canonical = readIfPresent(canonicalPath)
+
+  for (const surface of config.changelog.extraSurfaces) {
+    const label = `changelog surface ${surface.file}`
+    const source = readIfPresent(surface.file)
+
+    if (source === null) {
+      fail(label, 'file does not exist')
+      continue
+    }
+
+    if (surface.match === 'identical') {
+      if (canonical === null) {
+        fail(label, `cannot compare — ${canonicalPath} is missing`)
+      } else if (source !== canonical) {
+        fail(
+          label,
+          `differs from ${canonicalPath}\n` +
+            `  fix: cp ${canonicalPath} ${surface.file}` +
+            (surface.note ? `\n  ${surface.note}` : ''),
+        )
+      } else {
+        pass('changelog surface', `${surface.file} identical to ${canonicalPath}`)
+      }
+      continue
+    }
+
+    if (surface.match === 'firstVersion') {
+      const pattern = surface.pattern ?? `version\\s*:\\s*['"](\\d+\\.\\d+\\.\\d+)['"]`
+      const match = source.match(new RegExp(pattern))
+      if (!match) {
+        fail(label, `no version assignment matched ${pattern}`)
+      } else if (match[1] !== version) {
+        fail(
+          label,
+          `newest entry is ${match[1]}, package.json declares ${version}\n` +
+            '  Add the in-app changelog entry for this version before shipping.' +
+            (surface.note ? `\n  ${surface.note}` : ''),
+        )
+      } else {
+        pass('changelog surface', `${surface.file} → ${match[1]}`)
+      }
+      continue
+    }
+
+    fail(label, `unknown match mode ${JSON.stringify(surface.match)} — expected 'identical' or 'firstVersion'`)
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // G7 — CLAUDE.md currency
 //
