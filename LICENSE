@@ -689,25 +689,29 @@ ADDITIONAL TERMS (per GNU GPL v3, Section 7 — Non-Permissive Additional Terms)
 -----------------------------------------------------------------------------------
 
 As permitted under Section 7 of the GNU General Public License v3.0,
-the following terms are NON-PERMISSIVE ADDITIONAL RESTRICTIONS and may
-NOT be removed by downstream recipients when conveying this software or
+the following are non-permissive additional terms and may NOT be
+removed by downstream recipients when conveying this software or
 modified versions thereof:
 
-a) Attribution Preservation: You must retain, in the source code and
-   in any user interface that displays legal notices, the name
-   "William W. Davis, MSPM, PMP" as the original author of this
-   software. You may not remove, obscure, or replace this attribution
-   with another name.
+a) Attribution Preservation: You must retain, in the source code of
+   this software, the name "William W. Davis, MSPM, PMP" as the
+   original author. You may not remove or obscure this attribution, or
+   replace it with the name of another author. Paragraphs (a) and (b)
+   require preservation only; they do not prevent additional
+   contributors from adding their own copyright notices and author
+   attributions alongside the original.
 
-b) UI Notice Preservation: Any modified version of this software that
-   includes a user interface must display, in a visible and accessible
-   location (such as an About screen or application footer), a notice
-   that the original work was authored by William W. Davis, MSPM, PMP,
-   along with a link to the original repository if feasible.
+b) Legal Notice Preservation: If a modified version of this software
+   includes an interactive user interface that displays Appropriate
+   Legal Notices, as that term is defined in Section 0 of the GNU
+   General Public License v3.0, those notices must preserve the name
+   "William W. Davis, MSPM, PMP" as the original author of this
+   software, together with any link to the project repository that the
+   original work displays with those notices.
 
 c) Trademark Reservation: "SPERT", "Statistical PERT", and "Estimation
-   Made Easy" are registered trademarks of William W. Davis, MSPM, PMP,
-   registered with the United States Patent and Trademark Office.
+   Made Easy" are trademarks of William W. Davis, MSPM, PMP, registered
+   with the United States Patent and Trademark Office as of 2026.
    "GanttApp" and "MyScrumBudget" are unregistered common-law trademarks
    claimed by William W. Davis, MSPM, PMP. As permitted under Section
    7(e) of the GNU General Public License v3.0, this License grants NO
@@ -716,11 +720,37 @@ c) Trademark Reservation: "SPERT", "Statistical PERT", and "Estimation
    associated logo or stylized form. The copyright permissions granted
    above do not include permission to use these marks in the name,
    branding, documentation, promotional material, or user interface of
-   any modified version or derivative work.
+   any modified version or derivative work. Nothing in this paragraph
+   restricts truthful references to this software by name where
+   reasonably necessary to identify its origin or to satisfy paragraph
+   (d), provided such references do not state or imply sponsorship,
+   affiliation, or endorsement by William W. Davis, MSPM, PMP.
 
-d) Marking of Modified Versions: As permitted under Section 7(c) of the
-   GNU General Public License v3.0, any modified version of this
-   software must be identified by a name that is not, and cannot
-   reasonably be confused with, any mark listed in paragraph (c), and
-   must be marked in a reasonable way as different from the original
-   version.
+d) Origin and Marking of Modified Versions: As permitted under Section
+   7(c) of the GNU General Public License v3.0, you may not
+   misrepresent the origin of this software, and any modified version
+   of this software must be identified by a name that is not, and
+   cannot reasonably be confused with, any mark listed in paragraph
+   (c), and must be marked in reasonable ways as different from the
+   original version.
+
+e) Endorsement and Promotion: As permitted under Section 7(d) of the
+   GNU General Public License v3.0, which allows limiting the use for
+   publicity purposes of the names of licensors and authors, the name
+   "William W. Davis, MSPM, PMP" and the names of any other licensors
+   or authors of this software may not be used to endorse or promote
+   any product derived from this software without specific prior
+   written permission. This paragraph does not limit the attribution
+   required by paragraphs (a) and (b).
+
+f) Indemnification: As permitted under Section 7(f) of the GNU General
+   Public License v3.0, anyone who conveys this software or a modified
+   version of it with contractual assumptions of liability to a
+   recipient must indemnify the licensors and authors of this software
+   for any liability that those contractual assumptions directly impose
+   on them.
+
+These additional terms are intended to fall wholly within the scope of
+Section 7(a)–(f) of the GNU General Public License v3.0 and are to be
+construed accordingly; nothing in them is intended to operate as a
+further restriction within the meaning of Section 10.
