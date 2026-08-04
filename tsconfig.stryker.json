@@ -1,0 +1,32 @@
+{
+  // Type-check program for Stryker's `typescript` checker ONLY. Not used by
+  // next build, npm test, or the ship gate.
+  //
+  // WHY IT EXISTS
+  // The checker compiles the whole tsconfig program before it will run a single
+  // mutant, and this repo carries 48 pre-existing type errors — all of them in
+  // *.test.ts files, none in production source (measured 2026-08-04 with
+  // `npx tsc --noEmit -p tsconfig.json`). They are invisible to `npm test`,
+  // because Vitest transpiles without type-checking, and to `next build`, which
+  // does not type-check test files. So the checker crashed at init with
+  // "TS18046: 'data' is of type 'unknown'" and Stryker never started.
+  //
+  // The checker only needs the mutated source and what it imports; source never
+  // imports a test file. Excluding tests here removes the crash without weakening
+  // the check on anything that gets mutated.
+  //
+  // ⚠️ This is NOT a suppression of the 48 errors. They are still real, still
+  // unguarded by any gate, and worth their own pass. Widening the mutate scope
+  // will not resurface them — this file will keep them out of view.
+  //
+  // ⚠️ Every file in stryker.config.mjs `mutate` MUST be inside this program.
+  // A tsconfig that excludes a mutate target makes the checker crash on the first
+  // mutant with "no watcher is registered for it. Changes would go unnoticed."
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // Do not share tsconfig.tsbuildinfo with the base config's incremental builds.
+    "incremental": false
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "exclude": ["node_modules", "**/*.test.ts", "**/*.test.tsx"]
+}

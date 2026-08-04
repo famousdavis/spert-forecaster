@@ -45,3 +45,9 @@ yarn-error.log*
 next-env.d.ts
 
 .audit-baseline.json
+
+# mutation testing (Stryker) — reports are measurements, not artifacts.
+# A crashed run also leaves full copies of mutated source in .stryker-tmp,
+# which ESLint would otherwise lint.
+reports/mutation/
+.stryker-tmp/
