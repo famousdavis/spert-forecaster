@@ -21,12 +21,17 @@
 
 import { vi } from 'vitest'
 
+// ⚠️ The `(..._args: unknown[])` on each of these is load-bearing, not decoration.
+// A bare `vi.fn(async () => undefined)` declares a ZERO-ARGUMENT mock, so its
+// `mock.calls` is typed as a 0-length tuple and every `calls[i][0]` below is a
+// type error — which is what nine of this file's type errors were. The mocks
+// received arguments at runtime the whole time; only the types disagreed.
 const hoisted = vi.hoisted(() => ({
-  setDoc: vi.fn(async () => undefined),
-  updateDoc: vi.fn(async () => undefined),
-  deleteDoc: vi.fn(async () => undefined),
-  getDoc: vi.fn(async () => ({ exists: () => false, data: () => undefined })),
-  onSnapshot: vi.fn(() => () => undefined),
+  setDoc: vi.fn(async (..._args: unknown[]) => undefined),
+  updateDoc: vi.fn(async (..._args: unknown[]) => undefined),
+  deleteDoc: vi.fn(async (..._args: unknown[]) => undefined),
+  getDoc: vi.fn(async (..._args: unknown[]) => ({ exists: () => false, data: () => undefined })),
+  onSnapshot: vi.fn((..._args: unknown[]) => () => undefined),
 }))
 
 vi.mock('firebase/firestore', () => ({

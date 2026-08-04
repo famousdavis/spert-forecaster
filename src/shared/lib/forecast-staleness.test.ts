@@ -21,11 +21,21 @@ const BASE_PROJECT: Project = {
   updatedAt: '2026-01-01T00:00:00.000Z',
 }
 
+/**
+ * Two-week cadence from Monday 2026-01-05, finishing the Friday of week two.
+ * The date fields are REQUIRED on Sprint and this factory used to omit them —
+ * it was annotated `: Sprint` and returned something that was not one, which
+ * neither `npm test` nor `next build` could see.
+ */
 function sprint(n: number, doneValue: number, included = true): Sprint {
+  const dayOffset = (n - 1) * 14
+  const iso = (d: number) => new Date(Date.UTC(2026, 0, 5 + d)).toISOString().slice(0, 10)
   return {
     id: `s${n}`,
     projectId: 'p1',
     sprintNumber: n,
+    sprintStartDate: iso(dayOffset),
+    sprintFinishDate: iso(dayOffset + 11),
     doneValue,
     includedInForecast: included,
     createdAt: '2026-01-01T00:00:00.000Z',
@@ -182,8 +192,8 @@ describe('Gate 2 — the three digests', () => {
           project: {
             ...BASE_PROJECT,
             milestones: [
-              { id: 'm1', name: 'Alpha', backlogSize: 40, createdAt: '', updatedAt: '' },
-              { id: 'm2', name: 'Beta', backlogSize: size, createdAt: '', updatedAt: '' },
+              { id: 'm1', name: 'Alpha', backlogSize: 40, color: '#3b82f6', createdAt: '', updatedAt: '' },
+              { id: 'm2', name: 'Beta', backlogSize: size, color: '#10b981', createdAt: '', updatedAt: '' },
             ],
           },
         })

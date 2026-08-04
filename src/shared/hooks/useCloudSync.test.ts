@@ -357,10 +357,15 @@ describe('useCloudSync — snapshot user-guard and data-loss sentinel', () => {
   it('sentinel: resets on sign-out and re-sign-in (new effect closure)', async () => {
     useProjectStore.setState({ projects: [makeProject({ id: 'local-1' })], sprints: [] })
     vi.mocked(loadProjects).mockResolvedValue(new Map())
-    const { rerender } = renderHook(
-      ({ user, mode }: { user: typeof mockUser | null; mode: 'cloud' | 'local' }) =>
-        useCloudSync(user, mode),
-      { initialProps: { user: mockUser, mode: 'cloud' as const } },
+    // ⚠️ Generics pinned explicitly. renderHook infers Props from initialProps,
+    // so `mode: 'cloud' as const` narrowed the prop type to the literal 'cloud'
+    // and `user` to non-null — which made the sign-out rerender below, the whole
+    // point of this test, a type error the annotation on the callback could not
+    // override.
+    type SyncProps = { user: typeof mockUser | null; mode: 'local' | 'cloud' }
+    const { rerender } = renderHook<ReturnType<typeof useCloudSync>, SyncProps>(
+      ({ user, mode }) => useCloudSync(user, mode),
+      { initialProps: { user: mockUser, mode: 'cloud' } },
     )
     await waitFor(() => {
       expect(useProjectStore.getState().cloudDataLoaded).toBe(true)

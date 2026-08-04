@@ -56,10 +56,12 @@ describe('handleRunForecast — generation guard (G1)', () => {
       resolveSimulation = resolve
     })
     const mockRunSimulation = vi.fn().mockReturnValue(pendingPromise)
+    // NB: no `isSimulating` here — useSimulationWorker does not expose it.
+    // The flag comes from useForecastResultsStore. The mock used to supply it,
+    // which asserted a contract the hook never had.
     vi.mocked(useSimulationWorker).mockReturnValue({
       runSimulation: mockRunSimulation,
       runMilestoneSimulation: vi.fn(),
-      isSimulating: false,
     })
 
     const { result } = renderHook(() => useForecastState())

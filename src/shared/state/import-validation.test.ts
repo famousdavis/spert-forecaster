@@ -62,6 +62,23 @@ function makeExportData(
   }
 }
 
+/**
+ * Read an envelope after `validateImportData` has cleaned it in place.
+ *
+ * `makeExportData` returns `unknown` ON PURPOSE — the whole job of the function
+ * under test is to accept untrusted input, and a factory that handed it a typed
+ * object would be testing a shape the validator never sees. So the narrowing
+ * belongs here, at the point of READING a result, rather than in the factory.
+ * Previously the tests indexed straight into `unknown`, which is six of this
+ * file's seven type errors.
+ */
+function envelope(data: unknown) {
+  return data as {
+    projects: Record<string, unknown>[]
+    sprints: Record<string, unknown>[]
+  }
+}
+
 // ─── Top-level structure ───────────────────────────────────────────
 
 describe('validateImportData – top-level structure', () => {
@@ -621,7 +638,7 @@ describe('validateImportData — field allowlist (v0.28.3 M1)', () => {
       [],
     )
     expect(validateImportData(data)).toBe(true)
-    const cleaned = data.projects[0] as Record<string, unknown>
+    const cleaned = envelope(data).projects[0]
     expect(cleaned).not.toHaveProperty('owner')
     expect(cleaned).not.toHaveProperty('members')
     expect(cleaned).not.toHaveProperty('__maliciousNote')
@@ -643,7 +660,7 @@ describe('validateImportData — field allowlist (v0.28.3 M1)', () => {
       ],
     )
     expect(validateImportData(data)).toBe(true)
-    const cleaned = data.sprints[0] as Record<string, unknown>
+    const cleaned = envelope(data).sprints[0]
     expect(cleaned).not.toHaveProperty('owner')
     expect(cleaned).not.toHaveProperty('actorEmail')
     expect(cleaned).not.toHaveProperty('internalNote')
@@ -673,7 +690,7 @@ describe('validateImportData — field allowlist (v0.28.3 M1)', () => {
       [],
     )
     expect(validateImportData(data)).toBe(true)
-    const milestone = (data.projects[0].milestones as Record<string, unknown>[])[0]
+    const milestone = (envelope(data).projects[0].milestones as Record<string, unknown>[])[0]
     expect(milestone).not.toHaveProperty('attackerUid')
     expect(milestone).not.toHaveProperty('extra')
     expect(milestone.id).toBe('ms-1')
@@ -702,7 +719,7 @@ describe('validateImportData — field allowlist (v0.28.3 M1)', () => {
       [],
     )
     expect(validateImportData(data)).toBe(true)
-    const pa = (data.projects[0].productivityAdjustments as Record<string, unknown>[])[0]
+    const pa = (envelope(data).projects[0].productivityAdjustments as Record<string, unknown>[])[0]
     expect(pa).not.toHaveProperty('smuggled')
     expect(pa.factor).toBe(0.5)
     expect(pa.enabled).toBe(true)
@@ -710,7 +727,7 @@ describe('validateImportData — field allowlist (v0.28.3 M1)', () => {
 
   it('strips unknown keys from _changeLog entries', () => {
     const data: Record<string, unknown> = {
-      ...makeExportData([makeProject()], []),
+      ...(makeExportData([makeProject()], []) as Record<string, unknown>),
       _changeLog: [
         {
           t: 1000,
@@ -748,12 +765,12 @@ describe('validateImportData — field allowlist (v0.28.3 M1)', () => {
       ],
     )
     expect(validateImportData(data)).toBe(true)
-    const project = data.projects[0]
+    const project = envelope(data).projects[0]
     expect(project.sprintCadenceWeeks).toBe(2)
     expect(project.firstSprintStartDate).toBe('2026-01-06')
     expect(project.projectStartDate).toBe('2026-01-01')
     expect(project.projectFinishDate).toBe('2026-12-31')
-    const sprint = data.sprints[0]
+    const sprint = envelope(data).sprints[0]
     expect(sprint.customFinishDate).toBe('2026-01-20')
     expect(sprint.backlogAtSprintEnd).toBe(75)
   })

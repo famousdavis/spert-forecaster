@@ -131,9 +131,9 @@ describe('the record round-trip is lossless (milestone scopes)', () => {
       projects: [{
         ...useProjectStore.getState().projects[0],
         milestones: [
-          { id: 'm1', name: 'Alpha', backlogSize: 40, createdAt: '', updatedAt: '' },
-          { id: 'm2', name: 'Beta', backlogSize: 30, createdAt: '', updatedAt: '' },
-          { id: 'm3', name: 'Gamma', backlogSize: 30, createdAt: '', updatedAt: '' },
+          { id: 'm1', name: 'Alpha', backlogSize: 40, color: '#3b82f6', createdAt: '', updatedAt: '' },
+          { id: 'm2', name: 'Beta', backlogSize: 30, color: '#10b981', createdAt: '', updatedAt: '' },
+          { id: 'm3', name: 'Gamma', backlogSize: 30, color: '#f59e0b', createdAt: '', updatedAt: '' },
         ],
       }],
     })
@@ -194,8 +194,8 @@ describe('the record round-trip is lossless (milestone scopes)', () => {
       projects: [{
         ...useProjectStore.getState().projects[0],
         milestones: [
-          { id: 'm1', name: 'Alpha', backlogSize: 60, createdAt: '', updatedAt: '' },
-          { id: 'm2', name: 'Beta', backlogSize: 80, createdAt: '', updatedAt: '' },
+          { id: 'm1', name: 'Alpha', backlogSize: 60, color: '#3b82f6', createdAt: '', updatedAt: '' },
+          { id: 'm2', name: 'Beta', backlogSize: 80, color: '#10b981', createdAt: '', updatedAt: '' },
         ],
       }],
     })
