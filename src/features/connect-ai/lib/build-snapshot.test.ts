@@ -28,11 +28,21 @@ const PROJECT: Project = {
   updatedAt: '2026-01-01T00:00:00.000Z',
 }
 
+/**
+ * Two-week cadence from Monday 2026-01-05, finishing the Friday of week two.
+ * The date fields are REQUIRED on Sprint and this factory used to omit them —
+ * it was annotated `: Sprint` and returned something that was not one, which
+ * neither `npm test` nor `next build` could see.
+ */
 function sprint(n: number, doneValue: number, included = true): Sprint {
+  const dayOffset = (n - 1) * 14
+  const iso = (d: number) => new Date(Date.UTC(2026, 0, 5 + d)).toISOString().slice(0, 10)
   return {
     id: `s${n}`,
     projectId: 'p1',
     sprintNumber: n,
+    sprintStartDate: iso(dayOffset),
+    sprintFinishDate: iso(dayOffset + 11),
     doneValue,
     includedInForecast: included,
     backlogAtSprintEnd: 500 - n * 20,
@@ -322,7 +332,7 @@ describe('freshness ladder', () => {
   it('row 6: a milestone resize is stale', () => {
     const project: Project = {
       ...PROJECT,
-      milestones: [{ id: 'm1', name: 'Alpha', backlogSize: 60, createdAt: '', updatedAt: '' }],
+      milestones: [{ id: 'm1', name: 'Alpha', backlogSize: 60, color: '#3b82f6', createdAt: '', updatedAt: '' }],
     }
     const b = buildSnapshot(input({ project }))
     expect(results(b).status).toBe('stale')
@@ -390,7 +400,7 @@ describe('userSelections carries what the selectors DISPLAY', () => {
     // names the milestone.
     const project: Project = {
       ...PROJECT,
-      milestones: [{ id: 'm1', name: 'Alpha', backlogSize: 0, createdAt: '', updatedAt: '' }],
+      milestones: [{ id: 'm1', name: 'Alpha', backlogSize: 0, color: '#10b981', createdAt: '', updatedAt: '' }],
     }
     const b = buildSnapshot(input({
       project,
@@ -403,8 +413,8 @@ describe('userSelections carries what the selectors DISPLAY', () => {
     const project: Project = {
       ...PROJECT,
       milestones: [
-        { id: 'm1', name: 'Alpha', backlogSize: 40, createdAt: '', updatedAt: '' },
-        { id: 'm2', name: 'Beta', backlogSize: 60, createdAt: '', updatedAt: '' },
+        { id: 'm1', name: 'Alpha', backlogSize: 40, color: '#f59e0b', createdAt: '', updatedAt: '' },
+        { id: 'm2', name: 'Beta', backlogSize: 60, color: '#3b82f6', createdAt: '', updatedAt: '' },
       ],
     }
     const b = buildSnapshot(input({ project, view: { ...VIEW, summaryScope: 'm2' } }))
@@ -419,6 +429,7 @@ describe('userSelections carries what the selectors DISPLAY', () => {
       ...PROJECT,
       milestones: [{
         id: 'm1', name: 'Hidden', backlogSize: 40, showOnChart: false,
+        color: '#3b82f6',
         createdAt: '', updatedAt: '',
       }],
     }
@@ -496,9 +507,9 @@ describe('scopes and milestones', () => {
   const threeMilestones: Project = {
     ...PROJECT,
     milestones: [
-      { id: 'm1', name: 'Alpha', backlogSize: 40, createdAt: '', updatedAt: '' },
-      { id: 'm2', name: 'Beta', backlogSize: 30, showOnChart: false, createdAt: '', updatedAt: '' },
-      { id: 'm3', name: 'Gamma', backlogSize: 30, createdAt: '', updatedAt: '' },
+      { id: 'm1', name: 'Alpha', backlogSize: 40, color: '#10b981', createdAt: '', updatedAt: '' },
+      { id: 'm2', name: 'Beta', backlogSize: 30, showOnChart: false, color: '#f59e0b', createdAt: '', updatedAt: '' },
+      { id: 'm3', name: 'Gamma', backlogSize: 30, color: '#3b82f6', createdAt: '', updatedAt: '' },
     ],
   }
 
@@ -574,9 +585,9 @@ describe('scopes and milestones', () => {
     const projectShort: Project = {
       ...threeMilestones,
       milestones: [
-        { id: 'm1', name: 'Alpha', backlogSize: 40, createdAt: '', updatedAt: '' },
-        { id: 'm2', name: 'Beta', backlogSize: 30, showOnChart: false, createdAt: '', updatedAt: '' },
-        { id: 'm3', name: 'Gamma', backlogSize: 10, createdAt: '', updatedAt: '' },
+        { id: 'm1', name: 'Alpha', backlogSize: 40, color: '#10b981', createdAt: '', updatedAt: '' },
+        { id: 'm2', name: 'Beta', backlogSize: 30, showOnChart: false, color: '#f59e0b', createdAt: '', updatedAt: '' },
+        { id: 'm3', name: 'Gamma', backlogSize: 10, color: '#3b82f6', createdAt: '', updatedAt: '' },
       ],
     }
     const b = buildSnapshot(input({ project: projectShort, record: short }))
