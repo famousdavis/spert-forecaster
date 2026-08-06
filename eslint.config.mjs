@@ -5,9 +5,26 @@
 import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
+import sonarjs from "eslint-plugin-sonarjs";
 
 const eslintConfig = defineConfig([
   { ignores: [".claude/**"] },
+  // ⚠️ `.stryker-tmp` is Stryker's sandbox: it holds full copies of every mutated
+  // source file. Left behind by a crashed run, ESLint lints those copies too and
+  // the problem count jumps by the findings each copied file carries — in
+  // spert-scheduler one stale copy of one file moved `npm run lint` from 23 to 24.
+  // The count is the ship gate (`expectProblems` in shipgate.config.json), so an
+  // uncleaned sandbox reads as a regression that no commit caused.
+  { ignores: [".stryker-tmp", "reports/**"] },
+  // Cognitive complexity only — NOT sonarjs.configs.recommended. The plugin is
+  // here to answer "where is this code hard to change safely?", which is the one
+  // question scripts/measure-complexity.mjs needs it present for. Threshold 15
+  // matches spert-scheduler.
+  {
+    files: ["**/*.ts", "**/*.tsx"],
+    plugins: { sonarjs },
+    rules: { "sonarjs/cognitive-complexity": ["error", 15] },
+  },
   ...nextVitals,
   ...nextTs,
   // Override default ignores of eslint-config-next.
