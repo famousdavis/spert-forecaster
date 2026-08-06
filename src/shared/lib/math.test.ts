@@ -367,3 +367,43 @@ describe('randomUniform', () => {
     expect(Math.abs(avg - 50)).toBeLessThan(1.2)
   })
 })
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sampler VARIANCE
+//
+// Added 2026-08-05. Until now no test in this repository asserted the variance
+// of any sampler — only positivity and the mean — and mutation testing showed
+// that gap is not a matter of degree:
+//
+//   Disabling randomGamma's ENTIRE Marsaglia–Tsang rejection step moves the
+//   sample mean from 9.997 to 10.013 against a tolerance of 0.5. The existing
+//   `expect(avg).toBeCloseTo(10, 0)` is not a weak check of that step — it
+//   CANNOT FAIL on it, at any sample size, because the unconditional proposal
+//   already has the correct mean. Roughly thirty mutants lived there.
+//
+// The rejection step is what fixes the SHAPE. So the shape is what to assert.
+//
+// ⚠️ Bands are measured, not guessed. Twelve runs of each at n = 100,000 on the
+// real functions: gamma worst |sd − 1| = 0.00906, normal worst |sd − 10| =
+// 0.05717. The bands below sit ~3× outside those, and the gamma band is ~2×
+// INSIDE the 0.0638 error that removing rejection produces — so it separates
+// correct from broken in both directions rather than merely passing today.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('sampler variance', () => {
+  it('randomGamma reproduces the gamma standard deviation at shape 1', () => {
+    // Gamma(shape=1, scale=1): sd = sqrt(shape) * scale = 1.
+    // Shape 1 is deliberate — it is where the rejection step does the most work
+    // (95.8% acceptance vs 99.2% at shape 4), so it is the most discriminating
+    // point available. Higher shapes dilute the signal.
+    const samples = Array.from({ length: 100_000 }, () => randomGamma(1, 1))
+    expect(Math.abs(standardDeviation(samples) - 1)).toBeLessThan(0.03)
+  })
+
+  it('randomNormal reproduces the requested standard deviation', () => {
+    // Box–Muller: sd must come back as the sigma that went in. The transform's
+    // arithmetic mutants preserve the MEAN and move only this.
+    const samples = Array.from({ length: 100_000 }, () => randomNormal(50, 10))
+    expect(Math.abs(standardDeviation(samples) - 10)).toBeLessThan(0.2)
+  })
+})

@@ -231,10 +231,9 @@ function runTrials(
   productivityFactors?: number[],
   scopeGrowthPerSprint?: number
 ): number[] {
-  const factors = productivityFactors && productivityFactors.length > 0 ? productivityFactors : undefined
   const sprintsRequired: number[] = []
   for (let i = 0; i < trialCount; i++) {
-    sprintsRequired.push(runTrial(remainingBacklog, sampler, factors, scopeGrowthPerSprint))
+    sprintsRequired.push(runTrial(remainingBacklog, sampler, productivityFactors, scopeGrowthPerSprint))
   }
   sprintsRequired.sort((a, b) => a - b)
   return sprintsRequired
@@ -447,11 +446,10 @@ export function runQuadrupleForecast(
   uniform: { results: PercentileResults; sprintsRequired: number[] }
 } {
   const ctx: SimulationContext = { config, historicalVelocities, productivityFactors, scopeGrowthPerSprint }
-  const factors = productivityFactors && productivityFactors.length > 0 ? productivityFactors : undefined
 
   return runAllDistributions(ctx, (sampler) => {
     const sprintsRequired = runTrials(
-      config.remainingBacklog, sampler, config.trialCount, factors, scopeGrowthPerSprint
+      config.remainingBacklog, sampler, config.trialCount, productivityFactors, scopeGrowthPerSprint
     )
     const results = extractPercentileResults(sprintsRequired, config.startDate, config.sprintCadenceWeeks)
     return { results, sprintsRequired }
@@ -544,12 +542,11 @@ export function runQuadrupleForecastWithMilestones(
 ): QuadMilestoneForecastResult {
   const { remainingBacklog, startDate, sprintCadenceWeeks, trialCount } = config
   const ctx: SimulationContext = { config, historicalVelocities, productivityFactors, scopeGrowthPerSprint }
-  const factors = productivityFactors && productivityFactors.length > 0 ? productivityFactors : undefined
 
   return runAllDistributions(ctx, (sampler) =>
     runMilestoneSimulationInternal(
       remainingBacklog, cumulativeThresholds, sampler,
-      trialCount, startDate, sprintCadenceWeeks, factors, scopeGrowthPerSprint
+      trialCount, startDate, sprintCadenceWeeks, productivityFactors, scopeGrowthPerSprint
     )
   )
 }
