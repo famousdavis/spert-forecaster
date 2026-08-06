@@ -2,8 +2,9 @@
 // Licensed under the GNU General Public License v3.0.
 // See LICENSE file in the project root for full license text.
 
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import {
+  today,
   addDays,
   addWeeks,
   calculateSprintStartDate,
@@ -535,5 +536,47 @@ describe('resolveAnchorDate', () => {
     const sprint2Start = getNextBusinessDay(customFinish1)
     const sprint2Finish = calculateSprintFinishDate(sprint2Start, cadence)
     expect(result).toBe(getNextBusinessDay(sprint2Finish))
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// today()
+//
+// Added 2026-08-05 to close a mutation survivor: `now.getMonth() + 1` mutated to
+// `- 1` SURVIVED the whole suite, because nothing anywhere pinned today() to an
+// actual date. It feeds export filenames and default form values, so a wrong
+// month is user-visible.
+//
+// ⚠️ The clock is set with LOCAL date components — `new Date(2026, 2, 7, 12)` —
+// not an ISO/UTC string. today() reads getFullYear/getMonth/getDate, which are
+// local, so a UTC instant would make the expected value depend on the machine's
+// timezone. Constructing locally makes the assertion timezone-independent
+// without computing the expectation from the same getters, which would pass
+// under the mutation too.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('today', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  const at = (y: number, monthIndex: number, d: number) => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(y, monthIndex, d, 12, 0, 0))
+  }
+
+  it('returns the current local date as YYYY-MM-DD', () => {
+    at(2026, 2, 7) // 7 March 2026
+    expect(today()).toBe('2026-03-07')
+  })
+
+  it('zero-pads a single-digit month and day', () => {
+    at(2026, 0, 5) // 5 January 2026 — month index 0, the +1 offset's worst case
+    expect(today()).toBe('2026-01-05')
+  })
+
+  it('handles December without rolling the year', () => {
+    at(2026, 11, 31) // 31 December 2026
+    expect(today()).toBe('2026-12-31')
   })
 })
