@@ -46,6 +46,33 @@ next-env.d.ts
 
 .audit-baseline.json
 
+# Working notes: plans, critiques, reviews, orchestration prompts.
+#
+# ⚠️ THIS IS A SAFETY PATTERN, NOT TIDINESS. These 59 root-level files are
+# untracked but not ignored, so `git add -A` sweeps every one of them into a
+# commit on a PUBLIC repo. That has now happened twice, caught both times only
+# because someone read the file list before pushing. A near-miss caught twice by
+# attention is a hazard, not a track record.
+#
+# Scoped to the root (`/`) and to the naming vocabulary these documents actually
+# use — deliberately NOT `/*.md` with an allowlist. A blanket ignore would
+# silently swallow a future CONTRIBUTING.md or SECURITY.md that someone meant to
+# commit, and a file missing from a commit is harder to notice than a file
+# wrongly present in one. Tracked root docs (README, ARCHITECTURE, CHANGELOG)
+# match none of these patterns.
+#
+# ⚠️ The pattern reduces the blast radius; it does not remove it. A planning doc
+# with novel naming is still untracked-and-unignored. The actual fix is to STAGE
+# EXPLICIT PATHS — never `git add -A` or `git add .` in a repo that carries
+# untracked working notes.
+/FORECASTER-*.md
+/*-CRITIQUE-*.md
+/*-critique-*.md
+/*-PLAN-V*.md
+/*-REVIEW-*.md
+/*-BRIEFING.md
+/*-HANDOFF.md
+
 # mutation testing (Stryker) — reports are measurements, not artifacts.
 # A crashed run also leaves full copies of mutated source in .stryker-tmp,
 # which ESLint would otherwise lint.
