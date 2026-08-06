@@ -267,6 +267,42 @@ describe('calculateSprintProductivityFactor', () => {
     expect(factor).toBeCloseTo(0.7, 5)
   })
 
+  // ───────────────────────────────────────────────────────────────────────────
+  // Exact-boundary coverage for the overlap filter
+  //
+  //     adj.endDate >= sprintStart && adj.startDate <= sprintEnd
+  //
+  // Both comparisons had NO fixture sitting on the boundary, so `>=` -> `>` and
+  // `<=` -> `<` both survived mutation. An adjustment that ends on the sprint's
+  // first day, or begins on its last, is an ordinary calendar case — a holiday
+  // that runs up to the sprint start, or one that begins as the sprint closes.
+  //
+  // ⚠️ These two are the ONLY killable mutants on that line. Every mutant that
+  // makes the filter MORE permissive — `&&` -> `||`, and each operand forced to
+  // `true` — is equivalent, because the day loop below re-applies the same
+  // constraint per day. Measured over 325 systematic windows: zero
+  // distinguishing inputs. Do not write tests for those; they cannot fail.
+  // ───────────────────────────────────────────────────────────────────────────
+
+  it('includes an adjustment that ends exactly on the sprint start date', () => {
+    // Sprint: Mon 5 Jan - Fri 16 Jan 2026, 10 working days.
+    // Adjustment ends ON the first day, so it contributes exactly that one day.
+    // Expected: (9*1.0 + 1*0.5) / 10 = 0.95
+    const factor = calculateSprintProductivityFactor('2026-01-05', '2026-01-16', [
+      { startDate: '2026-01-01', endDate: '2026-01-05', factor: 0.5 },
+    ])
+    expect(factor).toBeCloseTo(0.95, 10)
+  })
+
+  it('includes an adjustment that starts exactly on the sprint end date', () => {
+    // Same sprint. Adjustment starts ON the last day and runs past it.
+    // Expected: (9*1.0 + 1*0.5) / 10 = 0.95
+    const factor = calculateSprintProductivityFactor('2026-01-05', '2026-01-16', [
+      { startDate: '2026-01-16', endDate: '2026-01-31', factor: 0.5 },
+    ])
+    expect(factor).toBeCloseTo(0.95, 10)
+  })
+
   it('uses minimum factor when adjustments overlap', () => {
     // Two overlapping adjustments: 0.5 and 0.3
     // Should use 0.3 (most restrictive)
