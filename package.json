@@ -54,7 +54,7 @@
     "vitest": "4.1.5"
   },
   "overrides": {
-    "vite": "7.3.2",
+    "vite": "7.3.5",
     "postcss": "^8.5.10"
   }
 }
