@@ -18,7 +18,7 @@
   },
   "claudeMdVersionPatterns": [],
   "commands": [
-    { "name": "lint", "run": "npm run lint", "expectProblems": 10 },
+    { "name": "lint", "run": "npm run lint", "expectProblems": 9 },
     { "name": "typecheck (incl. test files — next build skips them)", "run": "npm run typecheck" },
     { "name": "test", "run": "npm run test:run" },
     { "name": "build (next build — typechecks)", "run": "npm run build" }
