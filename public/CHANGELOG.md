@@ -1,5 +1,31 @@
 # Changelog
 
+## v0.39.0 - 2026-08-10
+
+One security fix, and otherwise no functional, data, or interface change — the app forecasts identically to v0.38.8. What changed is what this project can no longer ship by accident.
+
+The forecast engine had been correct and largely unguarded. Its tests asserted that sampled velocities were positive and that their averages landed near the right value, which is a weaker claim than it reads as: disabling the entire rejection step inside the gamma sampler moves the mean of ten thousand draws from 9.997 to 10.013, against a tolerance of 0.5. The check could not have failed on that defect at any sample size. Three permanent measurements now sit under the release gate, and the tests they exposed have been written.
+
+None of this is visible in the application. It is visible in what a future change to the forecast engine has to survive.
+
+### Security
+- **`vite` is pinned at 7.3.5 rather than 7.3.2**, closing `GHSA-fx2h-pf6j-xcff` (high — `server.fs.deny` bypass on Windows alternate paths) and `GHSA-v6wh-96g9-6wx3` (moderate — NTLMv2 hash disclosure via Windows UNC path handling). `vite` is test tooling and reaches no production bundle. ⚠️ This does not make the dependency audit clean: a low-severity `esbuild` advisory and nine `next` advisories remain, the latter because no fixed release has yet cleared this project's 60-day dependency-age policy.
+
+### Added
+- **Mutation testing**, scoped to the Monte Carlo engine, the distribution samplers and the date arithmetic — the three places where a rule is stated exactly once and a wrong answer becomes a wrong sprint date or percentile. It measures whether the existing tests would notice a change, rather than whether they run.
+- **A type-check step in the release gate that includes test files.** 48 type errors were living in test files where nothing could see them: the test runner compiles without checking types, and the production build skips test files entirely. All 48 are fixed and the count is now held at zero.
+- **A cognitive-complexity ratchet**, accepted at the ten findings that already existed. It fails when a new one appears *and* when an existing one disappears without being accounted for, so complexity cannot be quietly relocated rather than removed.
+
+### Changed
+- **The distribution samplers are now checked for spread, not only for average.** Gamma and normal sampling assert the standard deviation they are asked for, with bands measured across repeated runs rather than guessed.
+- **`today()` is pinned to a fixed clock in tests.** It feeds export filenames and default form values, and nothing had ever asserted the date it returns.
+- **Productivity adjustments are tested at the exact sprint boundary** — one ending on a sprint's first day, one beginning on its last. Both are ordinary calendar cases; neither had a fixture.
+
+### Fixed
+- **A mock claimed a hook returned a value it does not return**, and a cloud-sync test could not express the sign-out scenario it was written for, because its own type inference forbade the transition under test. It had run correctly for its entire life while its types said it was impossible.
+- **Dead logic removed from the simulation engine** — a guard repeated at three call sites that could not affect the result at any of them.
+- **Working notes at the repository root are no longer stageable.** 59 planning documents sat untracked and unignored, so a single `git add -A` would have committed all of them to a public repository.
+
 ## v0.38.8 - 2026-08-02
 
 Licensing only — no functional, data, or interface changes. The app forecasts identically to v0.38.7.
