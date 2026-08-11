@@ -701,3 +701,94 @@ describe('the snapshot is honest about what it is', () => {
     expect(b.appVersion).not.toBe('')
   })
 })
+
+// ═══════════════════════════════════════════════════════════════════════════
+// The truncation disclosure.
+//
+// ⚠️ THIS SHIPS WITH THE FIX, NOT AFTER IT, AND THAT IS THE POINT.
+// The old disclosure said "The velocity statistics cover all of them" while
+// calculateVelocityStats filters on includedInForecast — so the statistics
+// cover the INCLUDED subset. A test written against the previous behaviour
+// would have pinned a false statement into notVisibleToYou, which is the array
+// whose whole purpose is telling an AI the limits of its own information.
+// The behaviour was established by investigation first; only then was it
+// pinned.
+//
+// The fixture below is the reproduction: MORE than MAX_SNAPSHOT_SPRINTS
+// sprints, AND some excluded. Both are required — with nothing excluded the
+// old sentence was accidentally true.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** 70 sprints, every 5th excluded from the forecast → 56 included, 70 total. */
+const TRUNCATION_SPRINTS: Sprint[] = Array.from({ length: 70 }, (_, i) =>
+  sprint(i + 1, 40 + (i % 7), (i + 1) % 5 !== 0)
+)
+
+describe('truncation disclosure — the velocity-statistics denominator', () => {
+  const b = buildSnapshot(input({ allSprints: TRUNCATION_SPRINTS }))
+  const history = b.sprintHistory as Record<string, unknown>
+  const disclosures = (b.notVisibleToYou as string[]).join(' ')
+
+  it('the fixture actually truncates AND actually excludes — otherwise this suite proves nothing', () => {
+    // Guard on the fixture itself. If MAX_SNAPSHOT_SPRINTS rises above 70 this
+    // fails loudly rather than silently testing the untruncated path.
+    expect(history.sprintsTruncated).not.toBeNull()
+    expect(history.totalSprintCount).toBe(70)
+    expect(history.includedSprintCount).toBe(56)
+    expect(history.includedSprintCount).not.toBe(history.totalSprintCount)
+  })
+
+  it('⚠️ NEVER claims the velocity statistics cover every sprint — the defect this replaces', () => {
+    expect(disclosures).not.toContain('cover all of them')
+    expect(disclosures).not.toMatch(/statistics cover all/i)
+  })
+
+  it('states the denominator by NAMING the field rather than restating a number', () => {
+    // The drift-proof property. Prose that restates a value can disagree with
+    // that value; prose that names the field cannot. The old sentence
+    // interpolated its own counts and drifted; this one points at the data.
+    expect(disclosures).toContain('velocityStats.count')
+    expect(disclosures).toContain('includedSprintCount')
+    expect(disclosures).toContain('sprintsTruncated.shown')
+    expect(disclosures).toContain('sprintsTruncated.total')
+  })
+
+  it('the field it names carries the true denominator, so the pointer resolves', () => {
+    // Without this the disclosure could name a field that says something else
+    // — the same class of error one indirection further out.
+    const stats = history.velocityStats as Record<string, number>
+    expect(stats.count).toBe(history.includedSprintCount)
+    expect(stats.count).toBe(56)
+  })
+
+  it('sprintsTruncated carries numbers only — one owner per fact', () => {
+    // The root cause was one fact stated twice in two fields, which then
+    // drifted. Numbers live here; the prose lives in notVisibleToYou.
+    expect(history.sprintsTruncated).toEqual({ shown: 60, total: 70 })
+    expect(history.sprintsTruncated).not.toHaveProperty('note')
+  })
+
+  it('says nothing about truncation when nothing is truncated', () => {
+    const small = buildSnapshot(input())
+    expect((small.sprintHistory as Record<string, unknown>).sprintsTruncated).toBeNull()
+    expect((small.notVisibleToYou as string[]).join(' ')).not.toContain('sprintsTruncated.shown')
+  })
+})
+
+describe('every notVisibleToYou entry is a claim that could be checked', () => {
+  it('makes no appeal to how the app has "always" behaved', () => {
+    // ⚠️ A claim no mechanism can falsify does not belong in a trust channel.
+    // "This is how the app has always behaved" named no version and no
+    // pinnable behaviour: not shown false, and never showable true. The
+    // checkable half — that the recomputation belongs to the forecast summary
+    // rather than to this connection — is kept below.
+    const disclosures = (buildSnapshot(input()).notVisibleToYou as string[]).join(' ')
+    expect(disclosures).not.toMatch(/has always behaved|always been/i)
+  })
+
+  it('still locates the live-recompute behaviour, which is the checkable part', () => {
+    const disclosures = (buildSnapshot(input()).notVisibleToYou as string[]).join(' ')
+    expect(disclosures).toContain('recomputes some percentile dates live')
+    expect(disclosures).toContain('not of this connection')
+  })
+})

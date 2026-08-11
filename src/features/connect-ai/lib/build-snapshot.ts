@@ -168,18 +168,29 @@ export function buildSnapshot(input: SnapshotInput): Record<string, unknown> {
   // ── Sprints, most recent MAX_SNAPSHOT_SPRINTS ───────────────────────────
   const ordered = [...sprint.projectSprints].sort((a, b) => a.sprintNumber - b.sprintNumber)
   const shown = ordered.slice(-MAX_SNAPSHOT_SPRINTS)
+  // ⚠️ NUMBERS HERE, PROSE IN notVisibleToYou — ONE OWNER PER FACT.
+  // This object used to carry a `note` saying the same thing the disclosure
+  // below says. Two prose statements of one fact, in two fields, and they
+  // drifted: the disclosure claimed the velocity statistics covered ALL
+  // sprints while this note correctly said the included set. Correcting one
+  // string would have left the mechanism in place.
   const sprintsTruncated = ordered.length > shown.length
-    ? {
-        shown: shown.length,
-        total: ordered.length,
-        note: 'Only the most recent sprints are carried. velocityStats covers ' +
-          'the full included set, not just these.',
-      }
+    ? { shown: shown.length, total: ordered.length }
     : null
   if (sprintsTruncated) {
+    // ⚠️ NAMES THE FIELDS, INTERPOLATES NOTHING. The previous version computed
+    // its own denominator and stated it in prose; prose that restates a value
+    // can drift from that value, and this one did. BASE_NOT_VISIBLE's headline
+    // entry already used the naming form ("userSelections.summaryPercentile"),
+    // so the two patterns sat four hundred lines apart in one file and only
+    // the interpolating one went wrong.
     notVisibleToYou.push(
-      `Sprint history is truncated to the most recent ${shown.length} of ` +
-      `${ordered.length} sprints. The velocity statistics cover all of them.`
+      'Sprint history is truncated: sprintsTruncated.shown of ' +
+      'sprintsTruncated.total sprints are carried here. The velocity ' +
+      'statistics are NOT computed over all of them — velocityStats.count is ' +
+      'the number of sprints they cover, which is includedSprintCount. ' +
+      'Sprints the user excluded from the forecast are counted in ' +
+      'totalSprintCount and excluded from velocityStats.'
     )
   }
 
@@ -359,11 +370,19 @@ export function buildSnapshot(input: SnapshotInput): Record<string, unknown> {
       'are marked renderedOnScreen: false.'
     )
   }
+  // ⚠️ The final clause used to read "This is how the app has always behaved
+  // and is not a change introduced by this connection." The second half is
+  // checkable and kept; the first half was not. "Always" names no version and
+  // no behaviour that can be pinned, so no mechanism could ever show it false
+  // — and a claim that cannot be falsified does not belong in a channel whose
+  // entire value is being trusted. Replaced with the locatable fact that
+  // carries the same reassurance: the recomputation lives in the summary
+  // component, not in anything this connection added.
   notVisibleToYou.push(
     'The forecast summary recomputes some percentile dates live rather than ' +
     'reading the stored run, so a date it shows at a non-standard percentile ' +
-    'may differ slightly from the grid here. This is how the app has always ' +
-    'behaved and is not a change introduced by this connection.'
+    'may differ slightly from the grid here. That recomputation is part of the ' +
+    'forecast summary itself, not of this connection.'
   )
 
   results.computedDistributions = computedDistributions
