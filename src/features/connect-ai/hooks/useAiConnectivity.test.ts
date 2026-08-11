@@ -30,7 +30,20 @@ const hoisted = vi.hoisted(() => ({
   setDoc: vi.fn(async (..._args: unknown[]) => undefined),
   updateDoc: vi.fn(async (..._args: unknown[]) => undefined),
   deleteDoc: vi.fn(async (..._args: unknown[]) => undefined),
-  getDoc: vi.fn(async (..._args: unknown[]) => ({ exists: () => false, data: () => undefined })),
+  // ⚠️ Return type stated, not inferred. Inference narrowed this to
+  // `exists: () => false`, so a fixture for an EXISTING document — which is
+  // half of what getDoc does — could not be assigned to it. Tests stayed green
+  // and only the typecheck objected, the same shape the ratchet caught on the
+  // ScopeChangeStats fixture. The annotation models what getDoc actually
+  // returns rather than what the default happens to be.
+  getDoc: vi.fn(
+    async (
+      ..._args: unknown[]
+    ): Promise<{ exists: () => boolean; data: () => Record<string, unknown> | undefined }> => ({
+      exists: () => false,
+      data: () => undefined,
+    })
+  ),
   onSnapshot: vi.fn((..._args: unknown[]) => () => undefined),
 }))
 
@@ -270,5 +283,96 @@ describe('teardown', () => {
     expect(localStorage.getItem(AI_SESSION_ID_KEY)).toBeNull()
     expect(localStorage.getItem(AI_CONSENT_KEY)).toBeNull()
     expect(result.current.sessionState.sessionActive).toBe(false)
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+// THE SESSION LIFECYCLE — unpinned until now (Item 4 probes A2 / A3 / A4).
+//
+// ⚠️ Item 4 measured this target at 1 of 4. The one thing pinned was the
+// security invariant — consentWrite: false, always — and the lifecycle around
+// it by nothing: reentrancy, expiry and id rotation all survived their probes.
+//
+// ⚠️ TWO HARNESS FACTS THAT MAKE THE NAIVE VERSION OF THESE TESTS VACUOUS, both
+// found by the first draft failing rather than by reading:
+//
+//   1. getDoc has TWO call sites — startSession's resume check AND a
+//      resume-on-mount effect. A mockResolvedValueOnce is consumed by the
+//      mount effect before startSession ever runs, so the test then exercises
+//      the DEFAULT mock and proves nothing. Use mockResolvedValue.
+//   2. updateDoc has FIVE call sites; four are heartbeat/presence/permission
+//      writes that fire regardless, so `not.toHaveBeenCalled()` is always false
+//      here for reasons unrelated to resume. ⚠️ Narrowing it took two attempts:
+//      `expiresAt` alone also matches the HEARTBEAT, and `consentRead` alone
+//      also matches changePermissions. Only the resume write carries BOTH.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** The resume write — the only updateDoc carrying BOTH consentRead and expiresAt. */
+function resumeWrites() {
+  return hoisted.updateDoc.mock.calls.filter((c) => {
+    const payload = c[1]
+    if (payload === null || typeof payload !== 'object') return false
+    return 'consentRead' in payload && 'expiresAt' in payload
+  })
+}
+
+const EXPIRED = { exists: () => true, data: () => ({ expiresAt: { toDate: () => new Date(Date.now() - 3_600_000) } }) }
+const LIVE = { exists: () => true, data: () => ({ expiresAt: { toDate: () => new Date(Date.now() + 3_600_000) } }) }
+
+describe('startSession — the session lifecycle', () => {
+  it('A2: a second concurrent start is refused while the first is in flight', async () => {
+    const { result } = renderHook(() => useAiConnectivity())
+
+    // Both started before either resolves. Without the reentrancy guard both
+    // proceed and one pairing gets two session documents.
+    let second!: Promise<boolean>
+    await act(async () => {
+      const first = result.current.startSession(true)
+      second = result.current.startSession(true)
+      await Promise.all([first, second])
+    })
+
+    expect(await second).toBe(false)
+    const creates = hoisted.setDoc.mock.calls.filter(
+      (c) => !String((c[0] as { path: string }).path).includes('snapshot')
+    )
+    expect(creates).toHaveLength(1)
+  })
+
+  it('A3: an EXPIRED stored session is not resumed — a fresh one is created', async () => {
+    localStorage.setItem(AI_SESSION_ID_KEY, 'stale-session-id')
+    hoisted.getDoc.mockResolvedValue(EXPIRED)
+
+    const { result } = renderHook(() => useAiConnectivity())
+    await act(async () => { await result.current.startSession(true) })
+
+    expect(sessionCreate()).toBeDefined()
+    expect(resumeWrites()).toHaveLength(0)
+  })
+
+  it('A4: the replacement for an expired session gets a NEW id, not the dead one', async () => {
+    localStorage.setItem(AI_SESSION_ID_KEY, 'stale-session-id')
+    hoisted.getDoc.mockResolvedValue(EXPIRED)
+
+    const { result } = renderHook(() => useAiConnectivity())
+    await act(async () => { await result.current.startSession(true) })
+
+    // ⚠️ Reusing the id would give the new pairing the dead session's identity,
+    // and the pairing code the user reads is derived from it.
+    expect(localStorage.getItem(AI_SESSION_ID_KEY)).toBeTruthy()
+    expect(localStorage.getItem(AI_SESSION_ID_KEY)).not.toBe('stale-session-id')
+    expect(String((sessionCreate()![0] as { path: string }).path)).not.toContain('stale-session-id')
+  })
+
+  it('a LIVE stored session IS resumed — the other side of A3, or A3 proves nothing', async () => {
+    localStorage.setItem(AI_SESSION_ID_KEY, 'live-session-id')
+    hoisted.getDoc.mockResolvedValue(LIVE)
+
+    const { result } = renderHook(() => useAiConnectivity())
+    await act(async () => { await result.current.startSession(true) })
+
+    expect(resumeWrites().length).toBeGreaterThan(0)
+    expect(sessionCreate()).toBeUndefined()
+    expect(localStorage.getItem(AI_SESSION_ID_KEY)).toBe('live-session-id')
   })
 })

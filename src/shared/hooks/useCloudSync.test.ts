@@ -819,4 +819,73 @@ describe('useCloudSync — new-project create path (v0.35.1)', () => {
     // was scheduled (observable proxy for "no pendingCreateTimers entry exists").
     expect(vi.mocked(saveProjectImmediate)).not.toHaveBeenCalled()
   })
+  // ═════════════════════════════════════════════════════════════════════════
+  // THE TWO IDENTITY GUARDS — unpinned until now (Item 4 probes C1 / C3).
+  //
+  // ⚠️ Item 4's finding was not that this file is thinly covered — it is that
+  // its 24 tests exercise the STATE MACHINE thoroughly (Branch A/B/C, burst
+  // coalescing, in-flight chaining all die to the first probe) and never drive
+  // a signed-out or user-changed event. The two guards that stop a write going
+  // to the cloud as, or on behalf of, the wrong user were pinned by nothing.
+  //
+  // Both verified correct before pinning: neither is a judgement call.
+  // ═════════════════════════════════════════════════════════════════════════
+
+  it('C1: a sync event arriving after sign-out writes nothing', async () => {
+    // userRef.current is written during render, so it can go null while a
+    // subscription from the previous render is still live — an event in that
+    // window is exactly what the guard defends.
+    const projectId = 'p1'
+    useProjectStore.setState({
+      projects: [makeProject({ id: projectId })],
+      sprints: [],
+    })
+    const handle = renderHook(({ u }) => useCloudSync(u, 'cloud'), {
+      initialProps: { u: mockUser as typeof mockUser | null },
+    })
+    await waitFor(() => {
+      expect(useProjectStore.getState().cloudDataLoaded).toBe(true)
+      expect(capturedSyncBusHandler).toBeDefined()
+    })
+    vi.useFakeTimers()
+
+    // Sign out: userRef.current becomes null on this render.
+    handle.rerender({ u: null })
+
+    act(() => {
+      capturedSyncBusHandler!({ type: 'project:save', projectId })
+    })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS)
+    })
+
+    expect(vi.mocked(saveProjectImmediate)).not.toHaveBeenCalled()
+    expect(vi.mocked(saveProject)).not.toHaveBeenCalled()
+  })
+
+  it('C3: a different user signed in before the debounce fires writes nothing', async () => {
+    // The closure's user is up to SAVE_DEBOUNCE_MS stale, so the timer re-reads
+    // auth at fire time. Without that, a project would be written to the cloud
+    // under whoever happens to be signed in when the timer lands.
+    const projectId = 'p1'
+    useProjectStore.setState({
+      projects: [makeProject({ id: projectId })],
+      sprints: [],
+    })
+    await setupHook()
+
+    act(() => {
+      capturedSyncBusHandler!({ type: 'project:save', projectId })
+    })
+
+    // The user switches during the debounce window.
+    mutableAuth.currentUser = { uid: 'user-2' } as import('firebase/auth').User
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS)
+    })
+
+    expect(vi.mocked(saveProjectImmediate)).not.toHaveBeenCalled()
+    expect(vi.mocked(saveProject)).not.toHaveBeenCalled()
+  })
 })

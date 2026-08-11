@@ -215,6 +215,42 @@ describe('the record round-trip is lossless (milestone scopes)', () => {
     // regardless of growth rate.
     expect(scopes.map((s) => s.thresholdUnreachable)).toEqual([false, true])
   })
+
+  // ⚠️ THE BOUNDARY CASE, AND WHY THE TEST ABOVE COULD NOT CATCH IT.
+  // Item 4's F3 probe changed `threshold > backlog` to `>=` and SURVIVED —
+  // past the test above, which is named for this exact property and asserts
+  // this exact field. Its thresholds are 60 and 140 against a backlog of 100,
+  // and both behave identically under `>` and `>=`. Neither is at the
+  // boundary, so the fixture cannot discriminate the operator.
+  //
+  // A threshold EQUAL to the backlog is reachable: completing all the backlog
+  // crosses it. And it is the common case, not a corner — the last milestone's
+  // cumulative normally equals the backlog exactly, which is what makes the
+  // off-by-one worth pinning.
+  it('a threshold exactly EQUAL to the backlog is reachable — the case > and >= disagree on', async () => {
+    useProjectStore.setState({
+      projects: [{
+        ...useProjectStore.getState().projects[0],
+        milestones: [
+          { id: 'm1', name: 'Alpha', backlogSize: 40, color: '#3b82f6', createdAt: '', updatedAt: '' },
+          { id: 'm2', name: 'Beta', backlogSize: 60, color: '#10b981', createdAt: '', updatedAt: '' },
+        ],
+      }],
+    })
+    vi.mocked(useSimulationWorker).mockReturnValue({
+      runSimulation: vi.fn(),
+      runMilestoneSimulation: vi.fn().mockResolvedValue(milestoneWorkerResult(2)),
+    })
+
+    const { result } = renderHook(() => useForecastState())
+    await waitFor(() => expect(result.current.canRun).toBe(true))
+    await act(async () => { await result.current.handleRunForecast() })
+
+    const scopes = useForecastResultsStore.getState().record!.scopes
+    // 40 + 60 = 100, exactly the backlog.
+    expect(scopes.map((s) => s.cumulativeThreshold)).toEqual([40, 100])
+    expect(scopes.map((s) => s.thresholdUnreachable)).toEqual([false, false])
+  })
 })
 
 describe('results survive an unmount — the reason this release exists', () => {

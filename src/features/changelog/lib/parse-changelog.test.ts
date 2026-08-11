@@ -129,3 +129,66 @@ describe('parseChangelog', () => {
     expect(items[2]).toContain('—')
   })
 })
+
+// ═══════════════════════════════════════════════════════════════════════════
+// THE TWO STRUCTURAL GUARDS — unpinned until now (Item 4 probes G3a / G3b).
+//
+// Both were VERIFIED correct before being pinned rather than pinned because
+// they are what the code does. The parser's contract is that ONLY `- ` lines
+// become items and a `###` heading belongs to an open version entry; the
+// changelog render guard exists precisely because prose is dropped by design.
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('parseChangelog — only list items become items', () => {
+  it('drops prose paragraphs inside a section, keeping only "- " lines', () => {
+    // ⚠️ This is the behaviour the render guard was built around: prose intros
+    // are GitHub-only by design. If prose started counting as an item, an entry
+    // written as pure prose would silently look populated — the exact defect
+    // v0.38.2 and v0.38.3 shipped with.
+    const md = `# Changelog
+
+## v1.0.0 - 2026-01-15
+
+### Section
+
+This is a prose paragraph and must not become an item.
+
+- A real item
+`
+    const items = parseChangelog(md)[0].sections[0].items
+    expect(items).toEqual(['A real item'])
+  })
+
+  it('ignores section headings that appear before any version heading', () => {
+    // ⚠️ TWO orphan sections, and the second is what makes this discriminate.
+    // The first draft used one and the probe SURVIVED: with a single orphan the
+    // output is identical either way, because both flush points require an open
+    // entry and the orphan is dropped regardless. It is the SECOND heading that
+    // reaches `currentEntry.sections.push(currentSection)` with currentEntry
+    // null — a TypeError, not a wrong parse. Same lesson as the threshold
+    // boundary: a fixture that never reaches the discriminating condition pins
+    // nothing, however well the test is named.
+    const md = `# Changelog
+
+### Orphan section one
+
+- Orphan item
+
+### Orphan section two
+
+- Another orphan item
+
+## v1.0.0 - 2026-01-15
+
+### Real section
+
+- Real item
+`
+    const entries = parseChangelog(md)
+    expect(entries).toHaveLength(1)
+    expect(entries[0].version).toBe('1.0.0')
+    expect(entries[0].sections).toHaveLength(1)
+    expect(entries[0].sections[0].title).toBe('Real section')
+    expect(entries[0].sections[0].items).toEqual(['Real item'])
+  })
+})
