@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.39.1 - 2026-08-11
+
+One correctness fix, on the disclosure an AI assistant reads when you connect one. Nothing about forecasting changes, and projects with sixty sprints or fewer were never affected.
+
+When a project has more than sixty sprints, the snapshot sent to a connected assistant carries only the most recent sixty, and it says so. Alongside that notice it also stated: "The velocity statistics cover all of them." They do not. Velocity mean and standard deviation are computed from the sprints included in the forecast, so any sprint you have unticked on the Sprint History tab is left out of them. An assistant reading the old notice would describe your velocity figures as accounting for sprints you had deliberately set aside as unrepresentative, and would answer questions about the forecast on that basis.
+
+Where the sentence sat is what made it worth a release of its own. The snapshot carries a list whose only job is to tell the assistant what it cannot see — the limits of its own information. A false statement there is the least likely of any to be questioned.
+
+### Fixed
+- **The truncation notice no longer claims your velocity statistics cover every sprint.** It now points the assistant at figures already present in the snapshot — how many sprints the statistics cover, how many are included in the forecast, and how many exist in total — instead of summarising the relationship between them in prose. The assistant compares the numbers itself.
+- **A claim that could never be checked has been removed from the same list.** One entry described a small difference between two displayed dates as "how the app has always behaved". It named no version and nothing that could be verified, so nothing could ever have shown it wrong. The checkable part is kept: that difference comes from the forecast summary itself, not from the AI connection.
+
+### Changed
+- **Sprint-truncation details are now reported once rather than twice.** The snapshot had described the same fact in two places in two different wordings, and the two had drifted apart — which is how one of them came to be wrong while the other stayed right. The counts are carried as data and explained in a single place.
+
 ## v0.39.0 - 2026-08-10
 
 One security fix, and otherwise no functional, data, or interface change — the app forecasts identically to v0.38.8. What changed is what this project can no longer ship by accident.
