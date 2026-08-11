@@ -31,6 +31,16 @@ export default defineConfig({
     // New tests are good and belong in `npm test`; adding them HERE gives a later
     // run more killing power than the baseline it is measured against, masking
     // exactly the survivors this scope exists to expose.
+    //
+    // ⚠️ ONE FILE IS BARRED OUTRIGHT, AND RE-RECORDING DOES NOT MAKE IT SAFE:
+    //   src/features/forecast/lib/export-csv-oracle.test.ts
+    // It byte-compares generateForecastCsv's entire output against committed
+    // fixtures, so it kills very nearly every mutant in that file. Obeying the
+    // caution above is NOT enough here — re-record the baseline and the inflated
+    // killing power is baked into the baseline itself, permanently, and the
+    // survivors this scope exists to expose stay hidden with nothing reporting
+    // it. The prohibition is also stated at that file's own header; it is
+    // repeated here because this is where the mistake would be made.
     include: [
       'src/features/forecast/lib/monte-carlo.test.ts',
       'src/shared/lib/math.test.ts',
