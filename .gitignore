@@ -54,24 +54,69 @@ next-env.d.ts
 # because someone read the file list before pushing. A near-miss caught twice by
 # attention is a hazard, not a track record.
 #
-# Scoped to the root (`/`) and to the naming vocabulary these documents actually
-# use — deliberately NOT `/*.md` with an allowlist. A blanket ignore would
-# silently swallow a future CONTRIBUTING.md or SECURITY.md that someone meant to
-# commit, and a file missing from a commit is harder to notice than a file
-# wrongly present in one. Tracked root docs (README, ARCHITECTURE, CHANGELOG)
-# match none of these patterns.
+# ---------------------------------------------------------------------------
+# ⚠️ CONVERTED 2026-08-11 to deny-by-default. The two paragraphs below are the
+# ORIGINAL reasoning, kept rather than deleted: they contain a real argument that
+# deserves answering in place. The answer follows them.
+# ---------------------------------------------------------------------------
 #
-# ⚠️ The pattern reduces the blast radius; it does not remove it. A planning doc
-# with novel naming is still untracked-and-unignored. The actual fix is to STAGE
-# EXPLICIT PATHS — never `git add -A` or `git add .` in a repo that carries
-# untracked working notes.
-/FORECASTER-*.md
-/*-CRITIQUE-*.md
-/*-critique-*.md
-/*-PLAN-V*.md
-/*-REVIEW-*.md
-/*-BRIEFING.md
-/*-HANDOFF.md
+# > Scoped to the root (`/`) and to the naming vocabulary these documents
+# > actually use — deliberately NOT `/*.md` with an allowlist. A blanket ignore
+# > would silently swallow a future CONTRIBUTING.md or SECURITY.md that someone
+# > meant to commit, and a file missing from a commit is harder to notice than a
+# > file wrongly present in one. Tracked root docs (README, ARCHITECTURE,
+# > CHANGELOG) match none of these patterns.
+# >
+# > ⚠️ The pattern reduces the blast radius; it does not remove it. A planning
+# > doc with novel naming is still untracked-and-unignored. The actual fix is to
+# > STAGE EXPLICIT PATHS — never `git add -A` or `git add .` in a repo that
+# > carries untracked working notes.
+#
+# THE ANSWER, and what changed.
+#
+# 1. The vocabulary did not travel. Rolling this block out to the rest of the
+#    suite was measured rather than assumed: against spert-scheduler's 108 real
+#    filenames it caught FOUR. This repo writes `NAME-CRITIQUE-v2.md`; Scheduler
+#    writes `CRITIQUE_name.md`. A copy-paste rollout would have looked like a fix
+#    and fired on almost nothing — so the suite standardised on the allowlist,
+#    and leaving this repo on the other design would make it the lone exception
+#    for no reason.
+#
+# 2. "A file missing from a commit is harder to notice" is true in general and
+#    backwards for a public repo carrying private methodology. The two errors are
+#    not symmetrical, and the missing-file case is not in fact silent:
+#    `git add CONTRIBUTING.md` on an ignored path EXITS 1 and prints a hint —
+#    only `git add -A` passes over it quietly. A doc wrongly ignored is visible
+#    on GitHub and fixed by one commit; a planning doc wrongly committed to a
+#    public repo is not recoverable, being in the history, cloneable, indexable.
+#
+# 3. The concession in the second paragraph is the decisive one, and it is this
+#    block's own words: "a planning doc with novel naming is still
+#    untracked-and-unignored." An allowlist is complete by construction; a
+#    vocabulary is incomplete by construction. The closing advice — stage
+#    explicit paths, never `git add -A` — remains exactly right, and is still the
+#    only thing here covering a doc written into a SUBDIRECTORY, which `/*.md`
+#    (root-scoped) does not reach.
+#
+# ✅ One charge was investigated and did NOT stick — recorded so nobody re-opens
+#    it. Elsewhere in the suite this vocabulary style proved self-flattering on
+#    macOS: APFS is case-insensitive, so `/*-PLAN-V*.md` matches
+#    `...-plan-v3_1.md` locally and nothing in CI, inflating a measured catch
+#    rate from 4 to 16. This block was re-measured against its own 60 planning
+#    documents under `git config core.ignorecase false` and scored 60/60 — the
+#    same as on macOS. Its filenames genuinely use the shouty case its patterns
+#    expect, so there was no hidden deflation here. This conversion is about
+#    completeness, not repair.
+#
+# Derive the allowlist, never recall it:   git ls-files ':(glob)*.md'
+/*.md
+!/ARCHITECTURE.md
+!/CHANGELOG.md
+!/README.md
+# Conventional root docs, not present today; listed so adding one needs no edit here.
+!/SECURITY.md
+!/CONTRIBUTING.md
+!/CODE_OF_CONDUCT.md
 
 # mutation testing (Stryker) — reports are measurements, not artifacts.
 # A crashed run also leaves full copies of mutated source in .stryker-tmp,
