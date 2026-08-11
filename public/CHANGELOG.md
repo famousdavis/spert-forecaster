@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.39.2 - 2026-08-11
+
+An accessibility fix for the five main tabs. Nothing about forecasting changes, and nothing moves on screen.
+
+Which tab you are on was shown only by the blue fill behind its label. That is enough if you can see the screen and nothing at all if you cannot: a screen reader announced the five tabs as five identical buttons, with no way to tell which one you were currently viewing. The tabs were already reachable by keyboard, already activated by Enter and Space, and the 1–5 shortcuts already worked — the missing piece was the announcement, not the navigation.
+
+The active tab now carries a standard `aria-current` marker that assistive technology reads. Keyboard navigation is deliberately untouched: all five tabs remain individual stops in the tab order, in the same positions as before, and no arrow-key behaviour has been introduced.
+
+### Fixed
+- **Screen readers can now tell which tab is active.** The active tab is marked with `aria-current`; the other four carry no marker at all, which is the correct way to say "not current" — marking them `false` is a valid encoding that some screen readers read aloud, and would be worse than saying nothing. Addresses WCAG 2.2 success criterion 4.1.2, Name, Role, Value.
+
+### Changed
+- **Tab navigation behaviour is unchanged, and now has tests saying so.** The tab bar deliberately does not adopt the full ARIA tab pattern, which would collapse all five tabs into a single stop in the tab order and move between them with arrow keys instead. The tabs had none of that before this release and have none of it now. Tests fail if a tab index or a tab role is ever added by accident.
+
 ## v0.39.1 - 2026-08-11
 
 One correctness fix, on the disclosure an AI assistant reads when you connect one. Nothing about forecasting changes, and projects with sixty sprints or fewer were never affected.
