@@ -878,3 +878,97 @@ describe('the truncation disclosure is true in BOTH worlds, not just the exclude
     expect(truncationLine(worldA)).toContain('includedSprintCount')
   })
 })
+
+// ═══════════════════════════════════════════════════════════════════════════
+// THE RUN-VERSUS-LIVE ANCHOR, AND THE TRUNCATION DIRECTION.
+//
+// Three behaviours that Item 4's perturbation pass found unpinned. Each is a
+// deliberate design documented at its site; each was VERIFIED correct before
+// being pinned, because one survivor in that pass turned out to be a defect and
+// a test written against a wrong behaviour makes it permanent.
+//
+// What was verified, not assumed:
+//   · the anchor must come from the RUN — dates derived from a different start
+//     date mis-date every result in the snapshot;
+//   · hasBootstrap must follow the RUN — a run below the 5-sprint threshold has
+//     no bootstrap column, and live having since crossed it would advertise a
+//     distribution the data does not contain;
+//   · truncation must keep the NEWEST sprints — recent velocity is what a
+//     forecast depends on, and the disclosure says "most recent".
+//
+// ⚠️ A fourth survivor from that pass, "truncation happens but is not
+// disclosed", is already dead: three of the v0.39.1 disclosure tests fail on it.
+// Closed as a side effect of fixing the defect beside it, not by this file.
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('the anchor is the run’s, not the live one', () => {
+  // A date no live derivation could produce from PROJECT + SPRINTS, so the
+  // assertion discriminates rather than coinciding.
+  const RUN_START = '2027-03-15'
+
+  it('reports the run’s start date when a record exists', () => {
+    const b = buildSnapshot(input({ record: record({ runConfig: runConfig({ startDate: RUN_START }) }) }))
+    const fc = b.forecastInputs as Record<string, unknown>
+    expect(fc.forecastStartDate).toBe(RUN_START)
+  })
+
+  it('⚠️ labels the source truthfully — the label must match where the value came from', () => {
+    // forecastStartDateSource is a CLAIM about provenance. If the anchor logic
+    // changed and the label did not, the snapshot would say "run-captured" over
+    // a live date — a false statement about its own data, the shape v0.39.1 was
+    // about. Pin the pair, never the label alone.
+    const withRun = buildSnapshot(input({ record: record({ runConfig: runConfig({ startDate: RUN_START }) }) }))
+    const fcRun = withRun.forecastInputs as Record<string, unknown>
+    expect(fcRun.forecastStartDateSource).toBe('run-captured')
+    expect(fcRun.forecastStartDate).toBe(RUN_START)
+
+    const noRun = buildSnapshot(input({ record: null }))
+    const fcLive = noRun.forecastInputs as Record<string, unknown>
+    expect(fcLive.forecastStartDateSource).toBe('live')
+    // Whatever live is, it must NOT be the run's — otherwise the two branches
+    // are indistinguishable and this test proves nothing.
+    expect(fcLive.forecastStartDate).not.toBe(RUN_START)
+  })
+})
+
+describe('hasBootstrap follows the run, not live sprint data', () => {
+  const visible = (b: Record<string, unknown>) =>
+    ((b.results as Record<string, unknown>).visibleDistributions as string[]) ?? []
+
+  it('withholds bootstrap when the RUN was below the threshold, though live is above it', () => {
+    // Live: 6 included sprints, comfortably over MIN_SPRINTS_FOR_BOOTSTRAP.
+    // Run: 2. The run wins, so bootstrap is not offered.
+    const b = buildSnapshot(input({ record: record({ runConfig: runConfig({ includedSprintCount: 2 }) }) }))
+    expect(visible(b)).not.toContain('bootstrap')
+  })
+
+  it('offers bootstrap when the RUN was above the threshold, though live is below it', () => {
+    // The converse, and it is what makes the pair prove "follows the run"
+    // rather than merely "is not live in one direction".
+    const twoSprints = [1, 2].map((n) => sprint(n, 40 + n))
+    const b = buildSnapshot(
+      input({
+        allSprints: twoSprints,
+        record: record({ runConfig: runConfig({ includedSprintCount: 6 }) }),
+      })
+    )
+    expect(visible(b)).toContain('bootstrap')
+  })
+})
+
+describe('truncation keeps the newest sprints, not the oldest', () => {
+  it('carries the most recent MAX_SNAPSHOT_SPRINTS, and the disclosure says so truthfully', () => {
+    // 70 sprints, cap 60 → numbers 11…70. Keeping the oldest would give 1…60,
+    // and every velocity figure in the snapshot would describe ancient history
+    // while the prose claimed "most recent".
+    const many = Array.from({ length: 70 }, (_, i) => sprint(i + 1, 40 + (i % 7)))
+    const b = buildSnapshot(input({ allSprints: many }))
+    const history = b.sprintHistory as Record<string, unknown>
+    const carried = history.sprints as Array<{ sprintNumber: number }>
+
+    expect(carried).toHaveLength(60)
+    expect(carried[0].sprintNumber).toBe(11)
+    expect(carried[carried.length - 1].sprintNumber).toBe(70)
+    expect(history.totalSprintCount).toBe(70)
+  })
+})
