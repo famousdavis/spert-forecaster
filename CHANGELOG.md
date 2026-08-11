@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.40.0 - 2026-08-11
+
+**Nothing changed for you in this release.** The app forecasts exactly as it did in v0.39.2, every screen is unchanged, and no setting or stored file is affected. This is a marker release, closing several weeks of work on whether the app can tell when it has been broken.
+
+The two things that *were* wrong for users have already shipped. In v0.39.1, a connected AI assistant was told your velocity statistics covered every sprint when they cover only the ones included in the forecast — so it could describe your numbers as accounting for sprints you had deliberately set aside. In v0.39.2, screen readers could not tell which tab you were on, because the active tab was marked only by its blue colour. Both are fixed and released.
+
+What this release marks is different, and it is worth stating plainly because it is invisible: the parts of the app that had nothing checking them now do. Thirteen behaviours were found that could have been broken silently — a sprint history that quietly kept the oldest sprints instead of the newest, a cloud save that continued after sign-out, a forecast that resumed an expired AI session under its old identity. None of these was broken. All of them could have been, by a future change, with every test still passing.
+
+### Changed
+- **The behaviours that nothing was checking are now checked.** Thirteen of them, across the forecast engine, cloud sync, sprint-history import, the changelog page and the AI connection. Each was confirmed correct first and then pinned, rather than pinned because it was what the code happened to do — one of the thirteen turned out to be wrong when it was examined, and that one became the v0.39.1 fix rather than a test that made a false statement permanent.
+- **Two areas were examined and deliberately left alone**, with the reasons written into the code itself rather than into a document. Import validation and import conflict-resolution were both measured as already well protected, and the measurements are recorded beside them so the decision is visible to whoever next opens those files.
+
+### Added
+- **A record of what is guarded and how.** The forecast form and the AI snapshot builder had no tests at all before this work; both now do. Where a check exists mainly to prevent a specific past mistake, the mistake is named next to it.
+
 ## v0.39.2 - 2026-08-11
 
 An accessibility fix for the five main tabs. Nothing about forecasting changes, and nothing moves on screen.
