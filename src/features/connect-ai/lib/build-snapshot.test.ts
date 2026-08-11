@@ -701,3 +701,180 @@ describe('the snapshot is honest about what it is', () => {
     expect(b.appVersion).not.toBe('')
   })
 })
+
+// ═══════════════════════════════════════════════════════════════════════════
+// The truncation disclosure.
+//
+// ⚠️ THIS SHIPS WITH THE FIX, NOT AFTER IT, AND THAT IS THE POINT.
+// The old disclosure said "The velocity statistics cover all of them" while
+// calculateVelocityStats filters on includedInForecast — so the statistics
+// cover the INCLUDED subset. A test written against the previous behaviour
+// would have pinned a false statement into notVisibleToYou, which is the array
+// whose whole purpose is telling an AI the limits of its own information.
+// The behaviour was established by investigation first; only then was it
+// pinned.
+//
+// The fixture below is the reproduction: MORE than MAX_SNAPSHOT_SPRINTS
+// sprints, AND some excluded. Both are required — with nothing excluded the
+// old sentence was accidentally true.
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** 70 sprints, every 5th excluded from the forecast → 56 included, 70 total. */
+const TRUNCATION_SPRINTS: Sprint[] = Array.from({ length: 70 }, (_, i) =>
+  sprint(i + 1, 40 + (i % 7), (i + 1) % 5 !== 0)
+)
+
+describe('truncation disclosure — the velocity-statistics denominator', () => {
+  const b = buildSnapshot(input({ allSprints: TRUNCATION_SPRINTS }))
+  const history = b.sprintHistory as Record<string, unknown>
+  const disclosures = (b.notVisibleToYou as string[]).join(' ')
+
+  it('the fixture actually truncates AND actually excludes — otherwise this suite proves nothing', () => {
+    // Guard on the fixture itself. If MAX_SNAPSHOT_SPRINTS rises above 70 this
+    // fails loudly rather than silently testing the untruncated path.
+    expect(history.sprintsTruncated).not.toBeNull()
+    expect(history.totalSprintCount).toBe(70)
+    expect(history.includedSprintCount).toBe(56)
+    expect(history.includedSprintCount).not.toBe(history.totalSprintCount)
+  })
+
+  it('⚠️ NEVER claims the velocity statistics cover every sprint — the defect this replaces', () => {
+    expect(disclosures).not.toContain('cover all of them')
+    expect(disclosures).not.toMatch(/statistics cover all/i)
+  })
+
+  it('states the denominator by NAMING the field rather than restating a number', () => {
+    // The drift-proof property. Prose that restates a value can disagree with
+    // that value; prose that names the field cannot. The old sentence
+    // interpolated its own counts and drifted; this one points at the data.
+    expect(disclosures).toContain('velocityStats.count')
+    expect(disclosures).toContain('includedSprintCount')
+    expect(disclosures).toContain('sprintsTruncated.shown')
+    expect(disclosures).toContain('sprintsTruncated.total')
+  })
+
+  it('the field it names carries the true denominator, so the pointer resolves', () => {
+    // Without this the disclosure could name a field that says something else
+    // — the same class of error one indirection further out.
+    const stats = history.velocityStats as Record<string, number>
+    expect(stats.count).toBe(history.includedSprintCount)
+    expect(stats.count).toBe(56)
+  })
+
+  it('sprintsTruncated carries numbers only — one owner per fact', () => {
+    // The root cause was one fact stated twice in two fields, which then
+    // drifted. Numbers live here; the prose lives in notVisibleToYou.
+    expect(history.sprintsTruncated).toEqual({ shown: 60, total: 70 })
+    expect(history.sprintsTruncated).not.toHaveProperty('note')
+  })
+
+  it('says nothing about truncation when nothing is truncated', () => {
+    const small = buildSnapshot(input())
+    expect((small.sprintHistory as Record<string, unknown>).sprintsTruncated).toBeNull()
+    expect((small.notVisibleToYou as string[]).join(' ')).not.toContain('sprintsTruncated.shown')
+  })
+})
+
+describe('every notVisibleToYou entry is a claim that could be checked', () => {
+  it('makes no appeal to how the app has "always" behaved', () => {
+    // ⚠️ A claim no mechanism can falsify does not belong in a trust channel.
+    // "This is how the app has always behaved" named no version and no
+    // pinnable behaviour: not shown false, and never showable true. The
+    // checkable half — that the recomputation belongs to the forecast summary
+    // rather than to this connection — is kept below.
+    const disclosures = (buildSnapshot(input()).notVisibleToYou as string[]).join(' ')
+    expect(disclosures).not.toMatch(/has always behaved|always been/i)
+  })
+
+  it('still locates the live-recompute behaviour, which is the checkable part', () => {
+    const disclosures = (buildSnapshot(input()).notVisibleToYou as string[]).join(' ')
+    expect(disclosures).toContain('recomputes some percentile dates live')
+    expect(disclosures).toContain('not of this connection')
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ⚠️ THE TEST THE OTHERS CANNOT BE.
+//
+// Every assertion above pins the PRESENCE of a string. None can tell whether
+// the string is TRUE — they would pass just as happily on a false sentence as
+// a true one, because they catch deletion, not wrongness. That limit is real
+// and it is why the first replacement sentence shipped false: it named every
+// field correctly, satisfied every naming assertion, and still asserted a
+// relation ("the velocity statistics are NOT computed over all of them") that
+// is false whenever nothing is excluded.
+//
+// `sprintsTruncated` is a PURE COUNT TEST — `ordered.length > shown.length`,
+// exclusions play no part. So truncation has two worlds, and the disclosure
+// has to be true in both:
+//
+//   A. 61 sprints, ZERO excluded → includedSprintCount === totalSprintCount,
+//      and the statistics DO cover every sprint. Exclusion is opt-in, so this
+//      is arguably the default.
+//   B. 61 sprints, some excluded → they do not.
+//
+// English truth is not mechanically checkable. What IS checkable: the sentence
+// must be byte-identical across both worlds (a data-dependent claim could not
+// be), and the numeric relations it points at must hold in whichever world is
+// under test.
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('the truncation disclosure is true in BOTH worlds, not just the excluded one', () => {
+  const noneExcluded: Sprint[] = Array.from({ length: 61 }, (_, i) =>
+    sprint(i + 1, 40 + (i % 7), true)
+  )
+  const someExcluded: Sprint[] = Array.from({ length: 61 }, (_, i) =>
+    sprint(i + 1, 40 + (i % 7), (i + 1) % 5 !== 0)
+  )
+
+  const worldA = buildSnapshot(input({ allSprints: noneExcluded }))
+  const worldB = buildSnapshot(input({ allSprints: someExcluded }))
+  const truncationLine = (b: Record<string, unknown>) =>
+    (b.notVisibleToYou as string[]).find((s) => s.includes('sprintsTruncated.shown'))
+
+  it('world A really is the zero-exclusion case, and still truncates', () => {
+    const h = worldA.sprintHistory as Record<string, number | object | null>
+    expect(h.sprintsTruncated).toEqual({ shown: 60, total: 61 })
+    expect(h.includedSprintCount).toBe(61)
+    expect(h.totalSprintCount).toBe(61)
+    expect((h.velocityStats as Record<string, number>).count).toBe(61)
+  })
+
+  it('world B really does exclude some, and still truncates', () => {
+    const h = worldB.sprintHistory as Record<string, number | object | null>
+    expect(h.sprintsTruncated).toEqual({ shown: 60, total: 61 })
+    expect(h.includedSprintCount).toBe(49)
+    expect(h.totalSprintCount).toBe(61)
+    expect((h.velocityStats as Record<string, number>).count).toBe(49)
+  })
+
+  it('⚠️ emits the SAME sentence in both — a data-dependent claim could not', () => {
+    // The load-bearing assertion. A sentence whose truth depends on the
+    // exclusion count would have to differ between these two snapshots to stay
+    // true in both; one that is purely descriptive does not.
+    expect(truncationLine(worldA)).toBe(truncationLine(worldB))
+    expect(truncationLine(worldA)).toBeTruthy()
+  })
+
+  it('⚠️ never asserts that the statistics exclude anything, because sometimes they do not', () => {
+    // World A is the counter-example the first replacement missed: with nothing
+    // excluded, velocityStats.count === totalSprintCount and any claim to the
+    // contrary is false.
+    const a = worldA.notVisibleToYou as string[]
+    const h = worldA.sprintHistory as Record<string, number>
+    expect((h.velocityStats as unknown as Record<string, number>).count).toBe(h.totalSprintCount)
+    expect(a.join(' ')).not.toMatch(/NOT computed over all|not computed over all/i)
+    expect(a.join(' ')).not.toMatch(/cover all of them/i)
+  })
+
+  it('states only what is true by construction: count equals includedSprintCount', () => {
+    // This relation holds in every world — calculateVelocityStats filters on
+    // includedInForecast, so it is true by construction rather than by data.
+    for (const b of [worldA, worldB]) {
+      const h = b.sprintHistory as Record<string, number>
+      expect((h.velocityStats as unknown as Record<string, number>).count).toBe(h.includedSprintCount)
+    }
+    expect(truncationLine(worldA)).toContain('equals')
+    expect(truncationLine(worldA)).toContain('includedSprintCount')
+  })
+})
