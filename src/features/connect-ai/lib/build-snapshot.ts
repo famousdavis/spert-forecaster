@@ -178,19 +178,31 @@ export function buildSnapshot(input: SnapshotInput): Record<string, unknown> {
     ? { shown: shown.length, total: ordered.length }
     : null
   if (sprintsTruncated) {
-    // ⚠️ NAMES THE FIELDS, INTERPOLATES NOTHING. The previous version computed
-    // its own denominator and stated it in prose; prose that restates a value
-    // can drift from that value, and this one did. BASE_NOT_VISIBLE's headline
-    // entry already used the naming form ("userSelections.summaryPercentile"),
-    // so the two patterns sat four hundred lines apart in one file and only
-    // the interpolating one went wrong.
+    // ⚠️ NAMES THE FIELDS, AND ASSERTS NO RELATION BETWEEN THEM. Two separate
+    // rules, learned one iteration apart in this same sentence.
+    //
+    // 1. NAMING, not interpolation. The original computed its own denominator
+    //    in prose; a restated value can drift from the value, and it did.
+    //    BASE_NOT_VISIBLE's headline entry already used the naming form
+    //    ("userSelections.summaryPercentile") and never drifted.
+    //
+    // 2. ⚠️ DESCRIPTIVE, not relational — and naming alone does NOT buy this.
+    //    The first replacement named every field correctly and still said "the
+    //    velocity statistics are NOT computed over all of them", which is
+    //    FALSE whenever nothing is excluded: `sprintsTruncated` is a pure count
+    //    test (`ordered.length > shown.length`), so at 61 sprints with zero
+    //    exclusions includedSprintCount === totalSprintCount and the statistics
+    //    DO cover all of them. Exclusion is opt-in, so that is arguably the
+    //    default state. Every clause below is true by construction or true
+    //    always — vacuously so when nothing is excluded. The AI already holds
+    //    the numbers; let it compare them itself rather than being told the
+    //    answer to a comparison that depends on the data.
     notVisibleToYou.push(
       'Sprint history is truncated: sprintsTruncated.shown of ' +
-      'sprintsTruncated.total sprints are carried here. The velocity ' +
-      'statistics are NOT computed over all of them — velocityStats.count is ' +
-      'the number of sprints they cover, which is includedSprintCount. ' +
-      'Sprints the user excluded from the forecast are counted in ' +
-      'totalSprintCount and excluded from velocityStats.'
+      'sprintsTruncated.total sprints are carried here. velocityStats.count is ' +
+      'the number of sprints the velocity statistics cover, and equals ' +
+      'includedSprintCount — sprints the user excluded from the forecast are ' +
+      'counted in totalSprintCount but not in velocityStats.'
     )
   }
 

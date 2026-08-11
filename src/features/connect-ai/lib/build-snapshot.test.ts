@@ -792,3 +792,89 @@ describe('every notVisibleToYou entry is a claim that could be checked', () => {
     expect(disclosures).toContain('not of this connection')
   })
 })
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ⚠️ THE TEST THE OTHERS CANNOT BE.
+//
+// Every assertion above pins the PRESENCE of a string. None can tell whether
+// the string is TRUE — they would pass just as happily on a false sentence as
+// a true one, because they catch deletion, not wrongness. That limit is real
+// and it is why the first replacement sentence shipped false: it named every
+// field correctly, satisfied every naming assertion, and still asserted a
+// relation ("the velocity statistics are NOT computed over all of them") that
+// is false whenever nothing is excluded.
+//
+// `sprintsTruncated` is a PURE COUNT TEST — `ordered.length > shown.length`,
+// exclusions play no part. So truncation has two worlds, and the disclosure
+// has to be true in both:
+//
+//   A. 61 sprints, ZERO excluded → includedSprintCount === totalSprintCount,
+//      and the statistics DO cover every sprint. Exclusion is opt-in, so this
+//      is arguably the default.
+//   B. 61 sprints, some excluded → they do not.
+//
+// English truth is not mechanically checkable. What IS checkable: the sentence
+// must be byte-identical across both worlds (a data-dependent claim could not
+// be), and the numeric relations it points at must hold in whichever world is
+// under test.
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('the truncation disclosure is true in BOTH worlds, not just the excluded one', () => {
+  const noneExcluded: Sprint[] = Array.from({ length: 61 }, (_, i) =>
+    sprint(i + 1, 40 + (i % 7), true)
+  )
+  const someExcluded: Sprint[] = Array.from({ length: 61 }, (_, i) =>
+    sprint(i + 1, 40 + (i % 7), (i + 1) % 5 !== 0)
+  )
+
+  const worldA = buildSnapshot(input({ allSprints: noneExcluded }))
+  const worldB = buildSnapshot(input({ allSprints: someExcluded }))
+  const truncationLine = (b: Record<string, unknown>) =>
+    (b.notVisibleToYou as string[]).find((s) => s.includes('sprintsTruncated.shown'))
+
+  it('world A really is the zero-exclusion case, and still truncates', () => {
+    const h = worldA.sprintHistory as Record<string, number | object | null>
+    expect(h.sprintsTruncated).toEqual({ shown: 60, total: 61 })
+    expect(h.includedSprintCount).toBe(61)
+    expect(h.totalSprintCount).toBe(61)
+    expect((h.velocityStats as Record<string, number>).count).toBe(61)
+  })
+
+  it('world B really does exclude some, and still truncates', () => {
+    const h = worldB.sprintHistory as Record<string, number | object | null>
+    expect(h.sprintsTruncated).toEqual({ shown: 60, total: 61 })
+    expect(h.includedSprintCount).toBe(49)
+    expect(h.totalSprintCount).toBe(61)
+    expect((h.velocityStats as Record<string, number>).count).toBe(49)
+  })
+
+  it('⚠️ emits the SAME sentence in both — a data-dependent claim could not', () => {
+    // The load-bearing assertion. A sentence whose truth depends on the
+    // exclusion count would have to differ between these two snapshots to stay
+    // true in both; one that is purely descriptive does not.
+    expect(truncationLine(worldA)).toBe(truncationLine(worldB))
+    expect(truncationLine(worldA)).toBeTruthy()
+  })
+
+  it('⚠️ never asserts that the statistics exclude anything, because sometimes they do not', () => {
+    // World A is the counter-example the first replacement missed: with nothing
+    // excluded, velocityStats.count === totalSprintCount and any claim to the
+    // contrary is false.
+    const a = worldA.notVisibleToYou as string[]
+    const h = worldA.sprintHistory as Record<string, number>
+    expect((h.velocityStats as unknown as Record<string, number>).count).toBe(h.totalSprintCount)
+    expect(a.join(' ')).not.toMatch(/NOT computed over all|not computed over all/i)
+    expect(a.join(' ')).not.toMatch(/cover all of them/i)
+  })
+
+  it('states only what is true by construction: count equals includedSprintCount', () => {
+    // This relation holds in every world — calculateVelocityStats filters on
+    // includedInForecast, so it is true by construction rather than by data.
+    for (const b of [worldA, worldB]) {
+      const h = b.sprintHistory as Record<string, number>
+      expect((h.velocityStats as unknown as Record<string, number>).count).toBe(h.includedSprintCount)
+    }
+    expect(truncationLine(worldA)).toContain('equals')
+    expect(truncationLine(worldA)).toContain('includedSprintCount')
+  })
+})
