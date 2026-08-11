@@ -172,3 +172,49 @@ describe('buildHistogramBins', () => {
     })
   })
 })
+
+// ═══════════════════════════════════════════════════════════════════════════
+// THE BIN DATE LABEL — unpinned until now (Item 4 probe D4).
+//
+// `dateLabel` is computed for every bin from a ROUNDED midpoint and nothing
+// asserted it. That is the export-csv failure mode in miniature: the bins'
+// numbers were checked and the human-readable field composed beside them was
+// not, so it could have said anything.
+//
+// ⚠️ Verified before pinning: `Math.round` is the conventional midpoint and
+// lands inside the bin. `Math.floor` also lands inside it, which is why the
+// choice needs a fixture where the two DIFFER — otherwise the assertion pins
+// nothing.
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('buildHistogramBins — the bin date label uses a rounded midpoint', () => {
+  // range 10 over 5 bins → binWidth 2 → every bin spans [n, n+1] and its exact
+  // midpoint is n + 0.5. Round gives n+1, floor gives n: the one shape where
+  // the two disagree.
+  const data = Array.from({ length: 11 }, (_, i) => i + 1) // 1…11
+  const START = '2025-01-06'
+  const CADENCE = 2
+
+  it('the fixture really does produce half-integer midpoints, or this proves nothing', () => {
+    const bins = buildHistogramBins(data, data, data, null, START, CADENCE, 5)
+    expect(bins.length).toBeGreaterThan(0)
+    for (const b of bins) {
+      expect(b.sprintMax - b.sprintMin).toBe(1) // width 2 → midpoint is x.5
+    }
+  })
+
+  it('labels each bin with the UPPER of the two candidate sprints', () => {
+    const bins = buildHistogramBins(data, data, data, null, START, CADENCE, 5)
+    // Bin 0 spans sprints 1–2, midpoint 1.5. Rounding selects sprint 2.
+    // A floored midpoint would select sprint 1 and every bin's label would
+    // shift one sprint earlier.
+    const oneSprintBins = buildHistogramBins([1], [1], [1], null, START, CADENCE, 5)
+    const sprint1Label = oneSprintBins[0].dateLabel // the label sprint 1 alone produces
+    const twoSprintBins = buildHistogramBins([2], [2], [2], null, START, CADENCE, 5)
+    const sprint2Label = twoSprintBins[0].dateLabel
+
+    expect(sprint1Label).not.toBe(sprint2Label) // the two must be distinguishable
+    expect(bins[0].dateLabel).toBe(sprint2Label)
+    expect(bins[0].dateLabel).not.toBe(sprint1Label)
+  })
+})

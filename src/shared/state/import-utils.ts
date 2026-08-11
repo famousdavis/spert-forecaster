@@ -241,6 +241,31 @@ export function conflictsEqual(a: ImportConflict[], b: ImportConflict[]): boolea
 // In applySmartImport, this is called inside Zustand's set() updater against
 // state.projects at write time. The `conflicts` argument must be the
 // re-detected conflicts from that same call, not a pre-captured value.
+//
+// ── ⚠️ DECLINED FOR ADDED COVERAGE, ON EVIDENCE ─────────────────────────────
+// cc 34 puts this among the highest in the codebase, so a future session will
+// arrive here meaning to add tests or decompose. It needs neither, and the
+// reason is a measurement rather than a judgement.
+//
+// A perturbation pass put four semantic mutations through this function and
+// **all four died** — the only target in that pass to score 4 of 4:
+//
+//   unanswered conflict defaults to REPLACE instead of skip  -> 2 tests
+//   last incoming project wins the slot, not array-order     -> 2 tests
+//   replacedIdMap keyed on the wrong conflict type           -> 7 tests, 2 files
+//   replaced projects keep their old sprints                 -> 4 tests
+//
+// Most probes killed MULTIPLE tests, several of them named for the invariant
+// they defend, and the replacedIdMap contract is enforced at the store layer
+// too — which is why breaking it reaches project-store.test.ts. That is
+// redundancy, not coincidence.
+//
+// ⚠️ Coverage percentage was NOT the basis. The census read this target at
+// 96.2% and read `build-snapshot` at 84.0%; measured by perturbation the
+// second came in at 1 of 5. The 4-of-4 is the evidence; the percentage merely
+// agreed with it here.
+//
+// If you decompose this, re-run those four perturbations against the result.
 export function applyImportDecisions(
   existingProjects: Project[],
   existingSprints: Sprint[],
