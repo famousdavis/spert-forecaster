@@ -62,6 +62,17 @@ export function ProjectList({
     setDragOverIndex(null)
   }
 
+  // Splicing at the hovered tile's own index is deliberate, and is NOT the bug
+  // v0.40.1 fixed in MilestoneList. This list marks its target with a box around
+  // a whole tile; a box surrounds a slot, so it promises "this project will take
+  // this position", and splicing at that index keeps the promise in both
+  // directions — the dragged project's new index is always dropIndex.
+  //
+  // MilestoneList draws a *line*, which has no slot to sit in and can only mean a
+  // gap between two rows, so it needs forecast/lib/drag-reorder.ts. Reusing that
+  // module here would break downward drags by one slot and leave upward drags
+  // alone — the same one-direction-only fault, mirrored. ProjectList.test.tsx
+  // fails if anyone tries it.
   const handleDrop = (e: React.DragEvent, dropIndex: number) => {
     e.preventDefault()
     if (draggedIndex === null || draggedIndex === dropIndex) {
