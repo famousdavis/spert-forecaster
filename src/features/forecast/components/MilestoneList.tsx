@@ -8,6 +8,7 @@ import { useId, useState } from 'react'
 import { cn } from '@/lib/utils'
 import type { Milestone } from '@/shared/types'
 import { ListRowActions } from '@/shared/components/ListRowActions'
+import { dropGapForPointer, reorderIntoGap } from '../lib/drag-reorder'
 
 interface MilestoneListProps {
   milestones: Milestone[]
@@ -31,7 +32,10 @@ export function MilestoneList({
   editingId,
 }: MilestoneListProps) {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
-  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
+  // The gap the insertion line is drawn in, 0..milestones.length. Purely
+  // presentational — the drop re-derives its own gap from the drop event, so a
+  // stray dragleave can never turn a drop into a no-op.
+  const [dropGap, setDropGap] = useState<number | null>(null)
 
   // Inline-rename state (v0.33.5). Power-user shortcut for the common case
   // of fixing a milestone-name typo without opening the full edit form.
@@ -87,36 +91,41 @@ export function MilestoneList({
     e.dataTransfer.setData('text/plain', index.toString())
   }
 
-  const handleDragOver = (e: React.DragEvent, index: number) => {
+  // Both the line and the drop go through here, which is what keeps them
+  // honest: whatever gap the pointer marked is the gap the milestone lands in.
+  const gapForEvent = (e: React.DragEvent<HTMLTableRowElement>, index: number) => {
+    const { top, height } = e.currentTarget.getBoundingClientRect()
+    return dropGapForPointer(index, e.clientY, top, height)
+  }
+
+  const handleDragOver = (e: React.DragEvent<HTMLTableRowElement>, index: number) => {
     e.preventDefault()
     e.dataTransfer.dropEffect = 'move'
-    setDragOverIndex(index)
+    setDropGap(gapForEvent(e, index))
   }
 
   const handleDragLeave = () => {
-    setDragOverIndex(null)
+    setDropGap(null)
   }
 
-  const handleDrop = (e: React.DragEvent, dropIndex: number) => {
+  const handleDrop = (e: React.DragEvent<HTMLTableRowElement>, index: number) => {
     e.preventDefault()
-    if (draggedIndex === null || draggedIndex === dropIndex) {
-      setDraggedIndex(null)
-      setDragOverIndex(null)
-      return
+    if (draggedIndex !== null) {
+      const newOrder = reorderIntoGap(
+        milestones.map((m) => m.id),
+        draggedIndex,
+        gapForEvent(e, index)
+      )
+      if (newOrder) onReorder?.(newOrder)
     }
 
-    const newOrder = milestones.map((m) => m.id)
-    const [removed] = newOrder.splice(draggedIndex, 1)
-    newOrder.splice(dropIndex, 0, removed)
-    onReorder?.(newOrder)
-
     setDraggedIndex(null)
-    setDragOverIndex(null)
+    setDropGap(null)
   }
 
   const handleDragEnd = () => {
     setDraggedIndex(null)
-    setDragOverIndex(null)
+    setDropGap(null)
   }
 
   // Compute cumulative backlog for display
@@ -170,7 +179,13 @@ export function MilestoneList({
               onDragEnd={handleDragEnd}
               className={cn(
                 'border-b border-spert-border-light',
-                dragOverIndex === rowIdx && 'border-b-2 border-b-spert-blue',
+                // The line lives in a gap, so it draws as the top border of the
+                // row below it — except the final gap, which has no row below
+                // and draws under the last row instead. Exactly one line shows.
+                dropGap === rowIdx && 'border-t-2 border-t-spert-blue',
+                dropGap === rows.length &&
+                  rowIdx === rows.length - 1 &&
+                  'border-b-2 border-b-spert-blue',
                 draggedIndex === rowIdx && 'opacity-50'
               )}
             >

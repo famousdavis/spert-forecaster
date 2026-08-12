@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.40.1 - 2026-08-11
+
+A fix for dragging milestones into a new order on the Forecast tab. Nothing about forecasting changes, and your existing milestone order is untouched.
+
+Dragging a milestone *upward* put it in the wrong place. The blue insertion line would sit in the gap you were aiming at — say, between the second and third milestones — and on release the milestone landed one slot higher than that, above the milestone the line was drawn under. Dragging *downward* had always worked, which is why the fault was easy to miss and easy to reproduce once you noticed it: it only ever appeared in one direction.
+
+The line and the drop were being worked out two different ways. The line was drawn in a gap between two rows; the drop was told only which row the pointer was over, which cannot say whether you meant above that row or below it. Dragging downward, the arithmetic of lifting the milestone out of the list first happened to cancel the ambiguity out, and the two agreed. Dragging upward, nothing cancelled, and they disagreed by exactly one position. Both now come from the same place — whichever gap the pointer is in is the gap the milestone lands in, so the line cannot promise something the drop does not honour.
+
+Aiming is finer as a result. The line follows your pointer within a row rather than always hanging below it: hold the top half of a row to target the gap above it, the bottom half for the gap below. Every gap in the list is now reachable from either direction, including the one under the very last milestone, which now shows a line of its own.
+
+### Fixed
+- **A milestone dragged upward now lands in the gap the blue line marked**, instead of one position above it. The drop position and the line are both computed from the pointer's position within the row it is over, so they can no longer disagree; previously the drop used the row index alone and resolved the resulting ambiguity differently depending on which way you were dragging.
+- **The final gap in the list is now visible.** Aiming below the last milestone draws the line under it. There was no row beneath that gap to draw on before, so the one drop target at the bottom of the list was unmarked.
+
+### Changed
+- **The insertion line now tracks the pointer within a row**, appearing above the row when you hold its top half and below it when you hold its bottom half, rather than always below the row being hovered. This is what makes both gaps around a milestone reachable without having to approach from a particular direction.
+- **Dropping a milestone back where it started no longer writes anything.** Both gaps touching a milestone are that milestone's own position, and releasing in either now leaves the order alone rather than saving an identical list.
+- Reordering on the **Projects** tab is deliberately not part of this release. It marks its drop target with a box around the whole project rather than a line in a gap, so it makes no promise about position that this fix would correct.
+
 ## v0.40.0 - 2026-08-11
 
 **Nothing changed for you in this release.** The app forecasts exactly as it did in v0.39.2, every screen is unchanged, and no setting or stored file is affected. This is a marker release, closing several weeks of work on whether the app can tell when it has been broken.

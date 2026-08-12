@@ -3,7 +3,7 @@
 // See LICENSE file in the project root for full license text.
 
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, createEvent } from '@testing-library/react'
 
 import { MilestoneList } from './MilestoneList'
 import type { Milestone } from '@/shared/types'
@@ -21,6 +21,165 @@ function makeMilestone(overrides: Partial<Milestone> = {}): Milestone {
 }
 
 const NOOP = () => {}
+
+/**
+ * Every row is 40px tall and stacked from y=0, so row N spans 40N..40N+40 and
+ * its midpoint is 40N+20. jsdom reports an all-zero rect for every element, so
+ * the geometry the component reads has to be stubbed in.
+ */
+const ROW_HEIGHT = 40
+function stubRowGeometry(rows: HTMLElement[]) {
+  rows.forEach((row, i) => {
+    row.getBoundingClientRect = () =>
+      ({ top: i * ROW_HEIGHT, height: ROW_HEIGHT }) as DOMRect
+  })
+}
+const upperHalfOf = (rowIndex: number) => rowIndex * ROW_HEIGHT + 5
+const lowerHalfOf = (rowIndex: number) => rowIndex * ROW_HEIGHT + ROW_HEIGHT - 5
+
+/**
+ * jsdom implements no DragEvent, so testing-library falls back to a plain Event
+ * and silently drops clientY from the init — which is the single coordinate
+ * this whole feature turns on. Build the event and pin clientY onto it by hand.
+ */
+function fireDrag(
+  type: 'dragStart' | 'dragOver' | 'drop',
+  row: HTMLElement,
+  clientY: number,
+) {
+  const event = createEvent[type](row, {
+    dataTransfer: { setData: NOOP, dropEffect: '', effectAllowed: '' },
+  })
+  Object.defineProperty(event, 'clientY', { value: clientY })
+  fireEvent(row, event)
+}
+
+function renderList(onReorder: (ids: string[]) => void) {
+  const { container } = render(
+    <MilestoneList
+      milestones={[
+        makeMilestone({ id: 'm-1', name: 'Alpha' }),
+        makeMilestone({ id: 'm-2', name: 'Bravo' }),
+        makeMilestone({ id: 'm-3', name: 'Charlie' }),
+        makeMilestone({ id: 'm-4', name: 'Delta' }),
+      ]}
+      unitOfMeasure="story points"
+      onEdit={NOOP}
+      onDelete={NOOP}
+      onReorder={onReorder}
+    />,
+  )
+  const rows = Array.from(container.querySelectorAll('tbody tr')) as HTMLElement[]
+  stubRowGeometry(rows)
+  return rows
+}
+
+describe('MilestoneList — drag to reorder (v0.40.1)', () => {
+  it('drops an upward-dragged milestone into the gap under the hovered row', () => {
+    // The reported bug, end to end: grab Delta, aim at the gap between Bravo
+    // and Charlie. Through v0.40.0 Delta landed *above* Bravo — above the
+    // milestone directly above the insertion line.
+    const onReorder = vi.fn()
+    const rows = renderList(onReorder)
+
+    fireDrag('dragStart', rows[3], 0)
+    fireDrag('dragOver', rows[1], lowerHalfOf(1))
+    fireDrag('drop', rows[1], lowerHalfOf(1))
+
+    expect(onReorder).toHaveBeenCalledWith(['m-1', 'm-2', 'm-4', 'm-3'])
+  })
+
+  it('drops a downward-dragged milestone into the gap under the hovered row', () => {
+    const onReorder = vi.fn()
+    const rows = renderList(onReorder)
+
+    fireDrag('dragStart', rows[0], 0)
+    fireDrag('drop', rows[2], lowerHalfOf(2))
+
+    expect(onReorder).toHaveBeenCalledWith(['m-2', 'm-3', 'm-1', 'm-4'])
+  })
+
+  it('drops into the gap above the hovered row when aiming at its upper half', () => {
+    // The same hovered row as the upward case, aimed one gap higher — the two
+    // halves of a row have to reach different gaps, or half the gaps in the
+    // list are unreachable.
+    const onReorder = vi.fn()
+    const rows = renderList(onReorder)
+
+    fireDrag('dragStart', rows[3], 0)
+    fireDrag('drop', rows[1], upperHalfOf(1))
+
+    expect(onReorder).toHaveBeenCalledWith(['m-1', 'm-4', 'm-2', 'm-3'])
+  })
+
+  it('reaches the top of the list', () => {
+    const onReorder = vi.fn()
+    const rows = renderList(onReorder)
+
+    fireDrag('dragStart', rows[2], 0)
+    fireDrag('drop', rows[0], upperHalfOf(0))
+
+    expect(onReorder).toHaveBeenCalledWith(['m-3', 'm-1', 'm-2', 'm-4'])
+  })
+
+  it('reaches the bottom of the list', () => {
+    const onReorder = vi.fn()
+    const rows = renderList(onReorder)
+
+    fireDrag('dragStart', rows[0], 0)
+    fireDrag('drop', rows[3], lowerHalfOf(3))
+
+    expect(onReorder).toHaveBeenCalledWith(['m-2', 'm-3', 'm-4', 'm-1'])
+  })
+
+  it('does not reorder when dropped into either gap bracketing the dragged row', () => {
+    const onReorder = vi.fn()
+    const rows = renderList(onReorder)
+
+    fireDrag('dragStart', rows[1], 0)
+    fireDrag('drop', rows[1], upperHalfOf(1))
+    fireDrag('drop', rows[1], lowerHalfOf(1))
+
+    expect(onReorder).not.toHaveBeenCalled()
+  })
+
+  it('draws the insertion line in the gap the pointer marks, and only there', () => {
+    // The honesty contract: the line has to sit where the drop will land. It
+    // renders as the top border of the row below the gap.
+    const rows = renderList(NOOP)
+
+    fireDrag('dragStart', rows[3], 0)
+    fireDrag('dragOver', rows[1], lowerHalfOf(1))
+
+    // Gap between Bravo and Charlie → top border of Charlie, nowhere else.
+    expect(rows[2].className).toContain('border-t-spert-blue')
+    expect(rows.filter((r) => r.className.includes('spert-blue'))).toHaveLength(1)
+  })
+
+  it('draws the trailing line under the last row for the final gap', () => {
+    // The one gap with no row below it — without this it would be invisible.
+    const rows = renderList(NOOP)
+
+    fireDrag('dragStart', rows[0], 0)
+    fireDrag('dragOver', rows[3], lowerHalfOf(3))
+
+    expect(rows[3].className).toContain('border-b-spert-blue')
+    expect(rows.filter((r) => r.className.includes('spert-blue'))).toHaveLength(1)
+  })
+
+  it('is not draggable at all when onReorder is not wired', () => {
+    const { container } = render(
+      <MilestoneList
+        milestones={[makeMilestone({ id: 'm-1', name: 'Alpha' })]}
+        unitOfMeasure="story points"
+        onEdit={NOOP}
+        onDelete={NOOP}
+      />,
+    )
+    const row = container.querySelector('tbody tr')
+    expect(row?.getAttribute('draggable')).toBe('false')
+  })
+})
 
 describe('MilestoneList — inline rename (v0.33.5)', () => {
   it('renders the milestone name as a click-to-rename button when onRename is provided', () => {
