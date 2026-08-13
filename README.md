@@ -1,33 +1,37 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# SPERT® Forecaster
 
-## Getting Started
+*Agile Release Forecasting with Monte Carlo Simulation*
 
-First, run the development server:
+Forecast how many sprints a backlog will take, as a probability rather than a single date.
+Statistical PERT® models uncertain outcomes with probability distributions and Monte Carlo
+simulation, working from recorded sprint history or from subjective estimates when none exists yet.
+
+**[forecaster.spertsuite.com](https://forecaster.spertsuite.com)**
+
+## What it does
+
+- Monte Carlo simulation, 10,000 trials by default and up to 50,000, across six distributions:
+  truncated normal, lognormal, gamma, triangular, uniform, and bootstrap sampling from your own
+  sprint history
+- Percentile results (P50 through P90, plus any custom percentile), with burn-up, cumulative
+  distribution and histogram charts and a deadline probability panel
+- Ordered milestones forecast individually, and productivity adjustments that scale velocity over
+  named date ranges such as holidays
+- CSV export, a print-friendly report, and JSON project import/export
+- Local-first: everything runs in your browser. Optional Google or Microsoft sign-in adds cloud sync
+  and project sharing; a connected AI assistant can be given a read-only snapshot.
+
+## Development
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev          # development server
+npm test             # test suite
+npm run shipgate     # release gate: version surfaces, lint, typecheck, tests, build
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Node 24 (see `.nvmrc`). Firebase environment variables are optional — without them the app runs in
+local-only mode.
 
 ## Legal
 
@@ -36,8 +40,9 @@ Reference copies of the Terms of Service and Privacy Policy are in `/legal`. The
 - https://spertsuite.com/TOS.pdf
 - https://spertsuite.com/PRIVACY.pdf
 
-## Deploy on Vercel
+## License
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+[GNU General Public License v3.0](LICENSE), with non-permissive additional terms under Section 7.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+SPERT® and Statistical PERT® are registered trademarks with the United States Patent and Trademark
+Office.
