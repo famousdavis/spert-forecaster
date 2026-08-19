@@ -23,6 +23,7 @@ vi.mock('firebase/firestore', () => ({
   where: vi.fn(),
 }))
 
+import { getDocs, where } from 'firebase/firestore'
 import {
   PROJECT_MERGE_FIELDS,
   SETTINGS_MERGE_FIELDS,
@@ -30,6 +31,8 @@ import {
   SAVE_DEBOUNCE_MS,
   saveProject,
   saveSettings,
+  loadProjects,
+  loadOwnedProjectIds,
 } from './firestore-driver'
 import type { FirestoreProjectDoc, FirestoreSettingsDoc } from './types'
 
@@ -203,6 +206,71 @@ describe('saveSettings → setDoc({ mergeFields }) write', () => {
     ]
     for (const field of options.mergeFields) {
       expect(payload).toHaveProperty(field)
+    }
+  })
+})
+
+
+// ---------------------------------------------------------------------------
+// Project-list query shape
+// ---------------------------------------------------------------------------
+
+/**
+ * These pin the SHAPE of every query this driver runs against the projects
+ * collection, because that shape is a security boundary.
+ *
+ * `firestore.rules` constrains `list` on this collection to
+ * `owner == uid || members[uid] in ['editor', 'viewer']`, and Firestore
+ * permits a list query only when its filter PROVES one branch of that. Drop
+ * or widen a filter here and the query does not return more rows — it returns
+ * PERMISSION_DENIED, and no project loads at all.
+ *
+ * Until 2026-08-19 the rule was `allow list: if isAuth()`, which let any
+ * signed-in SPERT user read every project in the collection. The rule is now
+ * membership-constrained and pinned by
+ * rules-tests/project-collections-list.test.ts in the spert-landing-page repo.
+ *
+ * ⚠️ WHY THIS TEST EXISTS SEPARATELY FROM THAT ONE. That test runs the real
+ * rules against an emulator, but it encodes these queries as written and lives
+ * in ANOTHER repository — it cannot fail when this driver changes. This test
+ * is the half that fails HERE, in the repo where the edit is made. Neither one
+ * is redundant; together they close the loop.
+ */
+describe('projects collection — query shape required by the Firestore list rule', () => {
+  beforeEach(() => {
+    vi.mocked(where).mockClear()
+    vi.mocked(getDocs).mockResolvedValue({ docs: [] } as never)
+  })
+
+  it('loadProjects filters by owner and by each member role — never unfiltered', async () => {
+    await loadProjects('uid-1')
+
+    // Asserted as the full ordered call list, not `toHaveBeenCalledWith`: an
+    // ADDITIONAL unconstrained query would pass the latter and is exactly the
+    // regression that matters.
+    expect(vi.mocked(where).mock.calls).toEqual([
+      ['owner', '==', 'uid-1'],
+      ['members.uid-1', '==', 'editor'],
+      ['members.uid-1', '==', 'viewer'],
+    ])
+  })
+
+  it('loadOwnedProjectIds filters by owner', async () => {
+    await loadOwnedProjectIds('uid-1')
+
+    expect(vi.mocked(where).mock.calls).toEqual([['owner', '==', 'uid-1']])
+  })
+
+  it('every projects query carries at least one filter', async () => {
+    await loadProjects('uid-2')
+    await loadOwnedProjectIds('uid-2')
+
+    // The failure this guards is a query built with no `where` at all, which
+    // is what the old rule permitted and the new one rejects outright.
+    expect(vi.mocked(where).mock.calls.length).toBeGreaterThan(0)
+    for (const call of vi.mocked(where).mock.calls) {
+      expect(call.length).toBe(3)
+      expect(String(call[0])).toMatch(/^(owner|members\.uid-2)$/)
     }
   })
 })
