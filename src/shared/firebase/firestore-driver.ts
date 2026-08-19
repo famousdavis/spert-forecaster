@@ -181,6 +181,21 @@ export async function loadProjects(uid: string): Promise<Map<string, FirestorePr
 
   const result = new Map<string, FirestoreProjectDoc>()
 
+  // ⚠️ These filters' SHAPES are a security boundary, not a convenience.
+  // firestore.rules constrains `list` on this collection to
+  // owner == uid || members[uid] in ['editor', 'viewer'], and Firestore permits
+  // a list query ONLY when its filter PROVES one branch of that. Drop or change
+  // a filter and you do not get more rows — you get PERMISSION_DENIED, and no
+  // project loads at all.
+  // Forecaster deliberately keeps `owner` OUT of the members map, which is why
+  // its rule is disjunctive and differs from the other six apps.
+  // Until 2026-08-19 the rule was `allow list: if isAuth()`, which let any
+  // signed-in SPERT user read every project in this collection.
+  // ⚠️ The rule and these queries are pinned together by
+  // rules-tests/project-collections-list.test.ts in the spert-landing-page
+  // repo (`npm run test:rules`). That test encodes these queries AS WRITTEN and
+  // lives in a DIFFERENT repository, so it will NOT fail when you edit these
+  // lines. Change one, change the other.
   // Query owned projects
   const ownedQ = query(
     collection(db, COLLECTIONS.projects),
@@ -216,6 +231,10 @@ export async function loadProjects(uid: string): Promise<Map<string, FirestorePr
  */
 export async function loadOwnedProjectIds(uid: string): Promise<Set<string>> {
   if (!db) return new Set()
+  // ⚠️ Same security-load-bearing filter as `loadProjects()` — see the note
+  // there. The Firestore `list` rule only permits a query whose filter proves
+  // owner == uid or membership, and the guard that pins rule and query together
+  // lives in the spert-landing-page repo, where it cannot see edits made here.
   const ownedQ = query(
     collection(db, COLLECTIONS.projects),
     where('owner', '==', uid)
@@ -320,6 +339,21 @@ export function subscribeToUserProjects(
     }
   }
 
+  // ⚠️ These filters' SHAPES are a security boundary, not a convenience.
+  // firestore.rules constrains `list` on this collection to
+  // owner == uid || members[uid] in ['editor', 'viewer'], and Firestore permits
+  // a list query ONLY when its filter PROVES one branch of that. Drop or change
+  // a filter and you do not get more rows — you get PERMISSION_DENIED, and no
+  // project loads at all.
+  // Forecaster deliberately keeps `owner` OUT of the members map, which is why
+  // its rule is disjunctive and differs from the other six apps.
+  // Until 2026-08-19 the rule was `allow list: if isAuth()`, which let any
+  // signed-in SPERT user read every project in this collection.
+  // ⚠️ The rule and these queries are pinned together by
+  // rules-tests/project-collections-list.test.ts in the spert-landing-page
+  // repo (`npm run test:rules`). That test encodes these queries AS WRITTEN and
+  // lives in a DIFFERENT repository, so it will NOT fail when you edit these
+  // lines. Change one, change the other.
   const ownedQ = query(collection(db, COLLECTIONS.projects), where('owner', '==', uid))
   const unsubOwned = onSnapshot(ownedQ, handleSnapshot(ownedProjects, () => { ownedReady = true }), handleListenerError('owned'))
 
