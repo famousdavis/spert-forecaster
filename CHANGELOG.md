@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.40.2 - 2026-08-19
+
+A sign-in change. Nothing about forecasting is different, and your data is untouched.
+
+Signing in with Microsoft now requires a work or school account. Personal Microsoft accounts — outlook.com, hotmail.com, live.com — are refused at the sign-in screen, before any password is entered. Microsoft itself enforces this rather than the app, so it applies no matter how sign-in is reached. The change was made for institutions evaluating the Suite, who reasonably expect "sign in with Microsoft" to mean an organisational account rather than any account at all.
+
+Google is unchanged and still accepts personal accounts, so nobody loses a way in — and the sign-in area now says which is which, rather than letting you choose Microsoft and find out from an error message.
+
+### Changed
+- **Microsoft sign-in now requires a work or school account.** Personal Microsoft accounts are refused before a password is entered. This is enforced by Microsoft, not by the app.
+- **The sign-in area says so.** Previously "Sign in with Microsoft" was offered unqualified, and a personal-account user discovered the restriction only from a Microsoft error page.
+- **Nothing changes for personal use.** Google still accepts personal accounts, so cloud storage remains available to everyone.
+
 ## v0.40.1 - 2026-08-11
 
 A fix for dragging milestones into a new order on the Forecast tab. Nothing about forecasting changes, and your existing milestone order is untouched.
