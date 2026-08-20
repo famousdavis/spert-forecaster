@@ -1,0 +1,134 @@
+# Copyright (C) 2026 William W. Davis, MSPM, PMP. All rights reserved.
+# Licensed under the GNU General Public License v3.0.
+# See LICENSE file in the project root for full license text.
+
+# Publish a GitHub release for whatever main currently is.
+#
+# WHY IT RUNS AFTER THE SHIP GATE RATHER THAN ON PUSH
+# ---------------------------------------------------
+# A release is a public artefact, so it should never be cut from a commit whose
+# lint, tests or build failed. `workflow_run` waits for the Ship gate to finish
+# and this job then refuses anything that is not a successful push to main.
+#
+# (The rules-deploy workflow in spert-landing-page deliberately does the
+# opposite and re-verifies its own payload inline. The difference is that it
+# only needs ONE check re-run, cheaply; re-running lint + tests + build here
+# just to publish a release would be pure waste.)
+#
+# TAGS MOVE, ON PURPOSE
+# ---------------------
+# If a commit lands on main without a version bump — a docs fix, a comment, a
+# test — the existing vX.Y.Z tag is force-moved to the new HEAD and the release
+# body refreshed. The tag therefore means "the current state of vX.Y.Z", not
+# "the immutable bytes first published as vX.Y.Z".
+#
+# ⚠️ That is a deliberate trade, chosen 2026-08-19: it keeps the latest release
+# equal to the latest code, at the cost of tag reproducibility. Acceptable here
+# because nothing pins to these tags — they are web apps, not libraries. If
+# that ever stops being true, drop the move branch below and release only on
+# version bumps. Do NOT "fix" it by auto-bumping the patch version: the
+# changelog guard requires every version to have an entry on both surfaces, so
+# an auto-bump would fail its own gate.
+#
+# NO NEW CONFIG. The version comes from package.json (which the ship gate
+# already proves agrees with every other version surface) and the notes come
+# from the changelog file and headingPattern already declared in
+# shipgate.config.json. That is what lets this file stay byte-identical across
+# every SPERT repo despite six different changelog heading styles.
+#
+# Pushing a tag does not retrigger anything: the Ship gate listens on
+# pull_request and on pushes to the main BRANCH, and a tag push is neither.
+
+name: Release
+
+on:
+  workflow_run:
+    workflows: ["Ship gate"]
+    types: [completed]
+  workflow_dispatch:
+
+# Needed to push the tag and publish the release.
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Publish or move the release
+    runs-on: ubuntu-latest
+    # Only a green Ship gate, only on main, only from a push. Manual dispatch
+    # is allowed through for recovery.
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.event == 'push')
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          # Resolve the exact commit the gate passed on, not whatever main is
+          # by the time this starts. fetch-depth 0 also brings the tags this
+          # job needs to compare against.
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v6.4.0
+        with:
+          node-version-file: ".nvmrc"
+
+      # No `npm ci` — the script uses only Node built-ins.
+      - id: notes
+        name: Compute version and release notes
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: node scripts/release-notes.mjs "${RUNNER_TEMP}/release-body.md"
+
+      - name: Create or move the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.notes.outputs.tag }}
+          SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          set -euo pipefail
+          BODY="${RUNNER_TEMP}/release-body.md"
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            CURRENT=$(git rev-parse "refs/tags/${TAG}^{commit}" 2>/dev/null || echo "")
+            if [ "$CURRENT" = "$SHA" ]; then
+              echo "already-at-head=true" >> "$GITHUB_OUTPUT"
+              echo "$TAG already points at $SHA — nothing to do."
+              exit 0
+            fi
+            echo "Moving $TAG from ${CURRENT:-<unknown>} to $SHA"
+            git push --force origin "${SHA}:refs/tags/${TAG}"
+            gh release edit "$TAG" --notes-file "$BODY"
+          else
+            echo "Creating $TAG at $SHA"
+            gh release create "$TAG" --target "$SHA" --title "$TAG" --notes-file "$BODY"
+          fi
+
+      # Assert the outcome rather than trusting the commands above reported it.
+      - name: Verify the tag resolves to this commit
+        env:
+          TAG: ${{ steps.notes.outputs.tag }}
+          SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          set -euo pipefail
+          git fetch --force origin "refs/tags/${TAG}:refs/tags/${TAG}"
+          ACTUAL=$(git rev-parse "refs/tags/${TAG}^{commit}")
+          if [ "$ACTUAL" != "$SHA" ]; then
+            echo "::error::$TAG resolves to $ACTUAL, expected $SHA"
+            exit 1
+          fi
+          {
+            echo "### Release $TAG"
+            echo
+            echo "| Field | Value |"
+            echo "|---|---|"
+            echo "| Tag | \`$TAG\` |"
+            echo "| Commit | \`${SHA:0:7}\` |"
+            echo "| Verified | tag resolves to this commit |"
+          } >> "$GITHUB_STEP_SUMMARY"

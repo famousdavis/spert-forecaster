@@ -120,6 +120,14 @@ export function SignInButtons({ fullLabel = false }: SignInButtonsProps = {}) {
             </span>
             <span>Sign in with Microsoft</span>
           </button>
+          {/* Only in the verbose branch, where a provider is actually being
+              chosen. Microsoft is restricted to work/school accounts at the
+              app registration, so a personal account is refused by Microsoft
+              before a password is entered. */}
+          <p className="w-full text-xs text-gray-500 dark:text-gray-400">
+            Microsoft sign-in requires a work or school account. For a personal
+            account, use Google.
+          </p>
         </div>
       ) : (
         <div className="flex items-center gap-1.5">
