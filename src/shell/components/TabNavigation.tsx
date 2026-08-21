@@ -54,7 +54,9 @@ export function TabNavigation({ activeTab, onTabChange }: TabNavigationProps) {
 
              2. ⚠️ It would not stay correct. spert-scheduler could not use the
                 pattern precisely because its tabs acquired focusable descendants —
-                drag, lock, clone, delete (ScenarioTabs.tsx:164). Ours are plain
+                drag, lock, clone, delete (ScenarioTabs.tsx:SortableScenarioTab
+                — named by symbol, not line, because that file is in another
+                repository where nothing here can verify a line number). Ours are plain
                 labels today, so the pattern is available; the moment a tab gains a
                 close button, a badge or a context menu it becomes wrong and has to
                 be unwound. aria-current does not depend on a tab's internal
