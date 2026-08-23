@@ -8,11 +8,17 @@
  *
  * WHY THIS EXISTS
  *
- * There is no CI in any SPERT® Suite repository. A green `gh pr checks` means
- * Vercel built a preview — nothing more. Tests are not run by any automation on
- * push, on PR, or on merge, so a branch whose entire suite fails shows all-green
- * and merges cleanly. The gate has been a convention executed by whoever is at
- * the keyboard, and the defects it missed shipped to production for months.
+ * This gate began as a convention executed by whoever was at the keyboard, and
+ * the defects it missed shipped to production for months. It is now also run by
+ * CI: every repo carries `.github/workflows/shipgate.yml`, so a green
+ * `gh pr checks` means this gate ran — not merely that Vercel built a preview.
+ *
+ * CI and a local run are COMPLEMENTARY, not ranked. CI's advantage is an empty
+ * tree: it catches anything that silently depends on a gitignored or generated
+ * file being present locally. It also has LESS of the tree — `CLAUDE.md` is
+ * gitignored, so where a repo configures a CLAUDE.md currency check that check
+ * self-skips under CI, and only a local run can catch that drift. Neither is a
+ * terminal condition alone.
  *
  * TWO TIERS
  *
@@ -27,6 +33,24 @@
  * APP_VERSION" inside the test suite would fail from the moment the version is
  * bumped until the entry is written, which taxes ordinary development for no
  * gain. At a release boundary it is exactly the right assertion.
+ *
+ * THE `expectProblems` TRADE
+ *
+ * Where a command sets `expectProblems`, this script gates on the NUMBER and not
+ * on the exit code — that branch ends in `continue`, so `exitCode === 0` is never
+ * reached for that step. Deliberate, and for OPPOSITE reasons across the suite:
+ * where lint carries errors it exits non-zero at an accepted baseline, so exit-code
+ * gating is too STRICT; where a baseline is all warnings it exits zero, so exit-code
+ * gating is too LAX and would let new warnings in silently. One mechanism, two
+ * rationales.
+ *
+ * The trade runs both ways. Such a step FAILS when a problem appears and when one is
+ * resolved unaccounted for; it PASSES on a new error that leaves the total unchanged.
+ * The number matched is ESLint's ALL-RULE total, not any single rule's count, so a
+ * baseline set for one rule moves when an unrelated warning appears.
+ *
+ * At a true zero, ESLint prints no problem-count line at all and the step fails with
+ * "could not read a problem count". Delete the key; never set it to 0.
  *
  * SHAPE
  *

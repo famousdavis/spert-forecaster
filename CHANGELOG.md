@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.40.3 - 2026-08-22
+
+Development and release tooling only. Nothing about forecasting is different, and your data is untouched.
+
+The script that checks a release before it ships is deliberately the same file in all nine SPERT® Suite projects. The note at the top of it said there was no automated checking anywhere in the suite — that a green tick on a proposed change meant only that a preview copy had been built, and that nothing ran the tests. That has not been true since the script existed.
+
+The statement did not go out of date. It was untrue on the day it was written: the same set of edits that added the script also switched the automated checking on, so the file contradicted a change sitting beside it. A statement that decays can be helped by writing down when it was made; a statement that was never true cannot.
+
+### Fixed
+- **The release-checking script no longer says there is no automated checking.** Automated checking runs on every one of the nine projects, on every proposed change and on every merge, and what it runs is this very script.
+- **The remedy is correction, not a timestamp.** The claim was false at authoring, not stale — self-refuted by a file added in the same set of edits. What went wrong was that a claim about the projects was written into an explanation without being checked against them, and an explanation is read as background rather than as an assertion somebody has to verify.
+
+### Added
+- **A note that automated checking and a check run by hand are complementary rather than ranked.** The automated one works from a clean copy, so it catches anything that quietly depends on a file existing only on the author's own machine; but it also has less of the project to look at, so certain checks step aside there and only a hand-run finds what those cover.
+- **A note explaining how the code-style step is judged.** It compares the number of reported issues against an agreed figure instead of reading pass or fail, and it does so for opposite reasons in different projects: here the step reports failure at the agreed figure of nine, so reading pass-or-fail would be too strict; in one sibling project it reports success at its figure, so reading pass-or-fail would be too lenient and would let new issues through unnoticed.
+- **A warning that the figure counts every kind of issue, not the one kind a project set it for**, and that when it reaches zero the setting must be removed rather than set to zero — at zero the tool prints no count at all, and the step then fails asking for a number that was never printed.
+
 ## v0.40.2 - 2026-08-19
 
 A sign-in change. Nothing about forecasting is different, and your data is untouched.
