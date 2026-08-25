@@ -37,7 +37,14 @@ export interface Project {
   productivityAdjustments?: ProductivityAdjustment[] // Periods of reduced productivity for forecasting
   milestones?: Milestone[] // Ordered release milestones (first ships first)
   createdAt: string
-  updatedAt: string
+  /**
+   * ISO 8601. OPTIONAL since v0.40.4: `firestoreDocToProject` normalizes every
+   * stored shape, and returns nothing when the value carries no recoverable
+   * instant (an unresolved serverTimestamp sentinel, an absent field, or a
+   * string `Date.parse` rejects). ⚠️ Never `null` — `sanitizeForFirestore`
+   * strips `undefined` only, so a null would reach the document.
+   */
+  updatedAt?: string
 }
 
 export interface Sprint {

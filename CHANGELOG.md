@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.40.4 - 2026-08-24
+
+A date the Forecaster read from the cloud could be destroyed by the Forecaster itself, on the very next save. Your forecasts and sprint data were never affected — only the record of when a project last changed.
+
+### Fixed
+- **A project's "last changed" time is no longer flattened into something unreadable on save.** The Forecaster reads that time from the cloud, keeps it, and writes it back the next time you save — it does not stamp a fresh one. On the way out, the step that prepares data for saving takes anything object-shaped apart and rebuilds it, and the database's own date objects do not survive that: what got written back was a pair of raw numbers nothing can interpret as a date afterwards. Once one save had happened, the original time was gone for good and could not be worked out from what remained.
+- **The conversion now happens as soon as the project is read**, so what is held is always plain text and what is written back is always something that can be read again. Four of the shapes the value can arrive in carry a real time and are recovered rather than discarded — including the very shape this bug produced, so projects already affected get their true time back rather than losing it a second time.
+- **Where no time can be recovered, nothing is invented.** Two shapes carry no time at all — an unfinished placeholder, and a missing value — and a third is text that is not a date. In all three the field is simply left unset and the case is written to the browser console. It would have been easy to substitute today's date, or the project's creation date, and both would have looked tidy while asserting something untrue about when the project last changed.
+- **Left unset, not set to nothing.** These are different: the save step removes fields that are unset, but writes ones that are explicitly empty. The second would have put an empty value into the stored project. This is spelled out in the code because the more obvious choice is the wrong one.
+
+### Notes
+- The new checks were run against the old code first. Removing the conversion fails eleven of the thirty-three; the ones that still pass are those where doing nothing was already right — text that is already a date, and a value that is already missing. Writing "empty" instead of "unset" fails nine. A check that cannot fail is not a check.
+
 ## v0.40.3 - 2026-08-22
 
 Development and release tooling only. Nothing about forecasting is different, and your data is untouched.
