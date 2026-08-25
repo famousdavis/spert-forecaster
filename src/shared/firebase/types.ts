@@ -26,7 +26,8 @@ export interface FirestoreProjectDoc {
   milestones?: Milestone[]
   sprints: Sprint[]
   createdAt: string
-  updatedAt: string
+  /** ISO 8601, or absent when no instant was recoverable. See ./updated-at. */
+  updatedAt?: string
 
   // Ownership & sharing
   owner: string

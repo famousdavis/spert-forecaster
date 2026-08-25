@@ -14,6 +14,7 @@ import type { ChartFontSize, DistributionType } from '@/shared/types/burn-up'
 import { DISTRIBUTION_TYPES } from '@/shared/types/burn-up'
 import { SCHEMA_VERSION } from './types'
 import { sanitizeForFirestore } from './firestore-sanitize'
+import { normalizeUpdatedAt } from './updated-at'
 
 /** Convert a Zustand project + its sprints into a Firestore document (for saving). */
 export function projectToFirestoreDoc(
@@ -51,6 +52,19 @@ export function firestoreDocToProject(
   docId: string,
   doc: FirestoreProjectDoc
 ): Project {
+  const updatedAt = normalizeUpdatedAt(doc.updatedAt)
+  if (updatedAt === undefined) {
+    // LEAVE AND LOG, never stamp. Substituting the current date or `createdAt`
+    // would manufacture data with the wrong meaning, and the write-back below
+    // would then persist the fabrication. Unlike CFD there is no render site
+    // here, so without this line the case is completely invisible: the field
+    // simply drops out of the merge mask and the stored value is untouched.
+    console.warn(
+      `[firestore-converters] project ${docId}: updatedAt carries no recoverable ` +
+        'instant; leaving it unset rather than stamping one. raw =',
+      doc.updatedAt
+    )
+  }
   return {
     id: docId,
     name: doc.name,
@@ -62,7 +76,13 @@ export function firestoreDocToProject(
     productivityAdjustments: doc.productivityAdjustments || [],
     milestones: doc.milestones || [],
     createdAt: doc.createdAt,
-    updatedAt: doc.updatedAt,
+    // ⚠️ Normalized on READ, which is what makes the write-back at
+    // projectToFirestoreDoc:40 correct by construction. That site is a
+    // pass-through of whatever the store holds, and `sanitizeForFirestore`
+    // degrades a Timestamp into an unparseable {seconds,nanoseconds} map on
+    // the way out — so a Timestamp merely READ here used to be destroyed on
+    // the next save. The store now holds an ISO string or nothing.
+    updatedAt,
   }
 }
 
