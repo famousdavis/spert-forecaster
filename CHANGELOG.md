@@ -1,5 +1,28 @@
 # Changelog
 
+## v0.40.7 - 2026-08-28
+
+Checks only, and a corrected note. Nothing about forecasting is different, no part of the app behaves differently, and your data is untouched.
+
+Last week's work sorted the import rules into two groups: those SPERT® Story Map can produce a bad file for, and those it structurally cannot, where no example can exist to be published and so nothing is missing. An explanatory note filed one rule — the one about a sprint's remaining backlog not being negative or absurdly large — in the second group. It belongs in the first. Story Map does guard that rule and could publish a pair of files for it; it simply has not. "Cannot be closed" and "has not been closed" are different things, and only one of them is somebody's to fix.
+
+The check that acts on the distinction was unaffected, because it works the grouping out from the register rather than reading it from the note. So nothing was mis-tested — but nothing was protecting the note either, which is the more general point: prose sitting beside a correct check is not itself checked, and it is what the next person reads first.
+
+Looking into it turned up something better. One of Story Map's twelve boundary files breaks two rules at once rather than one — it carries both an over-large milestone total and an over-large remaining backlog. The app reports it against the first of the two purely because milestones are checked before sprints. The check that each file is refused for the reason it claims was therefore passing on that file for a reason nobody had written down. It is a loud failure rather than a silent one if the order ever changes, but a check that passes for unexamined reasons is how a check becomes folklore. Each file's full picture is now recorded: take away the fault it claims to test, and the app must either accept it or fail in one specific stated way.
+
+That also settles what is really missing. The remaining-backlog ceiling turns out to be exercised by the published files after all, just not under a filename that says so. What has no coverage is that rule on its own, without the milestone fault sitting on top of it — which needs a file carrying no milestones at all.
+
+### Fixed
+- **A note that put one import rule in the wrong group has been corrected**, and now says why the distinction matters: a rule no example can exist for is nobody's to close, while a rule awaiting an example is a real if minor gap. The note also records that the surrounding check derives its grouping independently and was never affected, so a reader does not have to work out how far the error reached.
+
+### Added
+- **Each of the six refused files now has its full fault list recorded, not just the fault it claims.** Removing the claimed fault must leave a file the app accepts — proving the claim describes the file rather than the order the app happens to check things in — or must leave exactly one other stated fault. Five of the six are the first kind. The sixth is named, along with what it means.
+- **A check that exactly one file breaks two rules, and which two.** Should a future set of files make a second one compound, or make this one simple, that fails and the recorded list has to be read again rather than quietly going out of date.
+
+### Notes
+- **All six new checks were run against deliberately broken versions of themselves.** A file's fault list claiming a fault it does not have; the compound file claiming to be simple; its second fault pointed at the wrong rule; an entry deleted; and two cases where the step that removes a fault does not actually remove it — an off-by-one leaving eleven milestones, and a date swapped for one that is still not a real day. Each had to fail the right check by name. The last two matter most, because a removal step that quietly does nothing would make the whole exercise pass while proving nothing.
+- **The correction came from the other side of the contract, from a reading of the note rather than a failing check.** Nothing here could have caught it, and nothing here catches the next one of its kind. That is worth stating plainly rather than implying the checks are broader than they are.
+
 ## v0.40.6 - 2026-08-28
 
 Checks only, again. Nothing about forecasting is different, no part of the app behaves differently, and your data is untouched.
