@@ -1,5 +1,31 @@
 # Changelog
 
+## v0.40.8 - 2026-08-28
+
+Checks only. Nothing about forecasting is different, no part of the app behaves differently, and your data is untouched.
+
+SPERT® Story Map has published a fuller set of example files — seventeen now rather than thirteen — and this takes them in. Three of them settle points raised from this side over the past week: the example meant to sit exactly on the floor for a sprint's completed work was sitting one step above it and has been corrected; a rule about a sprint's remaining backlog now has a pair of its own rather than being tested only as a side effect of another; and a date example has been added that a real calendar rejects while a pattern-matcher would wave through.
+
+The interesting part is not the files. It is that taking them in falsified two paragraphs of explanation written here in the last two releases — one saying a rule could not yet be covered, another saying a particular local example was the only one reaching a certain check. Both were true when written. Both quietly stopped being true the moment the new files arrived, and every check stayed green while they did. This is the second and third time that has happened in this stretch of work.
+
+So the claims most likely to rot are no longer written down. They are worked out from the files themselves each time the tests run: does this set of examples reach both halves of the date rule, or only the shallower one? Does it cover the remaining-backlog rule on its own, or only tangled up with another? Does the completed-work example sit exactly on the floor? Remove any of those upstream and a check now fails naming what was lost, rather than a paragraph silently becoming untrue.
+
+### Fixed
+- **Two explanations that had gone out of date have been corrected, and the reason they could is now stated where they were.** A comment listing four reasons to keep the locally-built examples was down to one real reason, the other three having been settled by the new files. Keeping a list of four when only one still applies is how a reader is misled by something that was accurate when it was written.
+- **A check requiring each rule to have exactly one accepted and one refused example has been loosened to require a balanced number of each.** One rule now legitimately has two pairs, and the old wording would have failed on a correct set. The strength that mattered is kept: relabelling one example still leaves the counts uneven and still fails.
+- **The table recording what each refused file breaks is now keyed by filename rather than by rule.** Two files now test the same rule in different ways, and keying by rule silently collapsed them into one. Story Map hit the same collision from the other direction, where matching filenames by their opening characters merged two groups into one.
+
+### Added
+- **A check that the published examples reach both halves of the date rule.** The app refuses a bad date two ways: one for a date that cannot be read at all, another for a date that reads cleanly and is then silently shifted to a different day. A set carrying only the first exercises the shallower half while looking complete.
+- **A check that the remaining-backlog rule is covered on its own**, by an example carrying no milestones at all, rather than only by a file that breaks two rules at once and is attributed to whichever the app happens to check first.
+- **A check that the completed-work example sits exactly on the floor**, which is the fault that was corrected upstream — now caught here too, not only there.
+- **A check that no filename is listed twice**, which would otherwise make the fingerprint chain ambiguous and quietly drop a file from every list keyed by name.
+
+### Notes
+- **All eighteen files were verified before being taken in, not after.** Every fingerprint matched what was published; the long-standing example file is unchanged for the third regeneration running, still matching a figure recorded here before the set ever grew; every file the app should accept was accepted and every file it should refuse was refused for the rule that file claims to test; and each accepted file still sits exactly on its limit rather than merely below it.
+- **All six new checks were run against deliberately broken versions of themselves**, including removing the new date example, removing the new remaining-backlog pair, and putting back the upstream fault that was just corrected. Each had to fail the right check by name.
+- **The correction to both stale explanations came from outside these checks.** One was spotted by a reader; the other survived a release. Nothing here would have caught either, which is precisely why the claims were converted from prose into checks rather than simply rewritten more carefully.
+
 ## v0.40.7 - 2026-08-28
 
 Checks only, and a corrected note. Nothing about forecasting is different, no part of the app behaves differently, and your data is untouched.

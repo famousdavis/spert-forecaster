@@ -304,29 +304,31 @@ interface BoundaryPair {
  * canonical fixture. Nothing derives them, so a mutation built wrong tests
  * nothing. Read them; do not trust them.
  *
- * ── WHY THESE SURVIVED THE VENDORED SET ─────────────────────────────────────
- * Story Map v0.52.13 ships real exporter output for six rows, and the block
- * below this one uses it. These hand-built pairs are NOT redundant with it:
+ * ── WHY THESE SURVIVE THE VENDORED SET ──────────────────────────────────────
+ * ONE reason now, where v0.40.6 listed four. Story Map v0.52.14 closed the
+ * other three by publishing fixtures for them — F30 gained a pair built from
+ * unallocated ribs, F29's at-half moved from 1 to the boundary value 0, and a
+ * leap-year F32 variant was added. Those three bullets were prose, they went
+ * stale the moment that release landed, and nothing here would have said so.
  *
- *   - They cover axes Story Map's exporter structurally CANNOT emit — F10
+ * The surviving reason is the structural one, and it cannot be closed:
+ *
+ *   - These pairs cover axes Story Map's exporter CANNOT emit — F10
  *     unitOfMeasure, F12/F31/F33 dates, and the exact-zero floors. Those rows
  *     are UNREACHABLE or PRECLUDED in the register, which is precisely why no
- *     fixture for them can exist.
- *   - ⚠️ F30 (`backlogAtSprintEnd`) is NOT in that group. It is SHIPPED —
- *     Story Map blocks it, so a pair for it COULD be published and simply has
- *     not been. An earlier revision of this comment filed it under
- *     "structurally unclosable", which was wrong: unclosable and merely-absent
- *     are different, and only one of them is anybody's to fix. The
- *     SHIPPED-coverage test below derives its buckets from `REGISTER`, so it
- *     was unaffected; this prose was not.
- *   - The vendored F32 pair uses '2026-13-45', which is Invalid Date and so
- *     dies at the isNaN guard. Only the leap pair here reaches the
- *     auto-correction check at import-validation.ts:39-43.
- *   - The vendored F29 pair is 1 / -1, testing the exporter-reachable
- *     direction. The pair here is 0 / -1, pinning the boundary VALUE.
+ *     fixture for them can exist to be published.
  *
- * Where the two overlap, the vendored half is the better evidence and is not
- * duplicated away — an independent construction that agrees is worth keeping.
+ * Everything else here is now a SECOND, independent path to something the
+ * vendored set also covers. That is worth keeping — two constructions that
+ * agree beat deduplicating one away — but it is no longer sole cover, and the
+ * comment must not imply otherwise.
+ *
+ * ⚠️ THIS COMMENT HAS GONE STALE TWICE. Both times a prose claim about the
+ * vendored set outlived the set. The claims most likely to rot were therefore
+ * turned into DERIVED assertions — see `describe('vendored-set coverage that
+ * this file used to claim in prose')` below. They read the payloads and
+ * compute the answer, so a re-vendor that removes the leap variant or the F30
+ * pair fails a test instead of quietly falsifying a paragraph.
  */
 const BOUNDARY_PAIRS: readonly BoundaryPair[] = [
   {
@@ -544,7 +546,12 @@ describe('the vendored set — verdicts produced by THIS validator', () => {
     },
   )
 
-  it('pairs every boundary row — one accept, one reject', () => {
+  it('pairs every boundary row — balanced accepts and rejects', () => {
+    // ⚠️ Was `toEqual(['accept','reject'])`, i.e. EXACTLY one of each. Row F32
+    // carries two pairs from v0.52.14 (the '2026-13-45' one and the leap one),
+    // so that assertion would now fail on a correct set. Balance is the real
+    // invariant and keeps the strength that mattered: relabelling one half
+    // still makes the counts unequal.
     const byRow = new Map<string, string[]>()
     for (const e of MANIFEST.entries) {
       if (e.row === 'canonical') continue
@@ -552,8 +559,19 @@ describe('the vendored set — verdicts produced by THIS validator', () => {
     }
     expect(byRow.size).toBeGreaterThan(0)
     for (const [row, verdicts] of byRow) {
-      expect(verdicts.sort(), `${row} is not a pair`).toEqual(['accept', 'reject'])
+      const accepts = verdicts.filter((v) => v === 'accept').length
+      const rejects = verdicts.filter((v) => v === 'reject').length
+      expect(accepts, `${row} has no accept half`).toBeGreaterThan(0)
+      expect(rejects, `${row} has no reject half`).toBeGreaterThan(0)
+      expect(accepts, `${row} is unbalanced`).toBe(rejects)
     }
+  })
+
+  it('names every vendored payload exactly once', () => {
+    // Two payloads sharing a filename would make the SHA chain ambiguous, and
+    // any per-file table silently lose one.
+    const files = MANIFEST.entries.map((e) => e.file)
+    expect(new Set(files).size).toBe(files.length)
   })
 
   it('names only rows that exist in the register', () => {
@@ -566,16 +584,16 @@ describe('the vendored set — verdicts produced by THIS validator', () => {
 
   it('covers a strict subset of the SHIPPED rows, and says which are missing', () => {
     // Not a defect — a fact worth failing on if it changes silently. Story Map
-    // BLOCKS nine rows but ships payloads for six: F07 and F18 are empty-name
-    // cases rather than boundaries, and F30 (backlogAtSprintEnd) is a real
-    // boundary with no vendored PAIR. Its ceiling is nonetheless exercised by
-    // vendored data — boundary-F20-over.json violates F30 as well as F20 — see
-    // the violation-profile block below. What has no vendored coverage is F30
-    // WITHOUT F20, which needs a payload carrying no milestones at all.
+    // BLOCKS nine rows and now ships payloads for seven; F30 gained its own
+    // pair in v0.52.14. The two remaining are F07 and F18, which are
+    // empty-name cases rather than boundaries and so have no `at` half to
+    // publish. This assertion derives both buckets rather than enumerating
+    // them, which is why it stayed correct through the F30 mistake that a
+    // comment beside it got wrong.
     const shipped = REGISTER.filter((r) => r.status === 'SHIPPED').map((r) => r.id)
     const vendored = new Set(MANIFEST.entries.map((e) => e.row).filter((r) => r !== 'canonical'))
-    expect([...vendored].sort()).toEqual(['F08', 'F14', 'F19', 'F20', 'F29', 'F32'])
-    expect(shipped.filter((id) => !vendored.has(id))).toEqual(['F07', 'F18', 'F30'])
+    expect([...vendored].sort()).toEqual(['F08', 'F14', 'F19', 'F20', 'F29', 'F30', 'F32'])
+    expect(shipped.filter((id) => !vendored.has(id))).toEqual(['F07', 'F18'])
   })
 })
 
@@ -600,27 +618,33 @@ describe('the vendored set — verdicts produced by THIS validator', () => {
  * one, so the attribution is a property of the payload rather than of the
  * validator's iteration order. Five of the six are that. The sixth is named.
  */
+// ⚠️ KEYED BY FILE, NOT BY ROW. Row F32 carries TWO over-halves from v0.52.14
+// ('2026-13-45' and the leap '2027-02-29'), so a row key silently collapses
+// them into one. A violation profile is a property of a PAYLOAD in any case —
+// two payloads on one row can have different profiles. Story Map hit the same
+// collision from the filename side, where a prefix match merged the two F32
+// pairs into a single four-element group.
 const VIOLATION_PROFILES: Record<string, {
   readonly neutralise: (payload: Obj) => void
   /** null when the claimed violation was the payload's only one. */
   readonly remaining: string | null
 }> = {
-  F08: {
+  'boundary-F08-over.json': {
     neutralise: (p) => { projectsOf(p)[0].name = 'N'.repeat(FORECASTER_LIMITS.MAX_STRING_LENGTH) },
     remaining: null,
   },
-  F14: {
+  'boundary-F14-over.json': {
     neutralise: (p) => {
       const proj = projectsOf(p)[0]
       proj.milestones = (proj.milestones as Obj[]).slice(0, FORECASTER_LIMITS.MAX_MILESTONES)
     },
     remaining: null,
   },
-  F19: {
+  'boundary-F19-over.json': {
     neutralise: (p) => { milestonesOf(p)[0].name = 'R'.repeat(FORECASTER_LIMITS.MAX_STRING_LENGTH) },
     remaining: null,
   },
-  F20: {
+  'boundary-F20-over.json': {
     neutralise: (p) => { milestonesOf(p)[0].backlogSize = FORECASTER_LIMITS.MAX_NUMERIC_VALUE },
     // ⚠️ THE COMPOUND ONE. Not a flaw in the fixture — it means the vendored set
     // exercises F30's ceiling too, just not under a filename that says so. The
@@ -628,13 +652,30 @@ const VIOLATION_PROFILES: Record<string, {
     // payload carrying zero milestones.
     remaining: 'Sprint at index 0 has invalid backlogAtSprintEnd (must be 0-999999).',
   },
-  F29: {
+  'boundary-F29-over.json': {
     neutralise: (p) => {
       for (const s of sprintsOf(p)) if ((s.doneValue as number) < 0) s.doneValue = 0
     },
     remaining: null,
   },
-  F32: {
+  'boundary-F30-over.json': {
+    // NEW in v0.52.14. Zero milestones by construction (ribs sized but
+    // unallocated), so there is nothing for it to compound WITH — F30 is
+    // attributed here on the payload's merits, not by loop order.
+    neutralise: (p) => {
+      for (const s of sprintsOf(p)) {
+        if ((s.backlogAtSprintEnd as number) > FORECASTER_LIMITS.MAX_NUMERIC_VALUE) {
+          s.backlogAtSprintEnd = FORECASTER_LIMITS.MAX_NUMERIC_VALUE
+        }
+      }
+    },
+    remaining: null,
+  },
+  'boundary-F32-over.json': {
+    neutralise: (p) => { sprintsOf(p)[1].sprintFinishDate = '2026-01-28' },
+    remaining: null,
+  },
+  'boundary-F32-leap-over.json': {
     neutralise: (p) => { sprintsOf(p)[1].sprintFinishDate = '2026-01-28' },
     remaining: null,
   },
@@ -644,13 +685,13 @@ describe('the vendored set — violation profiles', () => {
   const overs = MANIFEST.entries.filter((e) => e.forecasterShould === 'reject')
 
   it('profiles every reject-side payload and nothing else', () => {
-    expect(Object.keys(VIOLATION_PROFILES).sort()).toEqual(overs.map((e) => e.row).sort())
+    expect(Object.keys(VIOLATION_PROFILES).sort()).toEqual(overs.map((e) => e.file).sort())
   })
 
-  it.each(overs.map((e) => [e.row, e] as const))(
-    '%s-over — its full violation profile is what is pinned',
-    (row, entry) => {
-      const profile = VIOLATION_PROFILES[row]
+  it.each(overs.map((e) => [e.file, e] as const))(
+    '%s — its full violation profile is what is pinned',
+    (file, entry) => {
+      const profile = VIOLATION_PROFILES[file]
       const payload = loadEntry(entry) as Obj
       profile.neutralise(payload)
       if (profile.remaining === null) {
@@ -669,10 +710,90 @@ describe('the vendored set — violation profiles', () => {
     // profile table has to be re-read rather than silently drifting.
     const compound = Object.entries(VIOLATION_PROFILES)
       .filter(([, p]) => p.remaining !== null)
-      .map(([row]) => row)
-    expect(compound).toEqual(['F20'])
-    expect(VIOLATION_PROFILES.F20.remaining)
+      .map(([file]) => file)
+    expect(compound).toEqual(['boundary-F20-over.json'])
+    expect(VIOLATION_PROFILES['boundary-F20-over.json'].remaining)
       .toMatch(templateToRegExp(REGISTER.find((r) => r.id === 'F30')!.message))
+  })
+})
+
+// ── Coverage this file used to assert in prose ──────────────────────────────
+
+/**
+ * ⚠️ THESE EXIST BECAUSE THE COMMENTS THEY REPLACE WENT STALE.
+ *
+ * Twice in this campaign a paragraph here described the vendored set, the set
+ * changed, and the paragraph quietly became false with every test still green:
+ *   - v0.40.6 filed F30 as "structurally unclosable". It was SHIPPED, and
+ *     v0.52.14 then published a pair for it.
+ *   - v0.40.7 said the local leap pair was the ONLY thing reaching the
+ *     auto-correction check. v0.52.14 added a vendored leap variant.
+ *
+ * Both were caught by a person reading them, which does not scale and did not
+ * scale — the second survived a release. So the claims worth making are
+ * COMPUTED from the payloads here rather than written down. Remove the leap
+ * variant or the F30 pair upstream and one of these fails, naming what was
+ * lost, instead of leaving a paragraph asserting something untrue.
+ *
+ * These do not replace the profile block above; they answer a different
+ * question. That one asks "is each payload attributed correctly?" — these ask
+ * "what does the set as a whole still cover?"
+ */
+describe('vendored-set coverage, derived rather than described', () => {
+  const rejects = MANIFEST.entries.filter((e) => e.forecasterShould === 'reject')
+  const accepts = MANIFEST.entries.filter((e) => e.forecasterShould === 'accept')
+
+  /** Every sprintFinishDate in a payload, whatever its shape. */
+  const finishDatesOf = (entry: ManifestEntry): unknown[] =>
+    sprintsOf(loadEntry(entry) as Obj).map((s) => s.sprintFinishDate)
+
+  const isShaped = (v: unknown): v is string =>
+    typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)
+
+  /** Shaped, parses cleanly, but the parse does not round-trip. */
+  const autoCorrects = (v: unknown): boolean => {
+    if (!isShaped(v)) return false
+    const parsed = new Date(v)
+    if (Number.isNaN(parsed.getTime())) return false
+    const [y, m, d] = v.split('-').map(Number)
+    return !(parsed.getUTCFullYear() === y && parsed.getUTCMonth() === m - 1 && parsed.getUTCDate() === d)
+  }
+
+  const isUnparseable = (v: unknown): boolean =>
+    isShaped(v) && Number.isNaN(new Date(v).getTime())
+
+  it('reaches BOTH halves of the date rule, not just the isNaN guard', () => {
+    // import-validation.ts rejects a date two ways: :37 catches what cannot be
+    // parsed at all, :39-43 catches what parses and is silently moved. A set
+    // carrying only the first exercises the shallower half and looks complete.
+    const unparseable = rejects.filter((e) => finishDatesOf(e).some(isUnparseable))
+    const corrected = rejects.filter((e) => finishDatesOf(e).some(autoCorrects))
+    expect(unparseable.map((e) => e.file), 'nothing reaches the isNaN guard').not.toHaveLength(0)
+    expect(corrected.map((e) => e.file), 'nothing reaches the auto-correction check').not.toHaveLength(0)
+  })
+
+  it('covers F30 on its own, with no F20 violation to alias onto', () => {
+    // The distinction that made F30 look covered when it was not: a payload
+    // violating both F20 and F30 is attributed to F20 by loop order alone.
+    // Only a payload with NO milestones can be attributed to F30 on merit.
+    const f30Message = REGISTER.find((r) => r.id === 'F30')!.message
+    const standalone = rejects.filter((entry) => {
+      const payload = loadEntry(entry) as Obj
+      const milestones = (projectsOf(payload)[0].milestones as unknown[] | undefined) ?? []
+      if (milestones.length > 0) return false
+      return templateToRegExp(f30Message).test(messageFrom(loadEntry(entry)))
+    })
+    expect(standalone.map((e) => e.file), 'no milestone-free F30 payload').not.toHaveLength(0)
+  })
+
+  it('puts the velocity at-half exactly on the floor, not merely above it', () => {
+    // This one was WRONG upstream until v0.52.14 — the at-half sat at 1 where
+    // the floor is 0, so it accepted without being at the boundary. Derived
+    // from the payload so a regression is caught here too, not only over there.
+    const f29At = accepts.find((e) => e.row === 'F29')
+    expect(f29At, 'F29 has no accept half').toBeDefined()
+    const doneValues = sprintsOf(loadEntry(f29At!) as Obj).map((s) => s.doneValue as number)
+    expect(Math.min(...doneValues)).toBe(0)
   })
 })
 

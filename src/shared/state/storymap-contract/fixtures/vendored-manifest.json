@@ -66,25 +66,53 @@
       "sha256": "dec8fcb8106e1b6b29c0982693fb0da322488fff2bf3f78b3ae24974671facb1"
     },
     {
+      "row": "F30",
+      "label": "remaining backlog ceiling (no milestones) — at the limit",
+      "file": "boundary-F30-at.json",
+      "forecasterShould": "accept",
+      "sha256": "95a4e426efcc40cc4ffcc80e6fbea8339e632cc8e5faa527be25a2ecef85f07a"
+    },
+    {
+      "row": "F30",
+      "label": "remaining backlog ceiling (no milestones) — one past the limit",
+      "file": "boundary-F30-over.json",
+      "forecasterShould": "reject",
+      "sha256": "e82e56e793a98fc57d72c814fee87d271c2d4a80cecd3b76552bbbfb3f39fde7"
+    },
+    {
       "row": "F32",
-      "label": "sprint end date validity — at the limit",
+      "label": "sprint end date shape — at the limit",
       "file": "boundary-F32-at.json",
       "forecasterShould": "accept",
       "sha256": "a7d54660263827bd671ecf94a773fa41efc368f84b773cae7fd2fade8a424d1a"
     },
     {
       "row": "F32",
-      "label": "sprint end date validity — one past the limit",
+      "label": "sprint end date shape — one past the limit",
       "file": "boundary-F32-over.json",
       "forecasterShould": "reject",
       "sha256": "d5b9c2f75c1a782fd329967c1eb384ff23ac5e32539a5c27caaab9b46acd90db"
+    },
+    {
+      "row": "F32",
+      "label": "sprint end date calendar validity — at the limit",
+      "file": "boundary-F32-leap-at.json",
+      "forecasterShould": "accept",
+      "sha256": "980adead3bd242ddb4173ea961dbd8b3958cf66120802737dd381877aa9363a0"
+    },
+    {
+      "row": "F32",
+      "label": "sprint end date calendar validity — one past the limit",
+      "file": "boundary-F32-leap-over.json",
+      "forecasterShould": "reject",
+      "sha256": "ac2707ba1a270f8a8497550f540fbb4c4a56d32c1f11a50ad3ca2bf0b423f8cc"
     },
     {
       "row": "F29",
       "label": "sprint velocity floor — at the limit",
       "file": "boundary-F29-at.json",
       "forecasterShould": "accept",
-      "sha256": "09dfa2eb9cfa1c02060dced3df35bebae23669d51674f614519f3a6631260764"
+      "sha256": "285913368a1a31e94f45ede42bb7406c1bfd2fac7d5f5941163ada557d3253b2"
     },
     {
       "row": "F29",

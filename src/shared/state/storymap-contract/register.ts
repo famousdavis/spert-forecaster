@@ -45,8 +45,8 @@
 
 /** The Story Map commit this table and the vendored fixture set came from. */
 export const PINNED_STORY_MAP = {
-  commit: '333160f',
-  version: '0.52.13',
+  commit: 'f172be0',
+  version: '0.52.14',
   registerFile: 'src/lib/forecasterReachability.ts',
   limitsFile: 'src/lib/forecasterLimits.ts',
   fixtureDir: 'src/__tests__/fixtures/',
@@ -80,7 +80,7 @@ export const CANONICAL_EXPORT_SHA256 =
  * else in this folder.
  */
 export const VENDORED_MANIFEST_SHA256 =
-  '8f33579560ca3b2b156880f1af6b865d91ab322731696994739d9c7e30b44e5f'
+  '5d27d8dd1ed8e0aeead7f36bc72a9f0cbfa8f393e94a742e8659eed2a5ac7cd5'
 
 /** One row of `vendored-manifest.json`. */
 export interface ManifestEntry {

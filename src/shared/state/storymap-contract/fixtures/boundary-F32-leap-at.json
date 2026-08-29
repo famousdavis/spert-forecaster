@@ -14,7 +14,7 @@
         {
           "id": "rel-1",
           "name": "Release One",
-          "backlogSize": 20,
+          "backlogSize": 10,
           "color": "#2563eb",
           "showOnChart": true,
           "createdAt": "2026-01-01T00:00:00.000Z",
@@ -30,8 +30,8 @@
       "sprintNumber": 1,
       "sprintStartDate": "2026-01-01",
       "sprintFinishDate": "2026-01-14",
-      "doneValue": 11,
-      "backlogAtSprintEnd": 9,
+      "doneValue": 0,
+      "backlogAtSprintEnd": 10,
       "includedInForecast": true,
       "createdAt": "2026-01-01T00:00:00.000Z",
       "updatedAt": "2026-02-01T00:00:00.000Z"
@@ -41,9 +41,9 @@
       "projectId": "prod-fixture",
       "sprintNumber": 2,
       "sprintStartDate": "2026-01-15",
-      "sprintFinishDate": "2026-01-28",
+      "sprintFinishDate": "2028-02-29",
       "doneValue": 0,
-      "backlogAtSprintEnd": 9,
+      "backlogAtSprintEnd": 10,
       "includedInForecast": true,
       "createdAt": "2026-01-01T00:00:00.000Z",
       "updatedAt": "2026-02-01T00:00:00.000Z"

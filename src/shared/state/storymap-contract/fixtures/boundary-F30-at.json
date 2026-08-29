@@ -1,0 +1,29 @@
+{
+  "version": "1.0",
+  "source": "spert-story-map",
+  "projects": [
+    {
+      "id": "prod-fixture",
+      "name": "Fixture Product",
+      "unitOfMeasure": "Story Points",
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-02-01T00:00:00.000Z",
+      "sprintCadenceWeeks": 2,
+      "firstSprintStartDate": "2026-01-01"
+    }
+  ],
+  "sprints": [
+    {
+      "id": "sp-1",
+      "projectId": "prod-fixture",
+      "sprintNumber": 1,
+      "sprintStartDate": "2026-01-01",
+      "sprintFinishDate": "2026-01-14",
+      "doneValue": 0,
+      "backlogAtSprintEnd": 999999,
+      "includedInForecast": true,
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-02-01T00:00:00.000Z"
+    }
+  ]
+}
