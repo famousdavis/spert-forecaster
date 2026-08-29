@@ -1,5 +1,29 @@
 # Changelog
 
+## v0.40.6 - 2026-08-28
+
+Checks only, again. Nothing about forecasting is different, no part of the app behaves differently, and your data is untouched.
+
+The previous release added checks that the Forecaster still accepts what SPERT® Story Map exports, and it carried an admission: for each limit — the longest name, the most milestones, the largest number — the two test files sitting either side of that limit had to be built here, because Story Map published only one exported file and it sat nowhere near any limit. A test file this project builds for itself proves rather less than one the other program actually produced.
+
+Story Map has now published twelve more, and they are real exports rather than approximations. Each sits exactly at one of the limits or exactly one step past it, and the ones a step past are what Story Map's exporter produces in the moment before it refuses to hand them over — which is what makes them honest examples of a file this app ought to turn away.
+
+For six of the rules that admission is now retired. For the rest it is not, and it never can be: those rules cover things Story Map has no way to put in a file in the first place, so no export of a bad one can exist to be published. The honest description is not that the weakness shrank — it is that it split in two, and one half closed.
+
+The locally-built pairs were kept rather than replaced, for two reasons found by comparing them. Story Map's date example is an impossible date — a 45th day of a 13th month — which this app rejects at the first and cruder of the two tests it applies, so it never reaches the second. Only a 29th of February in a non-leap year gets past the first test and has to be caught by the second. And where Story Map's example checks that a sprint's work is not negative, the local one pins the exact figure the rule turns on. Two independent ways of arriving at the same answer are worth more than either alone.
+
+### Added
+- **Thirteen exported files from Story Map are now run through this app's real import machinery on every test run**, up from one. Six pairs sit either side of six different limits — project name length, milestone count, milestone name length, the largest number a milestone may carry, a sprint's work not being negative, and a sprint's end date being a real calendar date.
+- **A single recorded fingerprint now covers the whole set.** Story Map ships a summary file listing every export with its own fingerprint; this project records the fingerprint of that summary, and every export is then checked against the figures inside it. Recording thirteen fingerprints by hand instead would mean thirteen chances to copy one out wrongly, which is the exact mistake the recording exists to prevent.
+- **A check that the folder and the summary agree in both directions** — an export present but unlisted would otherwise sit there untested, and a listing naming a file that is not there would quietly test nothing at all.
+- **A check that the set still covers six of the nine rules Story Map guards, and names the three it does not.** Two of those three are not limits at all but missing-name cases, and the third is covered by a locally-built pair. Should that ever change without anyone noticing, it now fails rather than passing quietly.
+
+### Notes
+- **Story Map states what this app should do with each file, and that statement is checked rather than believed.** Every verdict comes from this app's own importer; the statement is then compared against it, never the reverse. On top of that, a rejection has to be the rejection belonging to the specific rule the file claims to test — so a file turned away for some unrelated reason cannot pass itself off as testing a limit it never reached. And each rule must have exactly one file that is accepted and one that is refused, so a summary edited into agreement with itself breaks the pairing instead of going unnoticed.
+- **Every one of the ten new checks was run against a deliberately broken version of itself first.** One byte changed in the summary; one byte changed in an export; the stated verdict flipped each way; a file relabelled to claim a different rule; a rule named that does not exist; an export deleted; an unlisted export added; a listing removed; the fingerprint of the original file overwritten. Each had to fail the right check by name, and the relabelling case is the one that matters most — it is what proves the checks are not simply agreeing with the file they are reading.
+- **The two projects still cannot see each other, and copying between them is still done by hand.** What is new is that Story Map now records the same summary fingerprint on its side, so regenerating these files there fails a check telling that side to send them over. That converts silent staleness into a visible instruction; it does not remove the step.
+- **The file this project already held was confirmed unchanged.** Its fingerprint is identical before and after Story Map produced the twelve new ones, checked on both sides and against the figure recorded here last week, so nothing already relied upon moved underneath it.
+
 ## v0.40.5 - 2026-08-28
 
 Checks only. Nothing about forecasting is different, no part of the app behaves differently, and your data is untouched.

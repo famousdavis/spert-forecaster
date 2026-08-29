@@ -43,24 +43,61 @@
  * `import-validation.ts`, and NO check reads it.
  */
 
-/** The Story Map commit this table was transcribed from. */
+/** The Story Map commit this table and the vendored fixture set came from. */
 export const PINNED_STORY_MAP = {
-  commit: 'f0bb61f',
-  version: '0.52.12',
+  commit: '333160f',
+  version: '0.52.13',
   registerFile: 'src/lib/forecasterReachability.ts',
   limitsFile: 'src/lib/forecasterLimits.ts',
-  fixtureFile: 'src/__tests__/fixtures/canonical-export.json',
+  fixtureDir: 'src/__tests__/fixtures/',
 } as const
 
 /**
- * SHA-256 of `canonical-export.json` as committed in BOTH repos.
+ * SHA-256 of `fixtures/canonical-export.json` as committed in BOTH repos.
  *
  * Pinned rather than recomputed on purpose: a hash derived from the file it is
- * checking proves nothing. Re-pin only when Story Map publishes a new fixture,
- * and update the same constant on the Story Map side in the same pass.
+ * checking proves nothing. Byte-unchanged across Story Map v0.52.12 → v0.52.13,
+ * verified on both sides — the twelve boundary payloads added in v0.52.13 did
+ * not disturb it.
  */
 export const CANONICAL_EXPORT_SHA256 =
   'e9c903c0db7c27a2b4a559de2501ae4d0b8177bbb928e7116216cb9c36ae12a3'
+
+/**
+ * SHA-256 of `fixtures/vendored-manifest.json`.
+ *
+ * ⚠️ ONE pin covers the whole set, by design. The manifest carries a `sha256`
+ * for every payload, so pinning the manifest's own bytes makes those thirteen
+ * hashes trustworthy in turn, and the payloads are then checked against them.
+ * Thirteen separately-pinned constants here would be thirteen things to
+ * re-transcribe by hand at each re-vendor, and a hand-transcribed hash is the
+ * failure this pin exists to prevent.
+ *
+ * Story Map holds the same value in `forecasterFixtures.ts` as
+ * `VENDORED_MANIFEST_SHA256`, so regenerating the set over there fails a named
+ * test telling that side to re-vendor to this one. That is the only automated
+ * link between the repos, and it runs in the OTHER direction from everything
+ * else in this folder.
+ */
+export const VENDORED_MANIFEST_SHA256 =
+  '8f33579560ca3b2b156880f1af6b865d91ab322731696994739d9c7e30b44e5f'
+
+/** One row of `vendored-manifest.json`. */
+export interface ManifestEntry {
+  /** Register row id, or 'canonical'. */
+  readonly row: string
+  readonly label: string
+  readonly file: string
+  /** Story Map's CLAIM about this repo's verdict. Never trusted — see the test. */
+  readonly forecasterShould: 'accept' | 'reject'
+  readonly sha256: string
+}
+
+export interface VendoredManifest {
+  readonly note: string
+  readonly generatedFrom: string
+  readonly entries: readonly ManifestEntry[]
+}
 
 /**
  * The limits Story Map vendors FROM this repo (`forecasterLimits.ts`).

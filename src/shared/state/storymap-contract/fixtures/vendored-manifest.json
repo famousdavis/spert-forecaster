@@ -1,0 +1,97 @@
+{
+  "note": "Vendored into spert-forecaster. See forecasterFixtures.ts before editing.",
+  "generatedFrom": "buildForecasterExport, normalised (exportedAt removed)",
+  "entries": [
+    {
+      "row": "canonical",
+      "label": "canonical export",
+      "file": "canonical-export.json",
+      "forecasterShould": "accept",
+      "sha256": "e9c903c0db7c27a2b4a559de2501ae4d0b8177bbb928e7116216cb9c36ae12a3"
+    },
+    {
+      "row": "F14",
+      "label": "milestone count — at the limit",
+      "file": "boundary-F14-at.json",
+      "forecasterShould": "accept",
+      "sha256": "4eb3fc506627c28af65070ead9fe7ba814c3f16efd3ab657545bf5f8430d5095"
+    },
+    {
+      "row": "F14",
+      "label": "milestone count — one past the limit",
+      "file": "boundary-F14-over.json",
+      "forecasterShould": "reject",
+      "sha256": "04c6bce94f0dbbebbfcdd3171c150f8eb34a862335444724478f735e7dae283d"
+    },
+    {
+      "row": "F08",
+      "label": "project name length — at the limit",
+      "file": "boundary-F08-at.json",
+      "forecasterShould": "accept",
+      "sha256": "9bb62d5e0b727a705053195d88181282074cb4278eeac198a7bf713dcc426ffb"
+    },
+    {
+      "row": "F08",
+      "label": "project name length — one past the limit",
+      "file": "boundary-F08-over.json",
+      "forecasterShould": "reject",
+      "sha256": "1157298c55ed51d41a8a425fafb33e87acd026924826f6feb9fe99a013722300"
+    },
+    {
+      "row": "F19",
+      "label": "release name length — at the limit",
+      "file": "boundary-F19-at.json",
+      "forecasterShould": "accept",
+      "sha256": "42289701602bb83f3c97b889db224ab640ee072072c08e1140f5f2bbc314c3ad"
+    },
+    {
+      "row": "F19",
+      "label": "release name length — one past the limit",
+      "file": "boundary-F19-over.json",
+      "forecasterShould": "reject",
+      "sha256": "c622b14258b5bedbbb4dfbad9e1a476f2e2b19b23171ad88a217ae6a84ceef27"
+    },
+    {
+      "row": "F20",
+      "label": "milestone backlogSize ceiling — at the limit",
+      "file": "boundary-F20-at.json",
+      "forecasterShould": "accept",
+      "sha256": "0eddf0c95aca6a6e5b643992ff0721159b7449fdb85e9167ac86d71b6632d016"
+    },
+    {
+      "row": "F20",
+      "label": "milestone backlogSize ceiling — one past the limit",
+      "file": "boundary-F20-over.json",
+      "forecasterShould": "reject",
+      "sha256": "dec8fcb8106e1b6b29c0982693fb0da322488fff2bf3f78b3ae24974671facb1"
+    },
+    {
+      "row": "F32",
+      "label": "sprint end date validity — at the limit",
+      "file": "boundary-F32-at.json",
+      "forecasterShould": "accept",
+      "sha256": "a7d54660263827bd671ecf94a773fa41efc368f84b773cae7fd2fade8a424d1a"
+    },
+    {
+      "row": "F32",
+      "label": "sprint end date validity — one past the limit",
+      "file": "boundary-F32-over.json",
+      "forecasterShould": "reject",
+      "sha256": "d5b9c2f75c1a782fd329967c1eb384ff23ac5e32539a5c27caaab9b46acd90db"
+    },
+    {
+      "row": "F29",
+      "label": "sprint velocity floor — at the limit",
+      "file": "boundary-F29-at.json",
+      "forecasterShould": "accept",
+      "sha256": "09dfa2eb9cfa1c02060dced3df35bebae23669d51674f614519f3a6631260764"
+    },
+    {
+      "row": "F29",
+      "label": "sprint velocity floor — one past the limit",
+      "file": "boundary-F29-over.json",
+      "forecasterShould": "reject",
+      "sha256": "e2896228d478a59d3a733256064fd0c80e09adcd56959943ba23302a682b8bff"
+    }
+  ]
+}

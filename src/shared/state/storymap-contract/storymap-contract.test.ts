@@ -41,7 +41,7 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { join } from 'node:path'
 import { validateImportData } from '../import-validation'
@@ -52,12 +52,17 @@ import {
   PRE_VALIDATOR_REGISTER,
   FORECASTER_LIMITS,
   CANONICAL_EXPORT_SHA256,
+  VENDORED_MANIFEST_SHA256,
+  type ManifestEntry,
+  type VendoredManifest,
 } from './register'
 
 // Resolved from this file's own location rather than process.cwd(), so the
 // paths hold whatever directory the runner was started from.
 const HERE = import.meta.dirname
-const FIXTURE_PATH = join(HERE, 'canonical-export.json')
+const FIXTURES_DIR = join(HERE, 'fixtures')
+const FIXTURE_PATH = join(FIXTURES_DIR, 'canonical-export.json')
+const MANIFEST_PATH = join(FIXTURES_DIR, 'vendored-manifest.json')
 const VALIDATOR_PATH = join(HERE, '..', 'import-validation.ts')
 const IMPORT_HOOK_PATH = join(HERE, '..', '..', '..', 'features', 'projects', 'hooks', 'useImportState.ts')
 
@@ -295,13 +300,26 @@ interface BoundaryPair {
  * Every pair states BOTH sides. A one-sided case passes just as happily with
  * the limit set wrong, and that failure has recurred through this campaign.
  *
- * ⚠️ BOTH SIDES ARE CONSTRUCTED HERE, and nothing derives them. Story Map's
- * fixture module exports `Product` builders, not payloads — turning one into a
- * payload needs its `buildForecasterExport` and its type graph, which this repo
- * deliberately does not reach for. The only payload it committed is the
- * canonical fixture, and that sits at NO limit (2 milestones, ~13-char names,
- * backlogSize 30/40). So every pair below is a mutation of that fixture, and if
- * a mutation is built wrong the pair tests nothing. Read them, do not trust them.
+ * ⚠️ BOTH SIDES OF EVERY PAIR BELOW ARE CONSTRUCTED HERE, by mutating the
+ * canonical fixture. Nothing derives them, so a mutation built wrong tests
+ * nothing. Read them; do not trust them.
+ *
+ * ── WHY THESE SURVIVED THE VENDORED SET ─────────────────────────────────────
+ * Story Map v0.52.13 ships real exporter output for six rows, and the block
+ * below this one uses it. These hand-built pairs are NOT redundant with it:
+ *
+ *   - They cover eight axes Story Map's exporter structurally CANNOT emit —
+ *     F10 unitOfMeasure, F12/F31/F33 dates, F30 backlogAtSprintEnd, and the
+ *     exact-zero floors. Those rows are UNREACHABLE or PRECLUDED in the
+ *     register, which is precisely why no fixture for them can exist.
+ *   - The vendored F32 pair uses '2026-13-45', which is Invalid Date and so
+ *     dies at the isNaN guard. Only the leap pair here reaches the
+ *     auto-correction check at import-validation.ts:39-43.
+ *   - The vendored F29 pair is 1 / -1, testing the exporter-reachable
+ *     direction. The pair here is 0 / -1, pinning the boundary VALUE.
+ *
+ * Where the two overlap, the vendored half is the better evidence and is not
+ * duplicated away — an independent construction that agrees is worth keeping.
  */
 const BOUNDARY_PAIRS: readonly BoundaryPair[] = [
   {
@@ -438,6 +456,116 @@ describe('C3 — boundary pairs', () => {
     // is what makes the rejection independent of the isNaN guard.
     expect(corrected.getUTCMonth()).not.toBe(2 - 1)
     expect(corrected.getUTCDate()).not.toBe(29)
+  })
+})
+
+// ── The vendored boundary set ───────────────────────────────────────────────
+
+/**
+ * Story Map v0.52.13 ships twelve boundary payloads plus the canonical one, all
+ * REAL `buildForecasterExport` output. The `-over` halves are what the exporter
+ * produces BEFORE `downloadForecasterExport` refuses them, which is what makes
+ * them legitimate reject-side inputs here rather than hand-drawn approximations.
+ *
+ * ⚠️ `forecasterShould` IS STORY MAP'S CLAIM ABOUT THIS REPO, AND IS NOT TRUSTED.
+ * It is a field in a file another repository generated; a wrong value would make
+ * a green run here prove the opposite of what it says. Every verdict below is
+ * produced by THIS repo's validator, and the claim is then checked against it —
+ * never the other way round. Two further guards make that non-circular:
+ *   - a reject must carry the message registered for the row the manifest NAMES,
+ *     so a payload rejecting for an unrelated reason cannot pass as its row;
+ *   - every row must have exactly one accept and one reject, so a manifest that
+ *     relabelled a half to agree with itself breaks the pairing.
+ */
+const MANIFEST = JSON.parse(readFileSync(MANIFEST_PATH, 'utf8')) as VendoredManifest
+
+const sha256Of = (path: string): string =>
+  createHash('sha256').update(readFileSync(path)).digest('hex')
+
+/** Fresh parse per call — `validateImportData` normalises its argument in place. */
+const loadEntry = (entry: ManifestEntry): unknown =>
+  JSON.parse(readFileSync(join(FIXTURES_DIR, entry.file), 'utf8'))
+
+describe('C6 — the vendored fixture set is the one Story Map committed', () => {
+  it('the manifest matches its pin', () => {
+    // The single hand-transcribed hash. Everything else chains off it.
+    expect(sha256Of(MANIFEST_PATH)).toBe(VENDORED_MANIFEST_SHA256)
+  })
+
+  it.each(MANIFEST.entries.map((e) => [e.file, e] as const))(
+    '%s matches the SHA the manifest records for it',
+    (_file, entry) => {
+      expect(sha256Of(join(FIXTURES_DIR, entry.file))).toBe(entry.sha256)
+    },
+  )
+
+  it('lists every vendored payload, and vendors every listed payload', () => {
+    // Both directions. A payload added without a manifest row would otherwise
+    // sit here untested, and a row naming a missing file would silently skip.
+    const onDisk = readdirSync(FIXTURES_DIR)
+      .filter((f) => f.endsWith('.json') && f !== 'vendored-manifest.json')
+      .sort()
+    expect(MANIFEST.entries.map((e) => e.file).sort()).toEqual(onDisk)
+  })
+
+  it('still carries the canonical payload unchanged', () => {
+    // Byte-identical across Story Map v0.52.12 → v0.52.13. Asserted against the
+    // constant pinned BEFORE the set grew, so a regeneration that quietly
+    // rewrote it would fail here rather than being absorbed by the new manifest.
+    const canonical = MANIFEST.entries.find((e) => e.file === 'canonical-export.json')
+    expect(canonical?.sha256).toBe(CANONICAL_EXPORT_SHA256)
+  })
+})
+
+describe('the vendored set — verdicts produced by THIS validator', () => {
+  it.each(MANIFEST.entries.map((e) => [`${e.row} ${e.label}`, e] as const))(
+    '%s',
+    (_label, entry) => {
+      if (entry.forecasterShould === 'accept') {
+        const data = loadEntry(entry)
+        expect(validateImportData(data)).toBe(true)
+        // An accepted Story Map payload must also ROUTE as one. Accepting it
+        // while classifying it `legacy` is the failure this contract exists for.
+        expect(classifyImportData(data as never).exportType).toBe('spert-story-map')
+        return
+      }
+      const produced = messageFrom(loadEntry(entry))
+      const row = REGISTER.find((r) => r.id === entry.row)
+      expect(row, `manifest names row ${entry.row}, which is not in the register`).toBeDefined()
+      // The rejection must be THIS row's, not merely some rejection.
+      expect(produced).toMatch(templateToRegExp(row!.message))
+    },
+  )
+
+  it('pairs every boundary row — one accept, one reject', () => {
+    const byRow = new Map<string, string[]>()
+    for (const e of MANIFEST.entries) {
+      if (e.row === 'canonical') continue
+      byRow.set(e.row, [...(byRow.get(e.row) ?? []), e.forecasterShould])
+    }
+    expect(byRow.size).toBeGreaterThan(0)
+    for (const [row, verdicts] of byRow) {
+      expect(verdicts.sort(), `${row} is not a pair`).toEqual(['accept', 'reject'])
+    }
+  })
+
+  it('names only rows that exist in the register', () => {
+    const ids = new Set(REGISTER.map((r) => r.id))
+    for (const e of MANIFEST.entries) {
+      if (e.row === 'canonical') continue
+      expect(ids, `manifest names unknown row ${e.row}`).toContain(e.row)
+    }
+  })
+
+  it('covers a strict subset of the SHIPPED rows, and says which are missing', () => {
+    // Not a defect — a fact worth failing on if it changes silently. Story Map
+    // BLOCKS nine rows but ships payloads for six: F07 and F18 are empty-name
+    // cases rather than boundaries, and F30 (backlogAtSprintEnd) is a real
+    // boundary with no vendored pair. F30 is covered by a hand-built pair above.
+    const shipped = REGISTER.filter((r) => r.status === 'SHIPPED').map((r) => r.id)
+    const vendored = new Set(MANIFEST.entries.map((e) => e.row).filter((r) => r !== 'canonical'))
+    expect([...vendored].sort()).toEqual(['F08', 'F14', 'F19', 'F20', 'F29', 'F32'])
+    expect(shipped.filter((id) => !vendored.has(id))).toEqual(['F07', 'F18', 'F30'])
   })
 })
 
