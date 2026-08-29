@@ -1,0 +1,130 @@
+{
+  "version": "1.0",
+  "source": "spert-story-map",
+  "projects": [
+    {
+      "id": "prod-fixture",
+      "name": "Fixture Product",
+      "unitOfMeasure": "Story Points",
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-02-01T00:00:00.000Z",
+      "sprintCadenceWeeks": 2,
+      "firstSprintStartDate": "2026-01-01",
+      "milestones": [
+        {
+          "id": "rel-0",
+          "name": "Release 1",
+          "backlogSize": 10,
+          "color": "#2563eb",
+          "showOnChart": true,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-02-01T00:00:00.000Z"
+        },
+        {
+          "id": "rel-1",
+          "name": "Release 2",
+          "backlogSize": 10,
+          "color": "#0d9488",
+          "showOnChart": true,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-02-01T00:00:00.000Z"
+        },
+        {
+          "id": "rel-2",
+          "name": "Release 3",
+          "backlogSize": 10,
+          "color": "#7c3aed",
+          "showOnChart": true,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-02-01T00:00:00.000Z"
+        },
+        {
+          "id": "rel-3",
+          "name": "Release 4",
+          "backlogSize": 10,
+          "color": "#e11d48",
+          "showOnChart": true,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-02-01T00:00:00.000Z"
+        },
+        {
+          "id": "rel-4",
+          "name": "Release 5",
+          "backlogSize": 10,
+          "color": "#d97706",
+          "showOnChart": true,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-02-01T00:00:00.000Z"
+        },
+        {
+          "id": "rel-5",
+          "name": "Release 6",
+          "backlogSize": 10,
+          "color": "#059669",
+          "showOnChart": true,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-02-01T00:00:00.000Z"
+        },
+        {
+          "id": "rel-6",
+          "name": "Release 7",
+          "backlogSize": 10,
+          "color": "#4f46e5",
+          "showOnChart": true,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-02-01T00:00:00.000Z"
+        },
+        {
+          "id": "rel-7",
+          "name": "Release 8",
+          "backlogSize": 10,
+          "color": "#ea580c",
+          "showOnChart": true,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-02-01T00:00:00.000Z"
+        },
+        {
+          "id": "rel-8",
+          "name": "Release 9",
+          "backlogSize": 10,
+          "color": "#2563eb",
+          "showOnChart": true,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-02-01T00:00:00.000Z"
+        },
+        {
+          "id": "rel-9",
+          "name": "Release 10",
+          "backlogSize": 10,
+          "color": "#0d9488",
+          "showOnChart": true,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-02-01T00:00:00.000Z"
+        },
+        {
+          "id": "rel-10",
+          "name": "Release 11",
+          "backlogSize": 10,
+          "color": "#7c3aed",
+          "showOnChart": true,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-02-01T00:00:00.000Z"
+        }
+      ]
+    }
+  ],
+  "sprints": [
+    {
+      "id": "sp-1",
+      "projectId": "prod-fixture",
+      "sprintNumber": 1,
+      "sprintStartDate": "2026-01-01",
+      "sprintFinishDate": "2026-01-14",
+      "doneValue": 0,
+      "backlogAtSprintEnd": 110,
+      "includedInForecast": true,
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-02-01T00:00:00.000Z"
+    }
+  ]
+}

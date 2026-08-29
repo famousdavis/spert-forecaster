@@ -1,0 +1,52 @@
+{
+  "version": "1.0",
+  "source": "spert-story-map",
+  "projects": [
+    {
+      "id": "prod-fixture",
+      "name": "Fixture Product",
+      "unitOfMeasure": "Story Points",
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-02-01T00:00:00.000Z",
+      "sprintCadenceWeeks": 2,
+      "firstSprintStartDate": "2026-01-01",
+      "milestones": [
+        {
+          "id": "rel-1",
+          "name": "Release One",
+          "backlogSize": 20,
+          "color": "#2563eb",
+          "showOnChart": true,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-02-01T00:00:00.000Z"
+        }
+      ]
+    }
+  ],
+  "sprints": [
+    {
+      "id": "sp-1",
+      "projectId": "prod-fixture",
+      "sprintNumber": 1,
+      "sprintStartDate": "2026-01-01",
+      "sprintFinishDate": "2026-01-14",
+      "doneValue": 11,
+      "backlogAtSprintEnd": 9,
+      "includedInForecast": true,
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-02-01T00:00:00.000Z"
+    },
+    {
+      "id": "sp-2",
+      "projectId": "prod-fixture",
+      "sprintNumber": 2,
+      "sprintStartDate": "2026-01-15",
+      "sprintFinishDate": "2026-01-28",
+      "doneValue": -1,
+      "backlogAtSprintEnd": 10,
+      "includedInForecast": true,
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-02-01T00:00:00.000Z"
+    }
+  ]
+}
