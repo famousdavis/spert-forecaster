@@ -308,10 +308,17 @@ interface BoundaryPair {
  * Story Map v0.52.13 ships real exporter output for six rows, and the block
  * below this one uses it. These hand-built pairs are NOT redundant with it:
  *
- *   - They cover eight axes Story Map's exporter structurally CANNOT emit —
- *     F10 unitOfMeasure, F12/F31/F33 dates, F30 backlogAtSprintEnd, and the
- *     exact-zero floors. Those rows are UNREACHABLE or PRECLUDED in the
- *     register, which is precisely why no fixture for them can exist.
+ *   - They cover axes Story Map's exporter structurally CANNOT emit — F10
+ *     unitOfMeasure, F12/F31/F33 dates, and the exact-zero floors. Those rows
+ *     are UNREACHABLE or PRECLUDED in the register, which is precisely why no
+ *     fixture for them can exist.
+ *   - ⚠️ F30 (`backlogAtSprintEnd`) is NOT in that group. It is SHIPPED —
+ *     Story Map blocks it, so a pair for it COULD be published and simply has
+ *     not been. An earlier revision of this comment filed it under
+ *     "structurally unclosable", which was wrong: unclosable and merely-absent
+ *     are different, and only one of them is anybody's to fix. The
+ *     SHIPPED-coverage test below derives its buckets from `REGISTER`, so it
+ *     was unaffected; this prose was not.
  *   - The vendored F32 pair uses '2026-13-45', which is Invalid Date and so
  *     dies at the isNaN guard. Only the leap pair here reaches the
  *     auto-correction check at import-validation.ts:39-43.
@@ -561,11 +568,111 @@ describe('the vendored set — verdicts produced by THIS validator', () => {
     // Not a defect — a fact worth failing on if it changes silently. Story Map
     // BLOCKS nine rows but ships payloads for six: F07 and F18 are empty-name
     // cases rather than boundaries, and F30 (backlogAtSprintEnd) is a real
-    // boundary with no vendored pair. F30 is covered by a hand-built pair above.
+    // boundary with no vendored PAIR. Its ceiling is nonetheless exercised by
+    // vendored data — boundary-F20-over.json violates F30 as well as F20 — see
+    // the violation-profile block below. What has no vendored coverage is F30
+    // WITHOUT F20, which needs a payload carrying no milestones at all.
     const shipped = REGISTER.filter((r) => r.status === 'SHIPPED').map((r) => r.id)
     const vendored = new Set(MANIFEST.entries.map((e) => e.row).filter((r) => r !== 'canonical'))
     expect([...vendored].sort()).toEqual(['F08', 'F14', 'F19', 'F20', 'F29', 'F32'])
     expect(shipped.filter((id) => !vendored.has(id))).toEqual(['F07', 'F18', 'F30'])
+  })
+})
+
+// ── Violation profiles: is the row attribution real, or an artefact? ────────
+
+/**
+ * ⚠️ WHY THIS EXISTS. The block above asserts each `-over` payload rejects with
+ * the message of the row its manifest NAMES. That check passes for
+ * `boundary-F20-over.json` for a reason nothing stated: the payload violates
+ * TWO rules — `backlogSize: 1000000` (F20) and `backlogAtSprintEnd: 1000000`
+ * (F30) — and F20 wins only because milestone validation
+ * (`import-validation.ts:238`) runs before sprint validation (`:285`). The row
+ * attribution there is a consequence of loop order, not of the payload.
+ *
+ * That is not a silent hazard — reordering those loops makes the row guard
+ * fail loudly rather than pass wrongly — but "passes for a reason nobody has
+ * written down" is how a check becomes folklore. So each `-over` payload's FULL
+ * violation profile is pinned here: neutralise the violation its row claims,
+ * and state exactly what the validator says next.
+ *
+ * `remaining: null` is the strong result — the claimed violation was the ONLY
+ * one, so the attribution is a property of the payload rather than of the
+ * validator's iteration order. Five of the six are that. The sixth is named.
+ */
+const VIOLATION_PROFILES: Record<string, {
+  readonly neutralise: (payload: Obj) => void
+  /** null when the claimed violation was the payload's only one. */
+  readonly remaining: string | null
+}> = {
+  F08: {
+    neutralise: (p) => { projectsOf(p)[0].name = 'N'.repeat(FORECASTER_LIMITS.MAX_STRING_LENGTH) },
+    remaining: null,
+  },
+  F14: {
+    neutralise: (p) => {
+      const proj = projectsOf(p)[0]
+      proj.milestones = (proj.milestones as Obj[]).slice(0, FORECASTER_LIMITS.MAX_MILESTONES)
+    },
+    remaining: null,
+  },
+  F19: {
+    neutralise: (p) => { milestonesOf(p)[0].name = 'R'.repeat(FORECASTER_LIMITS.MAX_STRING_LENGTH) },
+    remaining: null,
+  },
+  F20: {
+    neutralise: (p) => { milestonesOf(p)[0].backlogSize = FORECASTER_LIMITS.MAX_NUMERIC_VALUE },
+    // ⚠️ THE COMPOUND ONE. Not a flaw in the fixture — it means the vendored set
+    // exercises F30's ceiling too, just not under a filename that says so. The
+    // F30 case with NO vendored coverage is F30 without F20, which needs a
+    // payload carrying zero milestones.
+    remaining: 'Sprint at index 0 has invalid backlogAtSprintEnd (must be 0-999999).',
+  },
+  F29: {
+    neutralise: (p) => {
+      for (const s of sprintsOf(p)) if ((s.doneValue as number) < 0) s.doneValue = 0
+    },
+    remaining: null,
+  },
+  F32: {
+    neutralise: (p) => { sprintsOf(p)[1].sprintFinishDate = '2026-01-28' },
+    remaining: null,
+  },
+}
+
+describe('the vendored set — violation profiles', () => {
+  const overs = MANIFEST.entries.filter((e) => e.forecasterShould === 'reject')
+
+  it('profiles every reject-side payload and nothing else', () => {
+    expect(Object.keys(VIOLATION_PROFILES).sort()).toEqual(overs.map((e) => e.row).sort())
+  })
+
+  it.each(overs.map((e) => [e.row, e] as const))(
+    '%s-over — its full violation profile is what is pinned',
+    (row, entry) => {
+      const profile = VIOLATION_PROFILES[row]
+      const payload = loadEntry(entry) as Obj
+      profile.neutralise(payload)
+      if (profile.remaining === null) {
+        // The claimed violation was the only one: attribution is a property of
+        // the payload, independent of the validator's iteration order.
+        expect(validateImportData(payload)).toBe(true)
+        return
+      }
+      expect(messageFrom(payload)).toBe(profile.remaining)
+    },
+  )
+
+  it('F20-over is the only compound payload, and it is the F30 one', () => {
+    // Pinned as a named fact rather than left implicit. If a re-vendor makes a
+    // second payload compound, or makes this one single, this fails and the
+    // profile table has to be re-read rather than silently drifting.
+    const compound = Object.entries(VIOLATION_PROFILES)
+      .filter(([, p]) => p.remaining !== null)
+      .map(([row]) => row)
+    expect(compound).toEqual(['F20'])
+    expect(VIOLATION_PROFILES.F20.remaining)
+      .toMatch(templateToRegExp(REGISTER.find((r) => r.id === 'F30')!.message))
   })
 })
 
