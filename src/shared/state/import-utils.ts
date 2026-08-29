@@ -2,7 +2,7 @@
 // Licensed under the GNU General Public License v3.0.
 // See LICENSE file in the project root for full license text.
 
-import type { Project, Sprint } from '@/shared/types'
+import type { Milestone, Project, Sprint } from '@/shared/types'
 import type { ExportData } from './import-validation'
 
 // Must match the private MAX_STRING_LENGTH in import-validation.ts. Exported
@@ -64,20 +64,107 @@ export type ImportConflict = {
   existingProject: Project
 }
 
-export type ConflictAction = 'skip' | 'copy' | 'replace'
+export type ConflictAction = 'skip' | 'copy' | 'replace' | 'update'
+
+// --- availableActions ---
+// ONE predicate, consumed by BOTH the radiogroup and computeDefaultDecisions.
+// Two independent conditionals is how the availability rule becomes untestable.
+//
+// 'update' requires ALL of:
+//   - an ID conflict. A name conflict means incoming.id ≠ existing.id, so every
+//     sprint and milestone would be unmatched and the §4.1 predicate would
+//     refuse anyway. This restriction is ALSO what makes `id`/`projectId`
+//     no-ops in the merge — see the §3 reconciliation in the PR body.
+//   - a Story Map payload. `source` is DECLARED, not proven
+//     (isStoryMapExport, :29) — that is what makes the §5.3 slot collision
+//     constructible today.
+//   - no existing sprint absent from the incoming set (§4.1). A kept sprint
+//     collides with no deletion at all and moves the forecast anchor one
+//     cadence period.
+export function availableActions(
+  conflictType: 'id' | 'name',
+  exportType: ParsedImportData['exportType'],
+  hasUnmatchedSprints: boolean,
+): ConflictAction[] {
+  const base: ConflictAction[] = ['skip', 'copy', 'replace']
+  if (conflictType !== 'id') return base
+  if (exportType !== 'spert-story-map') return base
+  if (hasUnmatchedSprints) return base
+  return [...base, 'update']
+}
+
+// The §4.1 predicate. TRUE when the existing project holds a sprint the
+// incoming set does not, which makes `update` unavailable.
+//
+// ⚠️ Re-evaluated INSIDE the atomic set() as well as at preview time:
+// conflictsEqual keys on (incomingId, type, existingId) and NOTHING else, so a
+// cloud snapshot mid-preview can change this answer without changing any tuple.
+export function hasUnmatchedExistingSprints(
+  existingSprints: Sprint[],
+  incomingSprints: Sprint[],
+  existingProjectId: string,
+  incomingProjectId: string,
+): boolean {
+  const incomingIds = new Set(
+    incomingSprints.filter((s) => s.projectId === incomingProjectId).map((s) => s.id),
+  )
+  return existingSprints.some(
+    (s) => s.projectId === existingProjectId && !incomingIds.has(s.id),
+  )
+}
 
 // --- Result types ---
+
+// Disclosure payload for ONE updated project. Every value here is computed
+// inside the atomic set() and ridden out on ImportDecisionResult — a
+// preview-computed summary would lie under exactly the race §5.3 guards.
+export type UpdateDisclosure = {
+  projectId: string
+  projectName: string
+  // §4.4 cell 2 — added from incoming, disclosed BY NAME. backlogSize is Story
+  // Map's TOTAL scope, not remaining.
+  milestonesAdded: string[]
+  // §4.4 cell 4 — preserved, local backlogSize > 0. TWO POPULATIONS share this
+  // cell (Story-Map-side ambiguity, and Forecaster-native milestones that can
+  // never match) and NOTHING STORED DISTINGUISHES THEM. The banner names both
+  // possibilities rather than guessing.
+  milestonesKept: string[]
+  // §4.4 cell 3 — preserved, local backlogSize === 0. Inert to thresholds.
+  milestonesKeptCompleted: number
+  // Cells 3 and 4 are APPENDED after the incoming-ordered set (§4.4 placement).
+  milestonesAppended: number
+  sprintsAdded: number
+  sprintsMatched: number
+}
+
+// A slot claim that lost to a higher-precedence action, or to array order.
+export type ImportDowngrade = {
+  incomingProjectId: string
+  incomingProjectName: string
+  from: ConflictAction
+  to: 'skip'
+}
 
 export type ImportDecisionResult = {
   added: number
   skipped: number
   copied: number
   replaced: number
+  updated: number
   // Keyed by EXISTING project ID → incoming project ID. ONLY populated for
   // name-conflict replaces (existingId ≠ winner.id).
   replacedIdMap: Map<string, string>
   // Set of ALL existing project IDs replaced (ID-conflict AND name-conflict).
   replacedExistingIds: Set<string>
+  // ⚠️ DISTINCT from replacedExistingIds, and deliberately not merged into it.
+  // replacedExistingIds drives exactly three consumers — sprint drop (:329),
+  // burnUpConfigs clear (project-store.ts:584), forecast-store clear (:614) —
+  // and an updated project must reach NONE of them: its sprints are merged not
+  // dropped, its burn-up configs survive (C18), and only its `record` is
+  // cleared, never its viewState.
+  updatedExistingIds: Set<string>
+  disclosures: UpdateDisclosure[]
+  downgrades: ImportDowngrade[]
 }
 
 export type ApplyImportResult = {
@@ -187,8 +274,16 @@ export function classifyImportData(data: ExportData): ParsedImportData {
 
 // --- detectImportConflicts ---
 
-// Known limitation: if incoming.id matches existing A AND incoming.name matches
-// different existing B, only the ID conflict is surfaced. Planned: v0.31.0.
+// Known limitation, ACCEPTED (was "Planned: v0.31.0"; that plan lapsed and the
+// behaviour has shipped unchanged since). If incoming.id matches existing A AND
+// incoming.name matches a DIFFERENT existing B, only the ID conflict surfaces.
+//
+// ⚠️ Do not confuse this with the collision applyImportDecisions' shared slot
+// registry guards. This is one incoming project matching two existing ones;
+// that is TWO incoming projects claiming ONE existing slot (A by id, B by
+// name). They are mirror images and have different resolutions: this one
+// prefers the stronger id match and drops the name match, while the registry
+// resolves by action precedence with eviction.
 export function detectImportConflicts(
   incoming: ParsedImportData,
   existingProjects: Project[],
@@ -234,6 +329,161 @@ export function conflictsEqual(a: ImportConflict[], b: ImportConflict[]): boolea
     else counts.set(k, n - 1)
   }
   return counts.size === 0
+}
+
+// --- Update merge: §3's classes, §4.4's and §4.4a's existence partitions ---
+//
+// ⚠️ READ THE §3 RECONCILIATION BEFORE CHANGING ANY OF THIS. The spread makes
+// CLASS 1 THE DEFAULT FOR EVERY ALLOWLISTED KEY and does not read the table —
+// a field not restored below is silently taken from incoming. That is how
+// `unitOfMeasure` and then `createdAt` were each missed for a whole revision.
+//
+// ⚠️ 2a ("preserved by absence") is restored EXPLICITLY here even though a real
+// Story Map export never emits those keys (exportForForecaster.ts:124-133
+// bounds the emitted set at 8). `source` is DECLARED, not proven, so a
+// hand-crafted payload can carry them; explicit restores make 2a hold by
+// construction rather than by producer behaviour.
+
+/**
+ * §4.4's milestone matrix. {matched, incoming-only, existing-only} partitions
+ * on `id`.
+ *
+ * ⚠️ PLACEMENT IS NUMERICALLY CONSEQUENTIAL. `computeCumulativeThresholds`
+ * (shared/lib/forecast-derivations.ts:157-158) is a running sum over ARRAY
+ * ORDER with no sort, so where a preserved milestone sits moves every later
+ * threshold. Only cell 4 is affected — a cell-3 zero contributes no increment
+ * wherever it sits. Append is the only deterministic option ("local position"
+ * is ill-defined once incoming reorders its own set), and the cost falls on
+ * cell 4, where the user's own milestones live permanently: their own
+ * threshold moves, and their forecast date with it. §5.4 discloses that.
+ */
+export function mergeMilestonesForUpdate(
+  existing: Milestone[] | undefined,
+  incoming: Milestone[] | undefined,
+  ts: string,
+): { milestones: Milestone[]; added: string[]; kept: string[]; keptCompleted: number } {
+  const existingList = existing ?? []
+  // `milestones` is emitted CONDITIONALLY (exportForForecaster.ts:133), so an
+  // absent array is not "delete everything" — every existing milestone simply
+  // falls to the existing-only cells and is preserved.
+  const incomingList = incoming ?? []
+  const priorById = new Map(existingList.map((m) => [m.id, m]))
+  const incomingIds = new Set(incomingList.map((m) => m.id))
+
+  const added: string[] = []
+  const milestones: Milestone[] = incomingList.map((inc) => {
+    const prior = priorById.get(inc.id)
+    if (!prior) {
+      // Cell 2 — incoming only. `backlogSize` is Story Map's TOTAL scope, not
+      // remaining: the only value available, and overstated when restructuring
+      // moved completed work in. `createdAt` from incoming (§4.4a) — there is
+      // no local value and 2b presupposes one. Disclosed BY NAME.
+      added.push(inc.name)
+      return { ...inc, updatedAt: ts }
+    }
+    // Cell 1 — matched. Take `name` and position (class 1); override-restore
+    // `backlogSize` (2b), `color` and `showOnChart` (class 3), `createdAt` (2b).
+    return {
+      ...prior,
+      ...inc,
+      backlogSize: prior.backlogSize,
+      color: prior.color,
+      showOnChart: prior.showOnChart,
+      createdAt: prior.createdAt,
+      updatedAt: ts,
+    }
+  })
+
+  // Cells 3 and 4 — existing only, both PRESERVE. Appended after the
+  // incoming-ordered set, keeping local relative order.
+  const kept: string[] = []
+  let keptCompleted = 0
+  for (const m of existingList) {
+    if (incomingIds.has(m.id)) continue
+    if (m.backlogSize === 0) keptCompleted++ // cell 3 — inert to thresholds
+    else kept.push(m.name) // cell 4 — two populations, nothing distinguishes them
+    milestones.push(m)
+  }
+  return { milestones, added, kept, keptCompleted }
+}
+
+/**
+ * §4.4a's sprint existence partition.
+ *
+ * The `existing only` cell cannot occur here: §4.1 makes `update` unavailable
+ * when the existing project holds a sprint absent from the incoming set, and
+ * that predicate is re-evaluated inside the atomic set(). So every existing
+ * sprint is matched, and the merged set is exactly the incoming set.
+ *
+ * ⚠️ `sprintNumber` is CLASS 1 — take incoming wholesale, NEVER mix numbering
+ * across sources. Story Map renumbers positionally over dated sprints
+ * (exportForForecaster.ts:111), so the incoming set is internally consistent;
+ * a locally-numbered sprint mixed into it is what moves the forecast anchor a
+ * full cadence period.
+ */
+export function mergeSprintsForUpdate(
+  existingSprints: Sprint[],
+  incomingSprints: Sprint[],
+  existingProjectId: string,
+  incomingProjectId: string,
+  ts: string,
+): { sprints: Sprint[]; added: number; matched: number } {
+  const priorById = new Map(
+    existingSprints.filter((s) => s.projectId === existingProjectId).map((s) => [s.id, s]),
+  )
+  let added = 0
+  let matched = 0
+  const sprints = incomingSprints
+    .filter((s) => s.projectId === incomingProjectId)
+    .map((inc) => {
+      const prior = priorById.get(inc.id)
+      if (!prior) {
+        // Incoming only — a NEW sprint, the main thing `update` delivers.
+        // `createdAt` AND `includedInForecast` from incoming: both are 2b,
+        // both presuppose a local value, and a new sprint has neither.
+        added++
+        return { ...inc, projectId: existingProjectId, updatedAt: ts }
+      }
+      matched++
+      return {
+        ...prior,
+        ...inc,
+        projectId: existingProjectId,
+        customFinishDate: prior.customFinishDate, // 2a
+        includedInForecast: prior.includedInForecast, // 2b
+        createdAt: prior.createdAt, // 2b
+        updatedAt: ts, // class 4
+      }
+    })
+  return { sprints, added, matched }
+}
+
+/** §3's class table applied to the project shell. Milestones merge separately. */
+export function mergeProjectForUpdate(
+  existing: Project,
+  incoming: Project,
+  ts: string,
+): { project: Project; milestoneReport: ReturnType<typeof mergeMilestonesForUpdate> } {
+  const milestoneReport = mergeMilestonesForUpdate(existing.milestones, incoming.milestones, ts)
+  return {
+    project: {
+      ...existing,
+      ...incoming,
+      // 2a — free by absence for a real export, explicit for a crafted one.
+      projectStartDate: existing.projectStartDate,
+      projectFinishDate: existing.projectFinishDate,
+      productivityAdjustments: existing.productivityAdjustments,
+      // Class 3 — producer artifact. Story Map hardcodes 'Story Points'
+      // (exportForForecaster.ts:127); a user's "Hours" must survive.
+      unitOfMeasure: existing.unitOfMeasure,
+      // 2b — Story Map emits createdAt on every project. NOT free.
+      createdAt: existing.createdAt,
+      // Class 4 — neither side is right, so stamp it.
+      updatedAt: ts,
+      milestones: milestoneReport.milestones,
+    },
+    milestoneReport,
+  }
 }
 
 // --- applyImportDecisions ---
@@ -288,51 +538,136 @@ export function applyImportDecisions(
     return decisions.get(id) ?? 'skip'
   }
 
-  // PASS 1: Pre-compute winning replaces by slot. Iterate in ARRAY ORDER —
-  // not decisions.entries() insertion order (pitfall #12).
-  const winningReplaceBySlotId = new Map<string, Project>()
+  // PASS 1: Pre-compute winning slot claims. Iterate in ARRAY ORDER — not
+  // decisions.entries() insertion order (pitfall #12).
+  //
+  // ⚠️ ONE SHARED REGISTRY for 'replace' AND 'update'. A parallel
+  // `winningUpdateBySlotId` would be blind to this map and reproduce the very
+  // collision it prevents: incoming A id-conflicts with e1 while incoming B
+  // name-conflicts with the SAME e1, so both can claim one slot. The
+  // counter-sum invariant PASSES on that (replaced=1, updated=1, sum correct)
+  // — it catches omission, not double-handling.
+  //
+  // ⚠️ THE REGISTRY HAS THREE READ SITES, and every one needs the action
+  // discriminator: this claim check, the project loop, and the sprint loop.
+  //
+  // PRECEDENCE IS BY ACTION, NOT ARRAY POSITION: an id-conflict `update`
+  // outranks a name-conflict `replace` for the same slot regardless of order,
+  // because an id match is the stronger identity claim and `update` is the
+  // non-destructive action. Array-order precedence is retained unchanged for
+  // replace-vs-replace. update-vs-update on one slot is impossible — both
+  // would need an id conflict against the same existing project, hence the
+  // same incoming id, which validateImportData rejects.
+  type SlotClaim = { project: Project; action: 'replace' | 'update' }
+  const winningBySlotId = new Map<string, SlotClaim>()
+  const downgrades: ImportDowngrade[] = []
   let skipped = 0
+  const downgradeToSkip = (p: Project, from: ConflictAction) => {
+    // `skip`, not `copy`: `copy` is ALREADY the default for a name conflict
+    // (useImportState.ts), so a user who chose `replace` has actively declined
+    // it, and re-imposing it would leave two near-identically-named projects.
+    skipped++
+    downgrades.push({
+      incomingProjectId: p.id,
+      incomingProjectName: p.name,
+      from,
+      to: 'skip',
+    })
+  }
   for (const p of incoming.projects) {
-    if (resolvedOutcome(p.id) !== 'replace') continue
+    const outcome = resolvedOutcome(p.id)
+    if (outcome !== 'replace' && outcome !== 'update') continue
     const conflict = conflictByIncomingId.get(p.id)
     if (!conflict) continue
     const slotId = conflict.existingProject.id
-    if (winningReplaceBySlotId.has(slotId)) {
-      // Multiple incoming projects targeting the same slot — array-order winner
-      // already chosen; downgrade subsequent ones to skip.
-      skipped++
+    const incumbent = winningBySlotId.get(slotId)
+    if (!incumbent) {
+      winningBySlotId.set(slotId, { project: p, action: outcome })
       continue
     }
-    winningReplaceBySlotId.set(slotId, p)
+    if (outcome === 'update' && incumbent.action === 'replace') {
+      // EVICTION — the incumbent is superseded, and counted skipped exactly once.
+      downgradeToSkip(incumbent.project, 'replace')
+      winningBySlotId.set(slotId, { project: p, action: outcome })
+      continue
+    }
+    downgradeToSkip(p, outcome)
   }
 
   // PASS 2: Slot substitution.
   const mergedProjects: Project[] = []
   const mergedSprints: Sprint[] = []
+  const updateSprints: Sprint[] = []
   const replacedExistingIds = new Set<string>()
+  const updatedExistingIds = new Set<string>()
+  const disclosures: UpdateDisclosure[] = []
   let replaced = 0
+  let updated = 0
   const replacedIdMap = new Map<string, string>()
   for (const existingProject of existingProjects) {
-    const winner = winningReplaceBySlotId.get(existingProject.id)
-    if (winner) {
-      mergedProjects.push(winner)
+    const claim = winningBySlotId.get(existingProject.id)
+    // ⚠️ READ SITE 2 of 3. Without the discriminator an `update` falls into the
+    // replace branch: `mergedProjects.push(claim.project)` pushes the INCOMING
+    // project wholesale, so the merge never happens at all, and the id joins
+    // replacedExistingIds, which drives all three of its consumers — sprint
+    // drop, burnUpConfigs clear, forecast-store clear.
+    if (claim?.action === 'replace') {
+      mergedProjects.push(claim.project)
       replacedExistingIds.add(existingProject.id)
-      if (conflictByIncomingId.get(winner.id)?.type === 'name') {
-        replacedIdMap.set(existingProject.id, winner.id)
+      if (conflictByIncomingId.get(claim.project.id)?.type === 'name') {
+        replacedIdMap.set(existingProject.id, claim.project.id)
       }
       replaced++
+    } else if (claim?.action === 'update') {
+      const ts = timestamp()
+      const { project, milestoneReport } = mergeProjectForUpdate(
+        existingProject,
+        claim.project,
+        ts,
+      )
+      const sprintReport = mergeSprintsForUpdate(
+        existingSprints,
+        incoming.sprints,
+        existingProject.id,
+        claim.project.id,
+        ts,
+      )
+      mergedProjects.push(project)
+      updateSprints.push(...sprintReport.sprints)
+      updatedExistingIds.add(existingProject.id)
+      disclosures.push({
+        projectId: existingProject.id,
+        projectName: project.name,
+        milestonesAdded: milestoneReport.added,
+        milestonesKept: milestoneReport.kept,
+        milestonesKeptCompleted: milestoneReport.keptCompleted,
+        milestonesAppended: milestoneReport.kept.length + milestoneReport.keptCompleted,
+        sprintsAdded: sprintReport.added,
+        sprintsMatched: sprintReport.matched,
+      })
+      updated++
     } else {
       mergedProjects.push(existingProject)
     }
   }
   for (const s of existingSprints) {
-    if (!replacedExistingIds.has(s.projectId)) mergedSprints.push(s)
+    if (replacedExistingIds.has(s.projectId)) continue
+    // An updated project's sprints were MERGED above. Carrying the originals
+    // through as well would duplicate every matched sprint.
+    if (updatedExistingIds.has(s.projectId)) continue
+    mergedSprints.push(s)
   }
-  for (const [, winner] of winningReplaceBySlotId) {
-    for (const s of incoming.sprints.filter((s) => s.projectId === winner.id)) {
+  for (const [, claim] of winningBySlotId) {
+    // ⚠️ READ SITE 3 of 3. Without the discriminator an updated project also
+    // receives its incoming sprints here, ON TOP of the merged set —
+    // duplicate sprint ids AND duplicate sprintNumbers, which is precisely the
+    // anchor drift §4.1 refuses an update to prevent.
+    if (claim.action !== 'replace') continue
+    for (const s of incoming.sprints.filter((s) => s.projectId === claim.project.id)) {
       mergedSprints.push(s)
     }
   }
+  mergedSprints.push(...updateSprints)
 
   // PASS 3a: Copies.
   // occupiedNames is seeded from post-Pass-2 mergedProjects so the collision-walk
@@ -378,6 +713,17 @@ export function applyImportDecisions(
   return {
     mergedProjects,
     mergedSprints,
-    result: { added, skipped, copied, replaced, replacedIdMap, replacedExistingIds },
+    result: {
+      added,
+      skipped,
+      copied,
+      replaced,
+      updated,
+      replacedIdMap,
+      replacedExistingIds,
+      updatedExistingIds,
+      disclosures,
+      downgrades,
+    },
   }
 }

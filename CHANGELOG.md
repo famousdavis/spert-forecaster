@@ -1,5 +1,37 @@
 # Changelog
 
+## v0.41.0 - 2026-08-29
+
+A third choice when you re-import a project from SPERT® Story Map, because until now there were only two and neither was what most people wanted.
+
+Story Map is where the work itself moves. You story-map the release there, sprints get completed there, and then you export to the Forecaster to see when it all lands. The second time you do that — and every time after — the Forecaster notices it already has that project and asks what to do. It offered to skip, which quietly threw away everything new; or to replace, which took the new progress and destroyed the forecasting setup you built here: your project start and finish dates, your holiday and vacation periods, the sprints you had deliberately excluded, your custom sprint finish dates, your burn-up chart configuration. Skip was the default, so the safe answer was also the useless one. In practice the choice was between losing the new work and losing your own.
+
+There is now an **Update** option, and it is the default where it applies. It takes the sprint progress from Story Map and leaves your forecasting setup alone.
+
+The trade is worth stating plainly, because it is a real one. Story Map is treated as the authority on progress and sequence, so anything you changed here that it also tracks gets overwritten on every refresh: a completed-work figure you corrected by hand, a project or milestone you renamed here, and any milestone reordering you did here. If you rely on any of those, Update will undo them each time, and skip or replace remain available.
+
+One thing needs care, and the app now says so on screen rather than leaving you to find out. Story Map and the Forecaster use the same word for opposite quantities: a milestone's backlog figure means *total scope* in Story Map and *work remaining* here. So a milestone that arrives from Story Map for the first time carries a total where this app expects a remainder, and it will read high until you correct it. This is not new — it has been true since the first import ever worked — but Update makes it happen more often, so it is now named after every import rather than left to be discovered.
+
+Milestones you created here are a related case. They can never match anything in Story Map, so they are always kept, and they are placed after the imported ones. Because milestone targets accumulate down the list, a kept milestone's own target — and the completion date that follows from it — moves later than where you had it. That is disclosed too.
+
+### Added
+- **An Update action on the import screen, offered when a Story Map file carries a project you already have.** It merges rather than substituting: sprint progress and any new sprints come from Story Map, while your project dates, productivity adjustments, custom sprint finish dates, sprint-exclusion choices, burn-up configurations, unit of measure and milestone backlog figures all stay as you left them.
+- **A plain summary after every import, built from what was actually written rather than from what was previewed.** It names what was kept, names any milestones added from Story Map and warns that their figure is total scope, names any milestones kept that Story Map did not send, and explains the ordering effect on your own milestones.
+- **A stated reason when Update is not available, attached to the choices rather than sitting beside them**, so it reaches screen readers rather than only sighted users. It names both ways forward: delete the local sprint, or use Replace.
+
+### Changed
+- **Update is the default for a Story Map re-import, replacing skip.** Skip was safe only in the sense that it did nothing; it discarded the progress you had just exported. Update is the non-destructive action that also does the thing you came to do. Skip, Replace and Add-as-a-copy are all still offered.
+- **The note under the import choices no longer says burn-up configurations are cleared and forecast inputs may need re-entering.** That was accurate for Replace and wrong for Update, and it was shown for every import. It now describes both.
+- **Your forecast run is cleared after an update, but your forecast view is not.** The run is genuinely out of date once the sprints move. Your target date, selected milestone and scope-growth settings are your own configuration, and they stay.
+
+### Fixed
+- **Your project's creation date and unit of measure survive an update.** Story Map sends both in every export — it always reports Story Points regardless of what you use — so without deliberate handling a project measured in Hours or Ideal Days would have been silently relabelled, and every number with it.
+
+### Notes
+- **Update is withheld when this project has a sprint the imported file does not.** Story Map renumbers sprints on every export, so a sprint it does not know about would end up sharing a number with one it does, and the forecast would silently move by a full cadence period. Rather than renumber your data or merge two numbering schemes, the app declines and tells you why. This is a normal consequence of adding sprints in both places.
+- **Update is offered only for files from Story Map, and only where the project matches by identity rather than by name.** A name match means the two projects share nothing else, so there would be no sprints or milestones to merge.
+- **Every check for this release was run against a deliberately broken version of itself.** Eleven in all, including removing the ordering rule, treating an update as a replacement, resolving a collision by file order instead of by action, and dropping each preserved field in turn. Each had to fail the right check by name — a test that has never been made to fail has not been shown to test anything.
+
 ## v0.40.8 - 2026-08-28
 
 Checks only. Nothing about forecasting is different, no part of the app behaves differently, and your data is untouched.

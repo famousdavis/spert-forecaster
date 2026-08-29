@@ -10,6 +10,8 @@ import type {
   ImportConflict,
   ConflictAction,
 } from '@/shared/state/import-utils'
+import { availableActions, hasUnmatchedExistingSprints } from '@/shared/state/import-utils'
+import type { Sprint } from '@/shared/types'
 
 interface ImportPreviewSectionProps {
   imported: ParsedImportData
@@ -17,6 +19,9 @@ interface ImportPreviewSectionProps {
   decisions: Map<string, ConflictAction>
   mode: 'merge' | 'replace-all'
   applying: boolean
+  // Needed for the §4.1 predicate, which decides whether `update` is offered
+  // for THIS conflict. Read from the store by ProjectsTab.
+  existingSprints: Sprint[]
   // useId() from ProjectsTab — stable, SSR-safe.
   idPrefix: string
   onModeChange: (mode: 'merge' | 'replace-all') => void
@@ -32,11 +37,15 @@ interface ImportPreviewSectionProps {
 // [x] aria-labelledby on each radiogroup references its conflict label element
 // [x] Visual focus indicator — heading uses focus:ring-2 (not focus-visible — pitfall #31)
 // [x] Disabled state visual contrast — disabled:opacity-50 on interactive elements
+// [x] Conditionally-absent option carries an accessible reason — the radiogroup
+//     gets aria-describedby pointing at the "why no Update" text, so the
+//     explanation reaches assistive tech rather than sitting beside it as prose
 
 const ACTION_LABELS: Record<ConflictAction, string> = {
   skip: 'Keep existing, ignore imported',
   copy: 'Add as a copy',
   replace: 'Replace existing with imported',
+  update: 'Update with new progress, keep my forecast setup',
 }
 
 export function ImportPreviewSection({
@@ -45,6 +54,7 @@ export function ImportPreviewSection({
   decisions,
   mode,
   applying,
+  existingSprints,
   idPrefix,
   onModeChange,
   onDecisionChange,
@@ -150,6 +160,27 @@ export function ImportPreviewSection({
             const action = decisions.get(incomingId) ?? 'skip'
             const labelId = `${idPrefix}-conflict-${incomingId}-label`
             const radioName = `${idPrefix}-conflict-${incomingId}`
+            // ONE predicate, shared with computeDefaultDecisions (§5.1). Two
+            // independent conditionals is how the availability rule becomes
+            // untestable.
+            const actions = availableActions(
+              conflict.type,
+              imported.exportType,
+              hasUnmatchedExistingSprints(
+                existingSprints,
+                imported.sprints,
+                conflict.existingProject.id,
+                incomingId,
+              ),
+            )
+            // `update` withheld only because of §4.1 — not because of the
+            // payload type or the conflict kind. That is the case worth
+            // explaining, and the explanation names its exits.
+            const updateWithheldForSprints =
+              conflict.type === 'id' &&
+              imported.exportType === 'spert-story-map' &&
+              !actions.includes('update')
+            const reasonId = `${idPrefix}-conflict-${incomingId}-update-reason`
 
             return (
               <div
@@ -179,8 +210,13 @@ export function ImportPreviewSection({
                   )}
                 </p>
 
-                <div role="radiogroup" aria-labelledby={labelId} className="space-y-1">
-                  {(['skip', 'copy', 'replace'] as const).map((opt) => {
+                <div
+                  role="radiogroup"
+                  aria-labelledby={labelId}
+                  aria-describedby={updateWithheldForSprints ? reasonId : undefined}
+                  className="space-y-1"
+                >
+                  {actions.map((opt) => {
                     const inputId = `${idPrefix}-conflict-${incomingId}-${opt}`
                     return (
                       <label
@@ -203,13 +239,25 @@ export function ImportPreviewSection({
                     )
                   })}
                 </div>
+
+                {updateWithheldForSprints && (
+                  <p id={reasonId} className="text-xs text-spert-text-muted dark:text-gray-400">
+                    <span className="font-medium">Update isn&rsquo;t available here.</span> This
+                    project has a sprint that isn&rsquo;t in the imported file, and keeping it
+                    would duplicate a sprint number and shift the forecast dates. Either delete
+                    that sprint on the Sprint History tab, or choose Replace.
+                  </p>
+                )}
               </div>
             )
           })}
 
           <p className="text-xs italic text-spert-text-muted dark:text-gray-500">
-            Replacing a project substitutes its sprint history with the incoming file&rsquo;s sprints.
-            Burn-up configurations are cleared and forecast inputs may need to be re-entered.
+            Replacing a project substitutes its sprint history with the incoming file&rsquo;s
+            sprints; burn-up configurations are cleared and forecast inputs may need to be
+            re-entered. Updating merges the incoming sprints into the existing project and keeps
+            your burn-up configurations, project dates, productivity adjustments and
+            sprint-exclusion choices &mdash; the forecast is re-run.
           </p>
         </>
       )}

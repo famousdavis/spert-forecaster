@@ -115,6 +115,8 @@ interface ForecastResultsState {
 
   /** deleteProject and merge-import's replaced ids. */
   clearForProject: (projectId: string) => void
+  /** Clears the stale run but preserves viewState — the Story Map `update` path. */
+  clearRecordForProject: (projectId: string) => void
   /** Sign-out, both cloud→local switches, and full import. */
   clearAll: () => void
 }
@@ -168,6 +170,20 @@ export const useForecastResultsStore = create<ForecastResultsState>()((set, get)
         record: state.record?.projectId === projectId ? null : state.record,
       }
     }),
+
+  // The RECORD half of clearForProject, without touching viewState.
+  //
+  // A Story Map `update` invalidates the stale run — the sprint set moved — but
+  // must NOT discard the view: target date, selected milestone and the
+  // scope-growth triple are the user's own configuration, and preserving them
+  // is the point of `update` versus `replace`. Auto-recalculate then fires on
+  // an absent record (isRecordStale(null) === true), and both the read
+  // (useForecastState) and write (setSelectedMilestoneIndex) clamp the
+  // milestone index, so a view that outlives its record cannot overrun.
+  clearRecordForProject: (projectId) =>
+    set((state) => ({
+      record: state.record?.projectId === projectId ? null : state.record,
+    })),
 
   // Purges the view-state map alongside the record. clearProjectsOnSignOut
   // zeroes forecastInputs and _changeLog for stated shared-device reasons; a

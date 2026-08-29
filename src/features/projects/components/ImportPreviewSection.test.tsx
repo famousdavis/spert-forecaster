@@ -44,6 +44,7 @@ interface Setup {
   decisions?: Map<string, ConflictAction>
   mode?: 'merge' | 'replace-all'
   applying?: boolean
+  existingSprints?: Sprint[]
   onModeChange?: (m: 'merge' | 'replace-all') => void
   onDecisionChange?: (id: string, a: ConflictAction) => void
   onConfirm?: () => void
@@ -67,6 +68,7 @@ function renderSection(opts: Setup = {}) {
       decisions={opts.decisions ?? new Map()}
       mode={opts.mode ?? 'merge'}
       applying={opts.applying ?? false}
+      existingSprints={opts.existingSprints ?? []}
       idPrefix="t"
       {...handlers}
     />,
@@ -329,5 +331,98 @@ describe('focus management and Escape key', () => {
     renderSection({ onCancel, applying: true })
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(onCancel).not.toHaveBeenCalled()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// C6 / C7 (UI half) — the `update` option and its accessible refusal reason
+// ---------------------------------------------------------------------------
+
+describe('ImportPreviewSection — the update option', () => {
+  const P_ID = 'prod-1'
+
+  function storyMapImport(sprints: Sprint[] = []): ParsedImportData {
+    return {
+      exportType: 'spert-story-map',
+      projects: [makeProject({ id: P_ID, name: 'Incoming' })],
+      sprints,
+    }
+  }
+
+  function sprintFor(id: string): Sprint {
+    return {
+      id,
+      projectId: P_ID,
+      sprintNumber: 1,
+      sprintStartDate: '2026-01-01',
+      sprintFinishDate: '2026-01-14',
+      doneValue: 1,
+      includedInForecast: true,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    }
+  }
+
+  const idConflict: ImportConflict = {
+    type: 'id',
+    incomingProject: makeProject({ id: P_ID, name: 'Incoming' }),
+    existingProject: makeProject({ id: P_ID, name: 'Existing' }),
+  }
+
+  it('offers Update for a Story Map id conflict with no unmatched sprint', () => {
+    renderSection({
+      imported: storyMapImport([sprintFor('sp-1')]),
+      conflicts: [idConflict],
+      existingSprints: [sprintFor('sp-1')],
+    })
+    expect(screen.getByLabelText(/Update with new progress/i)).toBeTruthy()
+  })
+
+  it('withholds Update when the project holds a sprint the file lacks, and explains why ACCESSIBLY', () => {
+    renderSection({
+      imported: storyMapImport([sprintFor('sp-1')]),
+      conflicts: [idConflict],
+      // A locally-added sprint the incoming file does not carry (§4.1).
+      existingSprints: [sprintFor('sp-1'), sprintFor('sp-LOCAL')],
+    })
+    expect(screen.queryByLabelText(/Update with new progress/i)).toBeNull()
+
+    // ⚠️ ACCESSIBLY ASSOCIATED, not merely adjacent: the radiogroup must point
+    // at the explanation, or a screen-reader user hears the missing option and
+    // never the reason. Known-bad: drop aria-describedby and this fails while
+    // the prose still renders.
+    const group = screen.getByRole('radiogroup')
+    const describedBy = group.getAttribute('aria-describedby')
+    expect(describedBy).toBeTruthy()
+    const reason = document.getElementById(describedBy!)
+    expect(reason).toBeTruthy()
+    // It must name the exits.
+    expect(reason!.textContent).toMatch(/delete that sprint/i)
+    expect(reason!.textContent).toMatch(/Replace/)
+  })
+
+  it('does not offer Update for a name conflict, and adds no reason text', () => {
+    renderSection({
+      imported: storyMapImport(),
+      conflicts: [
+        {
+          type: 'name',
+          incomingProject: makeProject({ id: 'other', name: 'Existing' }),
+          existingProject: makeProject({ id: P_ID, name: 'Existing' }),
+        },
+      ],
+      existingSprints: [],
+    })
+    expect(screen.queryByLabelText(/Update with new progress/i)).toBeNull()
+    expect(screen.getByRole('radiogroup').getAttribute('aria-describedby')).toBeNull()
+  })
+
+  it('does not offer Update for a non-Story-Map payload', () => {
+    renderSection({
+      imported: legacyImport([makeProject({ id: P_ID })]),
+      conflicts: [idConflict],
+      existingSprints: [],
+    })
+    expect(screen.queryByLabelText(/Update with new progress/i)).toBeNull()
   })
 })
