@@ -19,7 +19,7 @@ vi.mock('@/shared/state/storage', async () => {
 
 import { useImportState } from './useImportState'
 import { useProjectStore } from '@/shared/state/project-store'
-import type { ImportConflict, ConflictAction } from '@/shared/state/import-utils'
+import type { ParsedImportData, ImportConflict, ConflictAction } from '@/shared/state/import-utils'
 import type { Project } from '@/shared/types'
 
 function makeProject(overrides: Partial<Project> = {}): Project {
@@ -151,26 +151,35 @@ describe('useImportState — computeDefaultDecisions', () => {
     existingProject: makeProject({ id: 'e-' + incomingId }),
   })
 
+  // A legacy payload never offers `update` (C7), so these cases exercise the
+  // shipped defaults unchanged. The Story Map cases live below.
+  const legacy = (): ParsedImportData => ({
+    exportType: 'legacy',
+    projects: [],
+    sprints: [],
+    _originalExportData: { version: '0', exportedAt: '2026-01-01', projects: [], sprints: [] },
+  })
+
   it('defaults id conflicts to skip', () => {
     const { result } = renderHook(() => useImportState())
-    const m = result.current.computeDefaultDecisions([conflict('i-1', 'id')])
+    const m = result.current.computeDefaultDecisions([conflict('i-1', 'id')], legacy(), [])
     expect(m.get('i-1')).toBe('skip')
   })
 
   it('defaults name conflicts to copy', () => {
     const { result } = renderHook(() => useImportState())
-    const m = result.current.computeDefaultDecisions([conflict('i-1', 'name')])
+    const m = result.current.computeDefaultDecisions([conflict('i-1', 'name')], legacy(), [])
     expect(m.get('i-1')).toBe('copy')
   })
 
   it('returns an empty Map for empty conflicts', () => {
     const { result } = renderHook(() => useImportState())
-    expect(result.current.computeDefaultDecisions([]).size).toBe(0)
+    expect(result.current.computeDefaultDecisions([], legacy(), []).size).toBe(0)
   })
 
   it('mixes defaults across multiple conflicts', () => {
     const { result } = renderHook(() => useImportState())
-    const m = result.current.computeDefaultDecisions([conflict('a', 'id'), conflict('b', 'name')])
+    const m = result.current.computeDefaultDecisions([conflict('a', 'id'), conflict('b', 'name')], legacy(), [])
     expect(m.get('a')).toBe('skip')
     expect(m.get('b')).toBe('copy')
   })

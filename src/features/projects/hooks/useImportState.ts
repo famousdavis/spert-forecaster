@@ -7,12 +7,16 @@
 import { useCallback, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { useProjectStore } from '@/shared/state/project-store'
+import { buildImportBannerDetails } from '../lib/import-banner'
 import { getStorageMode } from '@/shared/state/storage'
 import { validateImportData, type ExportData } from '@/shared/state/import-validation'
+import type { Sprint } from '@/shared/types'
 import {
+  availableActions,
   classifyImportData,
   conflictsEqual,
   detectImportConflicts,
+  hasUnmatchedExistingSprints,
   type ParsedImportData,
   type LegacyImportData,
   type ImportConflict,
@@ -31,7 +35,7 @@ type ImportPreviewState = {
   mode: ImportMode
 }
 
-type ImportBannerState = { kind: 'success' | 'error'; text: string }
+type ImportBannerState = { kind: 'success' | 'error'; text: string; details?: string[] }
 
 export type { ImportMode, ImportPreviewState, ImportBannerState }
 
@@ -80,13 +84,38 @@ export function useImportState() {
     // Does NOT touch importBanner.
   }, [])
 
+  // ⚠️ SIGNATURE TAKES `imported` AND `existingSprints`. It cannot decide
+  // whether `update` is available from ImportConflict[] alone: availability
+  // depends on the payload's exportType and on the §4.1 sprint predicate.
   const computeDefaultDecisions = useCallback(
-    (conflicts: ImportConflict[]): Map<string, ConflictAction> => {
+    (
+      conflicts: ImportConflict[],
+      imported: ParsedImportData,
+      existingSprints: Sprint[],
+    ): Map<string, ConflictAction> => {
       const m = new Map<string, ConflictAction>()
       for (const c of conflicts) {
-        // C1/C15: Default to 'skip' for ALL ID conflicts (destructive 'replace'
-        // requires opt-in). Default to 'copy' for name conflicts.
-        m.set(c.incomingProject.id, c.type === 'id' ? 'skip' : 'copy')
+        // ONE predicate, shared with the radiogroup (§5.1). Two independent
+        // conditionals is how the availability rule becomes untestable.
+        const actions = availableActions(
+          c.type,
+          imported.exportType,
+          hasUnmatchedExistingSprints(
+            existingSprints,
+            imported.sprints,
+            c.existingProject.id,
+            c.incomingProject.id,
+          ),
+        )
+        // Default to 'update' wherever it is offered: it is the non-destructive
+        // action, and a re-import of the same project is what it exists for.
+        // Otherwise keep the shipped defaults — 'skip' for ID conflicts
+        // (destructive 'replace' requires opt-in), 'copy' for name conflicts.
+        if (actions.includes('update')) {
+          m.set(c.incomingProject.id, 'update')
+        } else {
+          m.set(c.incomingProject.id, c.type === 'id' ? 'skip' : 'copy')
+        }
       }
       return m
     },
@@ -141,10 +170,13 @@ export function useImportState() {
         if (result.added > 0) parts.push(`${result.added} project${result.added !== 1 ? 's' : ''} added`)
         if (result.copied > 0) parts.push(`${result.copied} copied`)
         if (result.replaced > 0) parts.push(`${result.replaced} replaced`)
+        if (result.updated > 0) parts.push(`${result.updated} updated`)
         if (result.skipped > 0) parts.push(`${result.skipped} skipped`)
         showBanner({
           kind: 'success',
           text: parts.length > 0 ? parts.join(', ') + '.' : 'No projects were imported.',
+          // Built from the WRITE-TIME result, never from the preview.
+          details: buildImportBannerDetails(result),
         })
       } catch (err) {
         showBanner({
@@ -248,7 +280,8 @@ export function useImportState() {
             return
           }
           // C23: Read from store at call time.
-          const { projects: currentProjects } = useProjectStore.getState()
+          const { projects: currentProjects, sprints: currentSprints } =
+            useProjectStore.getState()
           const conflicts = detectImportConflicts(imported, currentProjects)
           // C2/C8/C18: Cloud guard — see pre-flight #5 for safety analysis.
           const isCloudMode = getStorageMode() === 'cloud'
@@ -274,7 +307,7 @@ export function useImportState() {
           showPreview({
             imported,
             conflicts,
-            decisions: computeDefaultDecisions(conflicts),
+            decisions: computeDefaultDecisions(conflicts, imported, currentSprints),
             mode: initialMode,
           })
         } catch (err) {

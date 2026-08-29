@@ -20,6 +20,10 @@ import {
   nextCopyName,
   type ApplySmartImportArgs,
   type SmartImportOutcome,
+  type ImportConflict,
+  type ConflictAction,
+  type ParsedImportData,
+  hasUnmatchedExistingSprints,
 } from './import-utils'
 export { validateImportData, type ExportData } from './import-validation'
 
@@ -139,6 +143,39 @@ function emitProjectSave(projectId: string, isCloudUpdate: boolean): void {
   if (!isCloudUpdate) {
     syncBus.emit({ type: 'project:save', projectId })
   }
+}
+
+/**
+ * TRUE when any conflict decided as `update` would now be refused by the §4.1
+ * predicate, read against the sprint set at WRITE time.
+ *
+ * ⚠️ This is a SECOND, SEPARATE guard from the conflict re-detect, and it has to
+ * be. `conflictsEqual` keys on (incomingId, type, existingId) and nothing else,
+ * so a cloud snapshot delivered mid-preview (`replaceProjectsFromCloud`) can add
+ * or remove a SPRINT — flipping this predicate — without changing any tuple. The
+ * re-detect passes, and the update would then run against exactly the sprint set
+ * §4.1 exists to refuse.
+ *
+ * ⚠️ Milestones are safe from this race ONLY because every milestone cell
+ * preserves. That is a dependency, not a coincidence: if any cell ever becomes
+ * "take" or "delete", milestones become a second race and this under-covers.
+ */
+function anyUpdateNowRefused(
+  conflicts: ImportConflict[],
+  decisions: Map<string, ConflictAction>,
+  currentSprints: Sprint[],
+  incoming: ParsedImportData,
+): boolean {
+  return conflicts.some(
+    (c) =>
+      decisions.get(c.incomingProject.id) === 'update' &&
+      hasUnmatchedExistingSprints(
+        currentSprints,
+        incoming.sprints,
+        c.existingProject.id,
+        c.incomingProject.id,
+      ),
+  )
 }
 
 export const useProjectStore = create<ProjectState>()(
@@ -543,6 +580,12 @@ export const useProjectStore = create<ProjectState>()(
             // Workspace changed between hook's guard and this write. No-op.
             return state
           }
+          // ⚠️ SECOND, SEPARATE GUARD — see anyUpdateNowRefused below.
+          if (anyUpdateNowRefused(currentConflicts, decisions, state.sprints, incoming)) {
+            // Same downgrade as tuple drift: the hook resets the file input,
+            // so nobody is stranded.
+            return state
+          }
           const { mergedProjects, mergedSprints, result } = applyImportDecisions(
             state.projects,
             state.sprints,
@@ -581,6 +624,10 @@ export const useProjectStore = create<ProjectState>()(
             }
           }
           // burnUpConfigs selective clear for replaced project slots.
+          // ⚠️ replacedExistingIds ONLY — an updated project keeps its burn-up
+          // configurations (C18). That is the whole point of `update`: the
+          // forecasting setup survives. updatedExistingIds is a DISTINCT set
+          // for exactly this reason and must never be merged into this one.
           for (const existingId of result.replacedExistingIds) {
             delete burnUpConfigs[existingId]
           }
@@ -613,6 +660,13 @@ export const useProjectStore = create<ProjectState>()(
           const forecastResults = useForecastResultsStore.getState()
           for (const existingId of outcome.result.replacedExistingIds) {
             forecastResults.clearForProject(existingId)
+          }
+          // ⚠️ An updated project clears its stale RUN but keeps its viewState.
+          // The run is invalid (the sprint set moved); the view — target date,
+          // selected milestone, scope-growth settings — is the user's own
+          // configuration and is precisely what `update` exists to preserve.
+          for (const existingId of outcome.result.updatedExistingIds) {
+            forecastResults.clearRecordForProject(existingId)
           }
         }
         // C28: syncBus only fires on success. A no-op set() should not trigger

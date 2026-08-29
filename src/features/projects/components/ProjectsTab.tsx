@@ -295,13 +295,23 @@ export function ProjectsTab({ onViewHistory }: ProjectsTabProps) {
         <div
           role={importBanner.kind === 'error' ? 'alert' : 'status'}
           className={cn(
-            'flex items-center justify-between rounded border px-4 py-3 text-sm',
+            'flex justify-between rounded border px-4 py-3 text-sm',
+            importBanner.details?.length ? 'items-start' : 'items-center',
             importBanner.kind === 'error'
               ? 'border-[#e53e3e] bg-[#fff3f3] text-spert-error-dark dark:bg-red-900/20 dark:text-red-100'
               : 'border-green-300 bg-green-50 text-green-900 dark:border-green-700 dark:bg-green-900/30 dark:text-green-100',
           )}
         >
-          <span>{importBanner.text}</span>
+          <div className="min-w-0">
+            <span>{importBanner.text}</span>
+            {importBanner.details && importBanner.details.length > 0 && (
+              <ul className="mt-1 list-disc space-y-0.5 pl-5 text-xs">
+                {importBanner.details.map((d) => (
+                  <li key={d}>{d}</li>
+                ))}
+              </ul>
+            )}
+          </div>
           <button
             onClick={dismissBanner}
             className="border-none bg-transparent cursor-pointer font-bold text-base"
@@ -338,6 +348,7 @@ export function ProjectsTab({ onViewHistory }: ProjectsTabProps) {
           decisions={importPreview.decisions}
           mode={importPreview.mode}
           applying={applying}
+          existingSprints={sprints}
           idPrefix={idPrefix}
           onModeChange={onModeChange}
           onDecisionChange={onDecisionChange}
