@@ -1,0 +1,85 @@
+{
+  "version": "1.0",
+  "source": "spert-story-map",
+  "projects": [
+    {
+      "id": "prod-fixture",
+      "name": "Fixture Product",
+      "unitOfMeasure": "Story Points",
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-02-01T00:00:00.000Z",
+      "sprintCadenceWeeks": 2,
+      "firstSprintStartDate": "2026-01-01",
+      "milestones": [
+        {
+          "id": "rel-1",
+          "name": "Release One",
+          "backlogSize": 30,
+          "color": "#2563eb",
+          "showOnChart": true,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-02-01T00:00:00.000Z"
+        },
+        {
+          "id": "rel-2",
+          "name": "Release Two",
+          "backlogSize": 40,
+          "color": "#0d9488",
+          "showOnChart": true,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-02-01T00:00:00.000Z"
+        }
+      ]
+    }
+  ],
+  "sprints": [
+    {
+      "id": "sp-1",
+      "projectId": "prod-fixture",
+      "sprintNumber": 1,
+      "sprintStartDate": "2026-01-01",
+      "sprintFinishDate": "2026-01-14",
+      "doneValue": 2.5,
+      "backlogAtSprintEnd": 67.5,
+      "includedInForecast": true,
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-02-01T00:00:00.000Z"
+    },
+    {
+      "id": "sp-2",
+      "projectId": "prod-fixture",
+      "sprintNumber": 2,
+      "sprintStartDate": "2026-01-15",
+      "sprintFinishDate": "2026-01-28",
+      "doneValue": 5.5,
+      "backlogAtSprintEnd": 62,
+      "includedInForecast": true,
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-02-01T00:00:00.000Z"
+    },
+    {
+      "id": "sp-3",
+      "projectId": "prod-fixture",
+      "sprintNumber": 3,
+      "sprintStartDate": "2026-01-29",
+      "sprintFinishDate": "2026-02-11",
+      "doneValue": 7,
+      "backlogAtSprintEnd": 55,
+      "includedInForecast": true,
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-02-01T00:00:00.000Z"
+    },
+    {
+      "id": "sp-4",
+      "projectId": "prod-fixture",
+      "sprintNumber": 4,
+      "sprintStartDate": "2026-02-12",
+      "sprintFinishDate": "2026-02-25",
+      "doneValue": 16,
+      "backlogAtSprintEnd": 39,
+      "includedInForecast": true,
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-02-01T00:00:00.000Z"
+    }
+  ]
+}
