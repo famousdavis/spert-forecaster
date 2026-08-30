@@ -20,7 +20,7 @@ vi.mock('@/shared/state/storage', async () => {
 import { useImportState } from './useImportState'
 import { useProjectStore } from '@/shared/state/project-store'
 import type { ParsedImportData, ImportConflict, ConflictAction } from '@/shared/state/import-utils'
-import type { Project } from '@/shared/types'
+import type { Sprint, Project } from '@/shared/types'
 
 function makeProject(overrides: Partial<Project> = {}): Project {
   return {
@@ -182,6 +182,59 @@ describe('useImportState — computeDefaultDecisions', () => {
     const m = result.current.computeDefaultDecisions([conflict('a', 'id'), conflict('b', 'name')], legacy(), [])
     expect(m.get('a')).toBe('skip')
     expect(m.get('b')).toBe('copy')
+  })
+
+  // --- The Story Map cases the comment above promises -----------------------
+  //
+  // ⚠️ Every case above uses a legacy payload, which never offers `update`, so
+  // all four stay green no matter what the availability rule does. These are
+  // the ones that move.
+
+  const storyMap = (sprints: Sprint[] = []): ParsedImportData => ({
+    exportType: 'spert-story-map',
+    projects: [],
+    sprints,
+  })
+  const smSprint = (id: string, projectId: string): Sprint => ({
+    id,
+    projectId,
+    sprintNumber: 1,
+    sprintStartDate: '2026-01-01',
+    sprintFinishDate: '2026-01-14',
+    doneValue: 10,
+    includedInForecast: true,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+  })
+
+  it('defaults a Story Map ID conflict to update, not skip', () => {
+    const { result } = renderHook(() => useImportState())
+    const m = result.current.computeDefaultDecisions([conflict('i-1', 'id')], storyMap(), [])
+    expect(m.get('i-1')).toBe('update')
+  })
+
+  it('⚠️ DEFAULT FLIP: a Story Map NAME conflict with a matching sprint id defaults to update, not copy', () => {
+    // The post-migration re-send. Before the identity-evidence rule this
+    // defaulted to `copy`, silently creating a second project.
+    const { result } = renderHook(() => useImportState())
+    const existingSprints = [smSprint('sp-1', 'e-i-1')]
+    const m = result.current.computeDefaultDecisions(
+      [conflict('i-1', 'name')],
+      storyMap([smSprint('sp-1', 'i-1')]),
+      existingSprints,
+    )
+    expect(m.get('i-1')).toBe('update')
+  })
+
+  it('a Story Map NAME conflict with NO matching sprint id still defaults to copy', () => {
+    const { result } = renderHook(() => useImportState())
+    const existingSprints = [smSprint('sp-LOCAL', 'e-i-1')]
+    const m = result.current.computeDefaultDecisions(
+      [conflict('i-1', 'name')],
+      storyMap([smSprint('sp-OTHER', 'i-1')]),
+      existingSprints,
+    )
+    expect(m.get('i-1')).toBe('copy')
   })
 })
 

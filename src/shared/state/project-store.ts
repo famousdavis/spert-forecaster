@@ -23,6 +23,8 @@ import {
   type ImportConflict,
   type ConflictAction,
   type ParsedImportData,
+  availableActions,
+  hasMatchingExistingSprintId,
   hasUnmatchedExistingSprints,
 } from './import-utils'
 export { validateImportData, type ExportData } from './import-validation'
@@ -146,15 +148,32 @@ function emitProjectSave(projectId: string, isCloudUpdate: boolean): void {
 }
 
 /**
- * TRUE when any conflict decided as `update` would now be refused by the §4.1
- * predicate, read against the sprint set at WRITE time.
+ * TRUE when any conflict decided as `update` would no longer be OFFERED `update`,
+ * re-evaluated against the sprint set at WRITE time.
  *
  * ⚠️ This is a SECOND, SEPARATE guard from the conflict re-detect, and it has to
  * be. `conflictsEqual` keys on (incomingId, type, existingId) and nothing else,
  * so a cloud snapshot delivered mid-preview (`replaceProjectsFromCloud`) can add
- * or remove a SPRINT — flipping this predicate — without changing any tuple. The
- * re-detect passes, and the update would then run against exactly the sprint set
- * §4.1 exists to refuse.
+ * or remove a SPRINT — flipping the availability answer — without changing any
+ * tuple. The re-detect passes, and the update would then run against exactly the
+ * sprint set §4.1 exists to refuse.
+ *
+ * ⚠️ IT COMPOSES `availableActions` RATHER THAN MIRRORING IT, deliberately.
+ * Two sprint predicates now bear on availability, and they combine as a
+ * DISJUNCTION: `update` is refused when a sprint is unmatched OR when a name
+ * conflict has lost its identity evidence. A hand-mirror here would invite the
+ * conjunction, which refuses every update. Composing makes that unwritable —
+ * there is no seam at which a second conjunct could be added. It also ends a
+ * class of rot this file has seen three times: `availableActions`' own comment,
+ * `updateWithheldForSprints`, and the slot-precedence note were all hand-mirrors
+ * of the availability rule, and all three had gone stale.
+ *
+ * ⚠️ ONE BEHAVIOURAL DELTA, and it is a hardening: a crafted `decisions` map
+ * marking `update` on a NON-Story-Map payload is now vetoed here. Previously it
+ * passed this guard and reached the merge, which never re-checks `exportType`.
+ * Not a live bug — decisions originate from a radiogroup that only offers
+ * available actions — but defence-in-depth of the same kind as the
+ * `local-restore-defensive` claw-backs.
  *
  * ⚠️ Milestones are safe from this race ONLY because every milestone cell
  * preserves. That is a dependency, not a coincidence: if any cell ever becomes
@@ -169,12 +188,22 @@ function anyUpdateNowRefused(
   return conflicts.some(
     (c) =>
       decisions.get(c.incomingProject.id) === 'update' &&
-      hasUnmatchedExistingSprints(
-        currentSprints,
-        incoming.sprints,
-        c.existingProject.id,
-        c.incomingProject.id,
-      ),
+      !availableActions(
+        c.type,
+        incoming.exportType,
+        hasUnmatchedExistingSprints(
+          currentSprints,
+          incoming.sprints,
+          c.existingProject.id,
+          c.incomingProject.id,
+        ),
+        hasMatchingExistingSprintId(
+          currentSprints,
+          incoming.sprints,
+          c.existingProject.id,
+          c.incomingProject.id,
+        ),
+      ).includes('update'),
   )
 }
 

@@ -401,7 +401,11 @@ describe('ImportPreviewSection — the update option', () => {
     expect(reason!.textContent).toMatch(/Replace/)
   })
 
-  it('does not offer Update for a name conflict, and adds no reason text', () => {
+  it('does not offer Update for a name conflict with no matching sprint id, and adds no reason text', () => {
+    // ⚠️ The no-evidence case is deliberately UNEXPLAINED (§3j: parity
+    // declined). Unlike the §4.1 case, the user has no local exit — they
+    // cannot manufacture a shared sprint id — so prose naming no exit
+    // would be worse than its absence. `aria-describedby` stays null.
     renderSection({
       imported: storyMapImport(),
       conflicts: [
