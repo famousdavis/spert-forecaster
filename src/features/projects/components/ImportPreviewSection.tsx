@@ -10,7 +10,11 @@ import type {
   ImportConflict,
   ConflictAction,
 } from '@/shared/state/import-utils'
-import { availableActions, hasUnmatchedExistingSprints } from '@/shared/state/import-utils'
+import {
+  availableActions,
+  hasMatchingExistingSprintId,
+  hasUnmatchedExistingSprints,
+} from '@/shared/state/import-utils'
 import type { Sprint } from '@/shared/types'
 
 interface ImportPreviewSectionProps {
@@ -167,6 +171,12 @@ export function ImportPreviewSection({
               conflict.type,
               imported.exportType,
               hasUnmatchedExistingSprints(
+                existingSprints,
+                imported.sprints,
+                conflict.existingProject.id,
+                incomingId,
+              ),
+              hasMatchingExistingSprintId(
                 existingSprints,
                 imported.sprints,
                 conflict.existingProject.id,

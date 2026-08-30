@@ -1,5 +1,29 @@
 # Changelog
 
+## v0.43.0 - 2026-08-30
+
+The Update option now survives a move to cloud storage. Until today, switching to the cloud could quietly put it out of reach for good.
+
+When you move your projects to cloud storage, the app occasionally has to give a project a new internal identifier — the old one is already taken, or it belongs to another account. That is invisible and harmless in itself. But the next time SPERT® Story Map sent that project across, the Forecaster no longer recognised it by identifier, only by name, and **Update was withheld** — leaving Skip, Copy, and Replace. Replace is the one that destroys the forecast setup Update exists to protect: your project dates, your holiday and vacation periods, the sprints you deliberately excluded, your custom sprint finish dates, your burn-up chart configuration.
+
+The reason Update was withheld was sound as far as it went — two projects that merely share a name are usually not the same project, and merging them would be wrong. What it missed is that a project which has just been through a migration *is* the same project, and says so: its sprints still carry the very same identifiers Story Map gave them. That is evidence, and the app now looks for it.
+
+**Update is offered on a name match when the incoming project shares at least one sprint with the one you already have.** Where there is no such evidence, Update stays withheld exactly as before — two unrelated projects that happen to share a name are still refused, and so is a project whose sprint history you have already moved on from.
+
+One consequence to know about, because it changes what is pre-selected for you. When a project arrives by name and brings that evidence with it, the default is now **Update** rather than **Copy**. Copy assumes "same name, different project" — an assumption a shared sprint has just disproved. Nothing is applied until you press Confirm, and Copy remains one click away.
+
+### Added
+- **Update is now reachable for a project whose identifier changed during a cloud migration.** The app treats a shared sprint identifier as evidence that an incoming project is the one you already have, rather than relying on the internal identifier alone.
+- **A written record of how every field is merged**, covering all twenty-nine fields across projects, sprints and milestones. This is the rule the app has always followed; until now it existed only outside the codebase, and four fields had quietly slipped past it over three revisions. Adding a field without saying how it merges is now a build error.
+
+### Changed
+- **The pre-selected choice for an evidenced name match is now Update, not Copy.** Only where the shared-sprint evidence is present; every other case keeps the choice it had before.
+
+### Notes
+- **Where two projects genuinely collide on name alone, nothing changes** — Update is still withheld, and Replace still asks before it does anything.
+- **The rule deciding whether Update is available now has exactly one definition in the code.** It previously existed in several hand-copied places, and all of them had drifted out of date.
+- **The deviation from the import specification is written down** in `docs/SPEC_DEVIATIONS.md` (SD-2), alongside the reasoning and the trade-offs it carries.
+
 ## v0.42.1 - 2026-08-29
 
 Moving your projects to the cloud could leave your sprint history behind, without saying so. If it happened to you, it has already happened — read on.

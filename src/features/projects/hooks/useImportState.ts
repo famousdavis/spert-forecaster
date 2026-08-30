@@ -16,6 +16,7 @@ import {
   classifyImportData,
   conflictsEqual,
   detectImportConflicts,
+  hasMatchingExistingSprintId,
   hasUnmatchedExistingSprints,
   type ParsedImportData,
   type LegacyImportData,
@@ -114,6 +115,12 @@ export function useImportState() {
           c.type,
           imported.exportType,
           hasUnmatchedExistingSprints(
+            existingSprints,
+            imported.sprints,
+            c.existingProject.id,
+            c.incomingProject.id,
+          ),
+          hasMatchingExistingSprintId(
             existingSprints,
             imported.sprints,
             c.existingProject.id,

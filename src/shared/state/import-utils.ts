@@ -70,26 +70,47 @@ export type ConflictAction = 'skip' | 'copy' | 'replace' | 'update'
 // ONE predicate, consumed by BOTH the radiogroup and computeDefaultDecisions.
 // Two independent conditionals is how the availability rule becomes untestable.
 //
+// ⚠️ `update` REQUIRES POSITIVE EVIDENCE OF IDENTITY — that this incoming
+// project IS the existing one. An ID conflict *is* that evidence. A NAME
+// conflict must supply it another way, and a shared sprint id is that way:
+// Story Map preserves `sprint.id` across exports (it renumbers `sprintNumber`,
+// which is a different field), so a matching sprint id is the producer saying
+// the two projects share a history.
+//
 // 'update' requires ALL of:
-//   - an ID conflict. A name conflict means incoming.id ≠ existing.id, so every
-//     sprint and milestone would be unmatched and the §4.1 predicate would
-//     refuse anyway. This restriction is ALSO what makes `id`/`projectId`
-//     no-ops in the merge — see the §3 reconciliation in the PR body.
 //   - a Story Map payload. `source` is DECLARED, not proven
 //     (isStoryMapExport, :29) — that is what makes the §5.3 slot collision
 //     constructible today.
 //   - no existing sprint absent from the incoming set (§4.1). A kept sprint
 //     collides with no deletion at all and moves the forecast anchor one
 //     cadence period.
+//   - identity evidence: an ID conflict, OR — for a name conflict — at least one
+//     existing sprint id present in the incoming set.
+//
+// ⚠️ WHY THE NAME CASE IS REACHABLE AT ALL: a cloud migration can reassign a
+// project's id, after which a later Story Map send of the same project
+// classifies as a NAME conflict. Withholding `update` there left only
+// `replace`, which destroys the forecast configuration `update` exists to
+// protect. Matching does NOT depend on the project ids agreeing —
+// mergeSprintsForUpdate keys on `sprint.id` and takes both project ids as
+// separate parameters — so the old "every sprint would be unmatched"
+// justification was false.
+//
+// ⚠️ `id`/`projectId` were no-ops in the merge ONLY WHILE `update` required an
+// id conflict. That is no longer true, so project `id` is pinned EXPLICITLY in
+// mergeProjectForUpdate (`pinned-identity`). Without that pin a name-conflict
+// update writes the incoming id onto the project while every sprint is remapped
+// to the existing one — orphaning the entire sprint history.
 export function availableActions(
   conflictType: 'id' | 'name',
   exportType: ParsedImportData['exportType'],
   hasUnmatchedSprints: boolean,
+  hasMatchingSprintId: boolean,
 ): ConflictAction[] {
   const base: ConflictAction[] = ['skip', 'copy', 'replace']
-  if (conflictType !== 'id') return base
   if (exportType !== 'spert-story-map') return base
   if (hasUnmatchedSprints) return base
+  if (conflictType !== 'id' && !hasMatchingSprintId) return base
   return [...base, 'update']
 }
 
@@ -110,6 +131,30 @@ export function hasUnmatchedExistingSprints(
   )
   return existingSprints.some(
     (s) => s.projectId === existingProjectId && !incomingIds.has(s.id),
+  )
+}
+
+// The identity-evidence predicate. TRUE when at least one sprint of the
+// EXISTING project also appears in the incoming set for the incoming project,
+// which is what lets a NAME conflict offer `update` (§3).
+//
+// ⚠️ Signature mirrors hasUnmatchedExistingSprints exactly — the two are read
+// together at both call sites and are meant to look like a pair.
+//
+// ⚠️ Vacuously FALSE on a sprint-less existing project, which is correct here:
+// no sprints means no evidence, so a name conflict gets no `update`. An id
+// conflict is unaffected — it carries its own evidence and never consults this.
+export function hasMatchingExistingSprintId(
+  existingSprints: Sprint[],
+  incomingSprints: Sprint[],
+  existingProjectId: string,
+  incomingProjectId: string,
+): boolean {
+  const incomingIds = new Set(
+    incomingSprints.filter((s) => s.projectId === incomingProjectId).map((s) => s.id),
+  )
+  return existingSprints.some(
+    (s) => s.projectId === existingProjectId && incomingIds.has(s.id),
   )
 }
 
@@ -331,17 +376,115 @@ export function conflictsEqual(a: ImportConflict[], b: ImportConflict[]): boolea
   return counts.size === 0
 }
 
-// --- Update merge: §3's classes, §4.4's and §4.4a's existence partitions ---
+// --- Update field classes ---------------------------------------------------
 //
-// ⚠️ READ THE §3 RECONCILIATION BEFORE CHANGING ANY OF THIS. The spread makes
-// CLASS 1 THE DEFAULT FOR EVERY ALLOWLISTED KEY and does not read the table —
+// The policy each key follows when `update` merges an incoming Story Map
+// project onto an existing one.
+//
+// ⚠️ THESE TABLES CLASSIFY POLICIES, NOT EFFECTS. A row states what the merge
+// WRITES, and that is invariant across conflict type. Only the EFFECT varies:
+// `pinned-identity` on a project `id` is a no-op under an id conflict and
+// load-bearing under a name conflict, and it is still one row. No row's class
+// depends on the conflict type — which is what lets one table serve both.
+//
+// ⚠️ DOCUMENTATION, NOT A MECHANISM — the merge functions below do not read
+// them. `Record<keyof T, UpdateFieldClass>` makes OMISSION impossible (add a
+// field to Project/Sprint/Milestone without classing it and `tsc` fails), but
+// it CANNOT make a classification true: every class type-checks against every
+// key. Measured: delete `color`/`showOnChart` from mergeMilestonesForUpdate and
+// tsc stays green with the whole suite passing, while these rows go on claiming
+// `local-producer-artifact`. Omission is the failure that actually recurred —
+// `unitOfMeasure`, then `createdAt`/`updatedAt`, then `sprintNumber`, four
+// fields over three revisions — and it is the hole these close.
+type UpdateFieldClass =
+  | 'incoming'                // producer authoritative; the spread already does this
+  | 'incoming-when-emitted'   // as 'incoming', but CONDITIONALLY emitted; absence leaves local
+  | 'local-restore-defensive' // a real export never emits it; the restore defends a CRAFTED payload
+  | 'local-restore-required'  // the real producer DOES emit it, so the restore is required
+  | 'local-producer-artifact' // the incoming value is an artifact of the producer's own model
+  | 'stamp'                   // neither side is right
+  | 'nested-merge'            // computed by a sub-merge
+  | 'match-key'               // identity of THIS merge; not merged
+  | 'pinned-identity'         // container id written from existing, UNCONDITIONALLY.
+                              // ⚠️ "pinned TO a value" — NOT this file's dominant
+                              // "pinned BY a test/SHA" sense (PINNED_STORY_MAP).
+
+const PROJECT_UPDATE_FIELD_CLASSES: Record<keyof Project, UpdateFieldClass> = {
+  name: 'incoming',
+  // ⚠️ VACUOUS against a real export, and that is not a reason to reclassify.
+  // exportForForecaster.ts reads `product.sprintCadenceWeeks || 2`, so its
+  // `if (cadence)` guard can never fail and the key is ALWAYS emitted. A
+  // crafted payload can still omit it; the local value must stand when it does.
+  sprintCadenceWeeks: 'incoming-when-emitted',
+  // Genuinely absent when no sprint carries a date.
+  firstSprintStartDate: 'incoming-when-emitted',
+  projectStartDate: 'local-restore-defensive',
+  projectFinishDate: 'local-restore-defensive',
+  productivityAdjustments: 'local-restore-defensive',
+  unitOfMeasure: 'local-producer-artifact',
+  createdAt: 'local-restore-required',
+  updatedAt: 'stamp',
+  milestones: 'nested-merge',
+  // Match key of CONFLICT DETECTION, not of this merge — so it is pinned, not
+  // a match key here. Pinned unconditionally: without it a name-conflict update
+  // keeps the incoming id while every sprint is remapped to the existing one,
+  // orphaning the lot.
+  id: 'pinned-identity',
+}
+
+const SPRINT_UPDATE_FIELD_CLASSES: Record<keyof Sprint, UpdateFieldClass> = {
+  sprintNumber: 'incoming',
+  sprintStartDate: 'incoming',
+  sprintFinishDate: 'incoming',
+  doneValue: 'incoming',
+  backlogAtSprintEnd: 'incoming',
+  customFinishDate: 'local-restore-defensive',
+  includedInForecast: 'local-restore-required',
+  createdAt: 'local-restore-required',
+  updatedAt: 'stamp',
+  // `priorById`'s key. Never a no-op.
+  id: 'match-key',
+  projectId: 'pinned-identity',
+}
+
+const MILESTONE_UPDATE_FIELD_CLASSES: Record<keyof Milestone, UpdateFieldClass> = {
+  name: 'incoming',
+  backlogSize: 'local-restore-required',
+  // ⚠️ Not merely "less preferred": exportForForecaster.ts assigns from a
+  // position-dependent palette rotation indexed on the SURVIVING milestone
+  // count, so one release dropped below its 0.01 floor recolours every later
+  // milestone. A re-export can change a colour through ordering alone.
+  color: 'local-producer-artifact',
+  showOnChart: 'local-producer-artifact',
+  createdAt: 'local-restore-required',
+  updatedAt: 'stamp',
+  id: 'match-key',
+}
+
+// Documentation only — nothing reads these.
+void PROJECT_UPDATE_FIELD_CLASSES
+void SPRINT_UPDATE_FIELD_CLASSES
+void MILESTONE_UPDATE_FIELD_CLASSES
+
+// --- Update merge: the field-class tables above, plus §4.4's and §4.4a's
+// existence partitions ---
+//
+// Narrative and rationale: docs/SPEC_DEVIATIONS.md → SD-2 (tracked and
+// readable from any checkout, unlike the spec it supersedes).
+//
+// ⚠️ READ PROJECT_UPDATE_FIELD_CLASSES, SPRINT_UPDATE_FIELD_CLASSES AND
+// MILESTONE_UPDATE_FIELD_CLASSES ABOVE — AND docs/SPEC_DEVIATIONS.md SD-2 —
+// BEFORE CHANGING ANY OF THIS. The
+// spread makes `incoming` THE DEFAULT FOR EVERY ALLOWLISTED KEY and does not
+// read the tables —
 // a field not restored below is silently taken from incoming. That is how
 // `unitOfMeasure` and then `createdAt` were each missed for a whole revision.
 //
-// ⚠️ 2a ("preserved by absence") is restored EXPLICITLY here even though a real
+// ⚠️ `local-restore-defensive` ("preserved by absence") is restored EXPLICITLY
+// here even though a real
 // Story Map export never emits those keys (exportForForecaster.ts:124-133
 // bounds the emitted set at 8). `source` is DECLARED, not proven, so a
-// hand-crafted payload can carry them; explicit restores make 2a hold by
+// hand-crafted payload can carry them; explicit restores make the class hold by
 // construction rather than by producer behaviour.
 
 /**
@@ -377,12 +520,14 @@ export function mergeMilestonesForUpdate(
       // Cell 2 — incoming only. `backlogSize` is Story Map's TOTAL scope, not
       // remaining: the only value available, and overstated when restructuring
       // moved completed work in. `createdAt` from incoming (§4.4a) — there is
-      // no local value and 2b presupposes one. Disclosed BY NAME.
+      // no local value and `local-restore-required` presupposes one.
+      // Disclosed BY NAME.
       added.push(inc.name)
       return { ...inc, updatedAt: ts }
     }
-    // Cell 1 — matched. Take `name` and position (class 1); override-restore
-    // `backlogSize` (2b), `color` and `showOnChart` (class 3), `createdAt` (2b).
+    // Cell 1 — matched. Take `name` and position (`incoming`); override-restore
+    // `backlogSize` and `createdAt` (`local-restore-required`), `color` and
+    // `showOnChart` (`local-producer-artifact`).
     return {
       ...prior,
       ...inc,
@@ -415,7 +560,7 @@ export function mergeMilestonesForUpdate(
  * that predicate is re-evaluated inside the atomic set(). So every existing
  * sprint is matched, and the merged set is exactly the incoming set.
  *
- * ⚠️ `sprintNumber` is CLASS 1 — take incoming wholesale, NEVER mix numbering
+ * ⚠️ `sprintNumber` is `incoming` — take it wholesale, NEVER mix numbering
  * across sources. Story Map renumbers positionally over dated sprints
  * (exportForForecaster.ts:111), so the incoming set is internally consistent;
  * a locally-numbered sprint mixed into it is what moves the forecast anchor a
@@ -439,8 +584,9 @@ export function mergeSprintsForUpdate(
       const prior = priorById.get(inc.id)
       if (!prior) {
         // Incoming only — a NEW sprint, the main thing `update` delivers.
-        // `createdAt` AND `includedInForecast` from incoming: both are 2b,
-        // both presuppose a local value, and a new sprint has neither.
+        // `createdAt` AND `includedInForecast` from incoming: both are
+        // `local-restore-required`, both presuppose a local value, and a new
+        // sprint has neither.
         added++
         return { ...inc, projectId: existingProjectId, updatedAt: ts }
       }
@@ -449,16 +595,19 @@ export function mergeSprintsForUpdate(
         ...prior,
         ...inc,
         projectId: existingProjectId,
-        customFinishDate: prior.customFinishDate, // 2a
-        includedInForecast: prior.includedInForecast, // 2b
-        createdAt: prior.createdAt, // 2b
-        updatedAt: ts, // class 4
+        customFinishDate: prior.customFinishDate, // local-restore-defensive
+        includedInForecast: prior.includedInForecast, // local-restore-required
+        createdAt: prior.createdAt, // local-restore-required
+        updatedAt: ts, // stamp
       }
     })
   return { sprints, added, matched }
 }
 
-/** §3's class table applied to the project shell. Milestones merge separately. */
+/**
+ * PROJECT_UPDATE_FIELD_CLASSES applied to the project shell. Milestones merge
+ * separately. See docs/SPEC_DEVIATIONS.md SD-2 for why `id` is pinned here.
+ */
 export function mergeProjectForUpdate(
   existing: Project,
   incoming: Project,
@@ -469,16 +618,22 @@ export function mergeProjectForUpdate(
     project: {
       ...existing,
       ...incoming,
-      // 2a — free by absence for a real export, explicit for a crafted one.
+      // pinned-identity — UNCONDITIONALLY from existing. A no-op under an id
+      // conflict; load-bearing under a name conflict, where incoming.id differs
+      // and mergeSprintsForUpdate has remapped every sprint to existing.id.
+      // Without this line a name-conflict update orphans the whole history.
+      id: existing.id,
+      // local-restore-defensive — free by absence for a real export, explicit
+      // for a crafted one.
       projectStartDate: existing.projectStartDate,
       projectFinishDate: existing.projectFinishDate,
       productivityAdjustments: existing.productivityAdjustments,
-      // Class 3 — producer artifact. Story Map hardcodes 'Story Points'
+      // local-producer-artifact. Story Map hardcodes 'Story Points'
       // (exportForForecaster.ts:127); a user's "Hours" must survive.
       unitOfMeasure: existing.unitOfMeasure,
-      // 2b — Story Map emits createdAt on every project. NOT free.
+      // local-restore-required — Story Map emits createdAt on every project.
       createdAt: existing.createdAt,
-      // Class 4 — neither side is right, so stamp it.
+      // stamp — neither side is right.
       updatedAt: ts,
       milestones: milestoneReport.milestones,
     },
@@ -551,14 +706,31 @@ export function applyImportDecisions(
   // ⚠️ THE REGISTRY HAS THREE READ SITES, and every one needs the action
   // discriminator: this claim check, the project loop, and the sprint loop.
   //
-  // PRECEDENCE IS BY ACTION, NOT ARRAY POSITION: an id-conflict `update`
-  // outranks a name-conflict `replace` for the same slot regardless of order,
-  // because an id match is the stronger identity claim and `update` is the
+  // PRECEDENCE IS BY ACTION, NOT ARRAY POSITION: `update` outranks `replace`
+  // for the same slot regardless of order, because `update` is the
   // non-destructive action. Array-order precedence is retained unchanged for
-  // replace-vs-replace. update-vs-update on one slot is impossible — both
-  // would need an id conflict against the same existing project, hence the
-  // same incoming id, which validateImportData rejects.
-  type SlotClaim = { project: Project; action: 'replace' | 'update' }
+  // replace-vs-replace.
+  //
+  // ⚠️ update-vs-update ON ONE SLOT IS NOW CONSTRUCTIBLE. It used to be
+  // impossible: both claims would have needed an id conflict against the same
+  // existing project, hence the same incoming id, which validateImportData
+  // rejects. Now that a NAME conflict can also offer `update` (§3), incoming A
+  // can id-conflict with e1 while incoming B name-conflicts with the same e1
+  // and both are decided `update`.
+  //
+  // ⚠️ THE TWO GROUNDS OF THE ORIGINAL RULE SPLIT HERE, so the tie is broken
+  // EXPLICITLY: an ID-conflict `update` outranks a NAME-conflict `update`,
+  // because an id match is the stronger identity claim. That is the ground the
+  // original rule stated, applied to the case it did not have to consider.
+  // `update` still outranks `replace` unconditionally — a name-conflict
+  // `update` beating an id-conflict `replace` is the non-destructive ground
+  // governing, and is unchanged shipped behaviour. Array order breaks the
+  // remaining tie (two name-conflict updates on one slot).
+  type SlotClaim = {
+    project: Project
+    action: 'replace' | 'update'
+    conflictType: 'id' | 'name'
+  }
   const winningBySlotId = new Map<string, SlotClaim>()
   const downgrades: ImportDowngrade[] = []
   let skipped = 0
@@ -582,13 +754,19 @@ export function applyImportDecisions(
     const slotId = conflict.existingProject.id
     const incumbent = winningBySlotId.get(slotId)
     if (!incumbent) {
-      winningBySlotId.set(slotId, { project: p, action: outcome })
+      winningBySlotId.set(slotId, { project: p, action: outcome, conflictType: conflict.type })
       continue
     }
-    if (outcome === 'update' && incumbent.action === 'replace') {
-      // EVICTION — the incumbent is superseded, and counted skipped exactly once.
-      downgradeToSkip(incumbent.project, 'replace')
-      winningBySlotId.set(slotId, { project: p, action: outcome })
+    // EVICTION — the incumbent is superseded, and counted skipped exactly once.
+    const evicts =
+      (outcome === 'update' && incumbent.action === 'replace') ||
+      (outcome === 'update' &&
+        incumbent.action === 'update' &&
+        conflict.type === 'id' &&
+        incumbent.conflictType === 'name')
+    if (evicts) {
+      downgradeToSkip(incumbent.project, incumbent.action)
+      winningBySlotId.set(slotId, { project: p, action: outcome, conflictType: conflict.type })
       continue
     }
     downgradeToSkip(p, outcome)

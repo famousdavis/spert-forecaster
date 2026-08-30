@@ -16,8 +16,11 @@ import { join } from 'node:path'
 import {
   applyImportDecisions,
   availableActions,
+  hasMatchingExistingSprintId,
   hasUnmatchedExistingSprints,
   mergeMilestonesForUpdate,
+  mergeProjectForUpdate,
+  mergeSprintsForUpdate,
   detectImportConflicts,
   conflictsEqual,
   type ConflictAction,
@@ -65,11 +68,11 @@ function existingProject(o: Partial<Project> = {}): Project {
   return {
     id: EXISTING_PROJECT_ID,
     name: 'Local Name',
-    unitOfMeasure: 'Hours', // NOT Story Points — class 3 must protect this
+    unitOfMeasure: 'Hours', // NOT Story Points — local-producer-artifact must protect this
     sprintCadenceWeeks: 2,
     firstSprintStartDate: '2026-01-01',
-    projectStartDate: '2026-01-01', // 2a
-    projectFinishDate: '2026-12-31', // 2a
+    projectStartDate: '2026-01-01', // local-restore-defensive
+    projectFinishDate: '2026-12-31', // local-restore-defensive
     productivityAdjustments: [
       {
         id: 'pa-1',
@@ -83,7 +86,7 @@ function existingProject(o: Partial<Project> = {}): Project {
       },
     ],
     milestones: [milestone({ id: 'rel-1', name: 'Local MVP', backlogSize: 40 })],
-    createdAt: '2020-06-15T00:00:00.000Z', // 2b — must survive
+    createdAt: '2020-06-15T00:00:00.000Z', // local-restore-required — must survive
     updatedAt: '2025-01-01T00:00:00.000Z',
     ...o,
   }
@@ -137,14 +140,14 @@ function runUpdate(
 
 // --- C1 / C2 / C3 / C17: what survives ------------------------------------
 
-describe('C1 — the four 2a fields hold pre-import values', () => {
+describe('C1 — the four local-restore-defensive fields hold pre-import values', () => {
   it('preserves projectStartDate, projectFinishDate, productivityAdjustments, customFinishDate', () => {
     const existing = existingProject()
     const sprints = [
       sprint({
         id: 'sp-1',
         projectId: EXISTING_PROJECT_ID,
-        customFinishDate: '2026-01-20', // 2a on the sprint
+        customFinishDate: '2026-01-20', // local-restore-defensive, on the sprint
       }),
     ]
     const { mergedProjects, mergedSprints } = runUpdate([existing], sprints, storyMapPayload())
@@ -157,14 +160,14 @@ describe('C1 — the four 2a fields hold pre-import values', () => {
     expect(mergedSprints.find((s) => s.id === 'sp-1')?.customFinishDate).toBe('2026-01-20')
   })
 
-  it('preserves unitOfMeasure — class 3, the producer hardcodes Story Points', () => {
+  it('preserves unitOfMeasure — local-producer-artifact, the producer hardcodes Story Points', () => {
     const { mergedProjects } = runUpdate([existingProject()], [], storyMapPayload())
     expect(mergedProjects[0].unitOfMeasure).toBe('Hours')
   })
 })
 
 describe('C3 — a sprint excluded here stays excluded under incoming true', () => {
-  it('preserves includedInForecast on a matched sprint (2b override)', () => {
+  it('preserves includedInForecast on a matched sprint (local-restore-required override)', () => {
     const sprints = [
       sprint({ id: 'sp-1', projectId: EXISTING_PROJECT_ID, includedInForecast: false }),
     ]
@@ -174,7 +177,7 @@ describe('C3 — a sprint excluded here stays excluded under incoming true', () 
   })
 })
 
-describe('C17 — class 2b and class 4 timestamps', () => {
+describe('C17 — local-restore-required and stamp timestamps', () => {
   it('createdAt is the pre-import value on a matched entity, updatedAt is neither side', () => {
     const before = Date.now()
     const sprints = [sprint({ id: 'sp-1', projectId: EXISTING_PROJECT_ID })]
@@ -184,11 +187,11 @@ describe('C17 — class 2b and class 4 timestamps', () => {
       storyMapPayload(),
     )
     const p = mergedProjects[0]
-    // 2b — Story Map EMITS createdAt, so this only passes with an explicit
+    // local-restore-required — Story Map EMITS createdAt, so this only passes with an explicit
     // restore. Known-bad: drop the `createdAt: existing.createdAt` line and
     // this reads 2026-01-01 (incoming's) instead.
     expect(p.createdAt).toBe('2020-06-15T00:00:00.000Z')
-    // Class 4 — neither incoming's nor the pre-import value.
+    // stamp — neither incoming's nor the pre-import value.
     expect(p.updatedAt).not.toBe('2026-02-01T00:00:00.000Z')
     expect(p.updatedAt).not.toBe('2025-01-01T00:00:00.000Z')
     expect(new Date(p.updatedAt!).getTime()).toBeGreaterThanOrEqual(before)
@@ -198,7 +201,7 @@ describe('C17 — class 2b and class 4 timestamps', () => {
     expect(s.updatedAt).not.toBe('2026-02-01T00:00:00.000Z')
   })
 
-  it('createdAt comes from incoming on a NEWLY ADDED sprint — 2b presupposes a local value', () => {
+  it('createdAt comes from incoming on a NEWLY ADDED sprint — local-restore-required presupposes a local value', () => {
     const incoming = storyMapPayload({
       sprints: [
         sprint({
@@ -216,7 +219,7 @@ describe('C17 — class 2b and class 4 timestamps', () => {
   })
 })
 
-// --- C4: class 1 genuinely changes ----------------------------------------
+// --- C4: `incoming` genuinely changes -------------------------------------
 
 describe('C4 — class-1 fields DO change', () => {
   // This check exists because C1, C2, C3 and C5 all pass on a no-op merge that
@@ -247,14 +250,15 @@ describe('C4 — class-1 fields DO change', () => {
     expect(p.sprintCadenceWeeks).toBe(3)
     expect(p.firstSprintStartDate).toBe('2026-02-01')
     expect(p.milestones?.[0].name).toBe('Producer MVP')
-    // ⚠️ Deliberately NOT asserting backlogSize changed — it is 2b, and an
+    // ⚠️ Deliberately NOT asserting backlogSize changed — it is
+    // local-restore-required, and an
     // earlier draft of this check mandated the very defect §4.4 exists to stop.
     expect(p.milestones?.[0].backlogSize).toBe(40)
     expect(mergedSprints.find((s) => s.id === 'sp-1')?.doneValue).toBe(22)
     expect(mergedSprints.find((s) => s.id === 'sp-2')).toBeDefined()
   })
 
-  it('takes incoming milestone ORDER (class 1)', () => {
+  it('takes incoming milestone ORDER (`incoming`)', () => {
     const existing = existingProject({
       milestones: [
         milestone({ id: 'a', name: 'A', backlogSize: 10 }),
@@ -347,17 +351,31 @@ describe('C15 — preserved unmatched-existing milestones are APPENDED', () => {
 
 describe('C7 — availableActions gates `update`', () => {
   it('excludes update for a non-Story-Map payload', () => {
-    expect(availableActions('id', 'spert-forecaster-project-export', false)).not.toContain('update')
-    expect(availableActions('id', 'legacy', false)).not.toContain('update')
+    expect(availableActions('id', 'spert-forecaster-project-export', false, true))
+      .not.toContain('update')
+    expect(availableActions('id', 'legacy', false, true)).not.toContain('update')
   })
-  it('excludes update for a name conflict', () => {
-    expect(availableActions('name', 'spert-story-map', false)).not.toContain('update')
+  it('excludes update for a name conflict with NO matching sprint id', () => {
+    expect(availableActions('name', 'spert-story-map', false, false)).not.toContain('update')
+  })
+  it('OFFERS update for a name conflict WITH a matching sprint id', () => {
+    // The post-migration re-send: the project id was reassigned, so this
+    // classifies as a name conflict, but a shared sprint id still proves
+    // identity. Withholding `update` here left only `replace`.
+    expect(availableActions('name', 'spert-story-map', false, true)).toContain('update')
   })
   it('excludes update when an existing sprint is unmatched (§4.1)', () => {
-    expect(availableActions('id', 'spert-story-map', true)).not.toContain('update')
+    expect(availableActions('id', 'spert-story-map', true, true)).not.toContain('update')
+    // §4.1 refuses even with identity evidence — it is checked first.
+    expect(availableActions('name', 'spert-story-map', true, true)).not.toContain('update')
   })
-  it('offers update only when all three hold', () => {
-    expect(availableActions('id', 'spert-story-map', false)).toEqual([
+  it('offers update for an id conflict WITHOUT a matching sprint id (§5 Q1)', () => {
+    // An id conflict IS the positive evidence; a sprint-less project supplies
+    // no additional evidence but does not retract it.
+    expect(availableActions('id', 'spert-story-map', false, false)).toContain('update')
+  })
+  it('offers update, in order, when the payload and evidence conditions hold', () => {
+    expect(availableActions('id', 'spert-story-map', false, false)).toEqual([
       'skip',
       'copy',
       'replace',
@@ -623,7 +641,11 @@ describe('C10 — conditional-key payloads still take the spread path', () => {
       sprints: [],
     })
     const { mergedProjects } = runUpdate([existing], [], incoming)
-    // Class 1 "†": conditionally emitted, so absence leaves the local value.
+    // `incoming-when-emitted`: the producer emits these CONDITIONALLY, so an
+    // absent key is not an instruction to clear — the local value stands.
+    // ⚠️ The only in-suite record of the distinction; do not fold this class
+    // back into plain `incoming`, which would pair incoming sprint dates with
+    // a stale local cadence.
     expect(mergedProjects[0].firstSprintStartDate).toBe('2026-01-01')
     expect(mergedProjects[0].sprintCadenceWeeks).toBe(2)
   })
@@ -850,6 +872,60 @@ describe('C5, C12, C18 — store integration', () => {
     expect(outcome.ok).toBe(false)
     expect(useProjectStore.getState().sprints).toHaveLength(2)
   })
+
+  it('C26 — write-time race on IDENTITY EVIDENCE: a name conflict that loses its matching sprint is refused', () => {
+    // ⚠️ THE SECOND ARM OF THE VETO'S DISJUNCTION. C12 covers the §4.1 arm.
+    // Without this check, weakening `anyUpdateNowRefused` from
+    //   update && !available(...)
+    // to
+    //   update && unmatched && !available(...)
+    // — the second-conjunct trap §3e warns about — changes NO test, because
+    // `unmatched` implies unavailable and C12 only ever exercises that arm.
+    // Measured: that mutation left all 1599 tests green before this existed.
+    const existing = existingProject({ id: EXISTING_PROJECT_ID, name: 'Shared Name' })
+    useProjectStore.setState({
+      projects: [existing],
+      sprints: [sprint({ id: 'sp-1', projectId: EXISTING_PROJECT_ID })],
+    })
+    // A migrated re-send: same NAME, different ID, sharing sprint `sp-1`.
+    const incoming = storyMapPayload({
+      projects: [
+        {
+          id: 'prod-1-migrated',
+          name: 'Shared Name',
+          unitOfMeasure: 'Story Points',
+          createdAt: '2026-01-01T00:00:00.000Z',
+        },
+      ],
+      sprints: [sprint({ id: 'sp-1', projectId: 'prod-1-migrated' })],
+    })
+    const freshConflicts = detectImportConflicts(incoming, useProjectStore.getState().projects)
+    expect(freshConflicts[0].type).toBe('name')
+
+    // A cloud snapshot lands mid-preview and REPLACES the shared sprint with a
+    // different one. The tuple is untouched — same ids, same type — but the
+    // identity evidence is gone. (Not an unmatched-sprint case: the existing
+    // set still has exactly one sprint and it is absent from incoming, so
+    // BOTH arms would fire; so remove it entirely instead.)
+    useProjectStore
+      .getState()
+      .replaceProjectsFromCloud(useProjectStore.getState().projects, [])
+
+    const reDetected = detectImportConflicts(incoming, useProjectStore.getState().projects)
+    // ⚠️ THE TUPLE GUARD PASSES — it cannot see a sprint set change.
+    expect(conflictsEqual(freshConflicts, reDetected)).toBe(true)
+
+    const outcome = useProjectStore.getState().applySmartImport({
+      incoming,
+      decisions: new Map<string, ConflictAction>([['prod-1-migrated', 'update']]),
+      freshConflicts,
+      source: 'spert-story-map',
+    })
+    // Evidence gone -> `update` is no longer offered -> the whole batch aborts.
+    expect(outcome.ok).toBe(false)
+    expect(useProjectStore.getState().projects).toHaveLength(1)
+    expect(useProjectStore.getState().projects[0].id).toBe(EXISTING_PROJECT_ID)
+  })
 })
 
 // --- C13: class-3 pins across the vendored contract fixtures --------------
@@ -910,5 +986,164 @@ describe('C13 — class-3 producer artifacts, pinned across all 17 fixtures', ()
       }
     }
     expect(sawWrap).toBe(true)
+  })
+})
+
+
+// --- C19 / C21 / C24 / C25 / C26: `update` reachability after an
+// --- id-reassigning cloud migration ----------------------------------------
+//
+// ⚠️ C-NUMBERS ARE NOT A CLEAN NAMESPACE. Two schemes already coexist in src
+// and collide: `C7` is "availableActions gates update" here and
+// "viewingProjectId reconciliation" at project-store.ts:634; `C17` is the
+// timestamp checks here and "atomic merge" at useImportState.ts:162. These
+// five were picked because they are free in BOTH — grep before adding more.
+//
+// A cloud migration can reassign a project's id. A later Story Map send of the
+// same project then classifies as a NAME conflict, and `update` used to be
+// withheld — leaving `replace`, which destroys the forecast configuration
+// `update` exists to protect. Identity is re-established from a shared sprint
+// id, which Story Map preserves across exports.
+
+const MIGRATED_ID = 'prod-1-migrated'
+
+describe('C19 — hasMatchingExistingSprintId', () => {
+  const existing = [sprint({ id: 'sp-1', projectId: EXISTING_PROJECT_ID })]
+
+  it('TRUE when an existing sprint id appears in the incoming set', () => {
+    const incoming = [sprint({ id: 'sp-1', projectId: MIGRATED_ID })]
+    expect(
+      hasMatchingExistingSprintId(existing, incoming, EXISTING_PROJECT_ID, MIGRATED_ID),
+    ).toBe(true)
+  })
+
+  it('FALSE when no sprint id is shared', () => {
+    const incoming = [sprint({ id: 'sp-OTHER', projectId: MIGRATED_ID })]
+    expect(
+      hasMatchingExistingSprintId(existing, incoming, EXISTING_PROJECT_ID, MIGRATED_ID),
+    ).toBe(false)
+  })
+
+  it('respects BOTH container ids — a shared sprint id under another project is not evidence', () => {
+    // ⚠️ KNOWN-BAD: drop either projectId filter and this passes vacuously.
+    const incoming = [sprint({ id: 'sp-1', projectId: 'some-third-project' })]
+    expect(
+      hasMatchingExistingSprintId(existing, incoming, EXISTING_PROJECT_ID, MIGRATED_ID),
+    ).toBe(false)
+  })
+
+  it('vacuously FALSE on a sprint-less existing project', () => {
+    expect(
+      hasMatchingExistingSprintId([], [sprint({ id: 'sp-1', projectId: MIGRATED_ID })],
+        EXISTING_PROJECT_ID, MIGRATED_ID),
+    ).toBe(false)
+  })
+})
+
+describe('C24 — mergeProjectForUpdate pins the container id', () => {
+  // ⚠️ This function had NO test importing it before this check existed.
+  it('writes the EXISTING id, not incoming\'s, under a name conflict', () => {
+    const merged = mergeProjectForUpdate(
+      existingProject({ id: EXISTING_PROJECT_ID }),
+      existingProject({ id: MIGRATED_ID, name: 'Story Map Name' }),
+      '2026-08-30T00:00:00.000Z',
+    )
+    expect(merged.project.id).toBe(EXISTING_PROJECT_ID)
+  })
+
+  it('KNOWN-BAD GUARD: without the pin the project orphans its own sprints', () => {
+    // Drop `id: existing.id` from mergeProjectForUpdate and this fails: the
+    // project takes the incoming id while mergeSprintsForUpdate has already
+    // remapped every sprint to the existing one.
+    const merged = mergeProjectForUpdate(
+      existingProject({ id: EXISTING_PROJECT_ID }),
+      existingProject({ id: MIGRATED_ID }),
+      '2026-08-30T00:00:00.000Z',
+    )
+    const { sprints } = mergeSprintsForUpdate(
+      [sprint({ id: 'sp-1', projectId: EXISTING_PROJECT_ID })],
+      [sprint({ id: 'sp-1', projectId: MIGRATED_ID })],
+      EXISTING_PROJECT_ID,
+      MIGRATED_ID,
+      '2026-08-30T00:00:00.000Z',
+    )
+    expect(sprints[0].projectId).toBe(merged.project.id)
+  })
+
+  it('is a genuine no-op when the ids already agree', () => {
+    const merged = mergeProjectForUpdate(
+      existingProject(),
+      existingProject({ name: 'Story Map Name' }),
+      '2026-08-30T00:00:00.000Z',
+    )
+    expect(merged.project.id).toBe(EXISTING_PROJECT_ID)
+  })
+})
+
+describe('C21 — end-to-end: a name-conflict `update` after a migration', () => {
+  it('merges onto the existing slot, keeps the local config, and keeps the id', () => {
+    const existing = existingProject({ id: EXISTING_PROJECT_ID, name: 'Shared Name' })
+    const existingSprints = [sprint({ id: 'sp-1', projectId: EXISTING_PROJECT_ID })]
+    // Same NAME, different ID — exactly what an id-reassigning migration leaves.
+    const incoming = storyMapPayload({
+      projects: [
+        {
+          id: MIGRATED_ID,
+          name: 'Shared Name',
+          unitOfMeasure: 'Story Points',
+          sprintCadenceWeeks: 3,
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-02-01T00:00:00.000Z',
+        },
+      ],
+      sprints: [
+        sprint({ id: 'sp-1', projectId: MIGRATED_ID, doneValue: 22 }),
+        sprint({ id: 'sp-2', projectId: MIGRATED_ID, sprintNumber: 2, doneValue: 30 }),
+      ],
+    })
+
+    const conflicts = detectImportConflicts(incoming, [existing])
+    expect(conflicts[0].type).toBe('name')
+
+    const { mergedProjects, mergedSprints, result } = runUpdate(
+      [existing], existingSprints, incoming,
+    )
+
+    expect(result.updated).toBe(1)
+    expect(mergedProjects).toHaveLength(1)
+    // The slot keeps its id...
+    expect(mergedProjects[0].id).toBe(EXISTING_PROJECT_ID)
+    // ...the local configuration survives...
+    expect(mergedProjects[0].unitOfMeasure).toBe('Hours')
+    expect(mergedProjects[0].projectStartDate).toBe('2026-01-01')
+    expect(mergedProjects[0].createdAt).toBe('2020-06-15T00:00:00.000Z')
+    // ...the new sprint arrives...
+    expect(mergedSprints).toHaveLength(2)
+    // ...and NOTHING is orphaned.
+    for (const s of mergedSprints) {
+      expect(s.projectId).toBe(EXISTING_PROJECT_ID)
+    }
+  })
+})
+
+describe('C25 — update-vs-update on one slot is now constructible', () => {
+  it('the ID conflict outranks the NAME conflict regardless of array order', () => {
+    const existing = existingProject({ id: EXISTING_PROJECT_ID, name: 'Shared Name' })
+    const byName: Project = {
+      id: 'other-id', name: 'Shared Name', unitOfMeasure: 'Story Points',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    }
+    const byId: Project = {
+      id: EXISTING_PROJECT_ID, name: 'Different Name', unitOfMeasure: 'Story Points',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    }
+    // NAME claim first in array order — the id claim must still win.
+    const incoming = storyMapPayload({ projects: [byName, byId], sprints: [] })
+    const { result, mergedProjects } = runUpdate([existing], [], incoming)
+
+    expect(result.updated).toBe(1)
+    expect(result.skipped).toBe(1)
+    expect(mergedProjects[0].name).toBe('Different Name')
+    expect(result.downgrades.map((d) => d.incomingProjectId)).toEqual(['other-id'])
   })
 })
