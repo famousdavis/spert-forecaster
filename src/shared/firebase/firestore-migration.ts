@@ -69,14 +69,35 @@ export async function migrateLocalToCloud(
           result.errors.push(`Project "${project.name}" had ID collision, assigned new ID`)
         }
       } catch {
-        // permission-denied = belongs to someone else, generate new ID
+        // permission-denied = belongs to someone else, generate new ID.
+        // Say so. This branch used to reassign silently while projectsUploaded++
+        // still ran, so a reassignment forced by another account owning that id
+        // reached the user as an unqualified success — with none of the
+        // downstream consequences of a changed id visible anywhere.
         projectId = crypto.randomUUID()
+        result.errors.push(
+          `Project "${project.name}" could not be checked for an ID collision, assigned new ID`
+        )
       }
 
       const projectWithId = { ...project, id: projectId }
+
+      // ⚠️ REMAP THE SPRINTS WHENEVER THE ID WAS REASSIGNED.
+      // projectToFirestoreDoc:28 selects sprints with `s.projectId === project.id`.
+      // Handing it the reassigned project alongside the untouched store array
+      // matched NOTHING — every sprint still carried the old id — so the document
+      // uploaded with `sprints: []` while `projectsUploaded++` still reported
+      // success. Migration is one-way, and useCloudSync's data-loss guard counts
+      // PROJECTS (`projects.length === 0`), so a project holding zero sprints does
+      // not trip it: the empty cloud doc then replaced the local sprint history
+      // permanently. `import-utils.ts:694` already remaps on its own id mint.
+      const projectSprints = sprints
+        .filter((s) => s.projectId === project.id)
+        .map((s) => (s.projectId === projectId ? s : { ...s, projectId }))
+
       const doc = projectToFirestoreDoc(
         projectWithId,
-        sprints,
+        projectSprints,
         uid,
         undefined, // no existing doc
         originRef,
