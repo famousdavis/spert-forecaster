@@ -92,3 +92,55 @@ than by a check, and the most recent in the *sprint* table. A field added to
 `// --- Update merge: …` banner in `src/shared/state/import-utils.ts`,
 module-local and `void`-ed. The comments that previously read *"§3's class
 table"* — with no document named — now cite the constants and this entry.
+
+## SD-3: Import allowlists derived from `Record<keyof T, true>` (v0.43.1)
+
+**Spec reference:** none — this is a hardening of the mechanism that enforces
+the spec, not a deviation from the spec itself. Recorded here because
+`SPEC_DEVIATIONS.md` is the established, **tracked** home for import decisions
+(see SD-2 on why that matters), and because the change touches a security
+control.
+
+**Change:** the five import allowlists in
+`src/shared/state/import-validation.ts` — `ALLOWED_PROJECT_KEYS`,
+`ALLOWED_SPRINT_KEYS`, `ALLOWED_MILESTONE_KEYS`, `ALLOWED_PA_KEYS`,
+`ALLOWED_CHANGELOG_KEYS` — are now **derived from a `Record<keyof T, true>`**
+rather than written as literal `new Set<keyof T>([...])` lists.
+
+**Why:** ⚠️ `new Set<keyof T>([...])` constrains each **element's type** but says
+nothing about **completeness.** A key omitted from the list compiled clean, and
+`pick()` then silently stripped that field from **every import** — no type
+error, no test failure, and the only symptom a field quietly ceasing to survive
+an import. Measured before the change: dropping `'unitOfMeasure'` from
+`ALLOWED_PROJECT_KEYS` left `tsc` green.
+
+This is the **added-field** direction of the same hole `_PROJECT_WRITE_KEYS_GUARD`
+(`shared/firebase/firestore-driver.ts`) closes for the Firestore write mask, one
+layer down. It is the third field-set that must stay in step when a domain type
+gains a field — the others being the Firestore mask and the field-class tables
+of SD-2.
+
+**Consequence:** none at runtime. ⚠️ **Zero behavioural change** — all five sets
+were already exactly `keyof T`, so the derived sets are element-for-element
+identical. Verified by the full suite (1600 passing, unchanged).
+
+**Mitigation / how it is enforced:**
+- Adding a field to `Project`, `Sprint`, `Milestone`, `ProductivityAdjustment`
+  or `ChangeLogEntry` now fails `tsc` until it is classified here.
+- ⚠️ **Setting a key to `false` deliberately EXCLUDES it from imports.** That is
+  a real choice, not a formality, and must be commented where it is made. All
+  five are currently all-true.
+- Verified by mutation, not by reading: add an optional field to `Project`
+  without an entry → **red** (this was **green** before the change); drop a key
+  from a record → **red** (`TS2345`); ⚠️ **sabotage the harness by widening to
+  `Partial<Record<…>>` and the drop mutation SURVIVES** — the proof the guard is
+  load-bearing rather than vacuous.
+
+**Also in this release, for the record:** three `class-N` labels survived the
+v0.43.0 vocabulary retirement — `class-1` and `class-3` in
+`import-update.test.ts`. ⚠️ **The retirement predicate was
+`class[[:space:]]*[1-4]`, which does not match a HYPHEN.** The enumeration was
+stated, published, and independently reproduced three times, and all three
+reproductions used that same predicate. **Independent reproduction of an
+enumeration validates the execution, not the predicate.** Now swept with
+`[Cc]lass[- ]?[1-4]`.

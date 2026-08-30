@@ -63,26 +63,49 @@ function isValidNumber(value: unknown, min: number, max: number): boolean {
 // mutate the input, but `validateImportData` then reassigns the picked
 // arrays back onto `data` so the caller observes the normalized shape.
 
-const ALLOWED_PROJECT_KEYS = new Set<keyof Project>([
-  'id', 'name', 'sprintCadenceWeeks', 'projectStartDate', 'projectFinishDate',
-  'firstSprintStartDate', 'unitOfMeasure', 'productivityAdjustments',
-  'milestones', 'createdAt', 'updatedAt',
-])
-const ALLOWED_SPRINT_KEYS = new Set<keyof Sprint>([
-  'id', 'projectId', 'sprintNumber', 'sprintStartDate', 'sprintFinishDate',
-  'customFinishDate', 'doneValue', 'backlogAtSprintEnd', 'includedInForecast',
-  'createdAt', 'updatedAt',
-])
-const ALLOWED_MILESTONE_KEYS = new Set<keyof Milestone>([
-  'id', 'name', 'backlogSize', 'color', 'showOnChart', 'createdAt', 'updatedAt',
-])
-const ALLOWED_PA_KEYS = new Set<keyof ProductivityAdjustment>([
-  'id', 'name', 'startDate', 'endDate', 'factor', 'enabled', 'reason',
-  'createdAt', 'updatedAt',
-])
-const ALLOWED_CHANGELOG_KEYS = new Set<keyof ChangeLogEntry>([
-  't', 'op', 'entity', 'id', 'count', 'source',
-])
+// ⚠️ EACH ALLOWLIST IS DERIVED FROM A `Record<keyof T, true>`, NOT WRITTEN AS A
+// LITERAL SET. `new Set<keyof T>([...])` constrains each ELEMENT's type but says
+// nothing about COMPLETENESS: a key omitted from the list compiles clean, and
+// `pick()` below then silently strips that field from EVERY import. The failure
+// is invisible — no type error, and the only signal is a field quietly ceasing
+// to survive an import.
+//
+// A `Record<keyof T, true>` is exhaustive by construction, so adding a field to
+// `Project`, `Sprint`, `Milestone`, `ProductivityAdjustment` or `ChangeLogEntry`
+// now fails `tsc` here until it is classified. Same idiom as
+// `_PROJECT_WRITE_KEYS_GUARD` (`shared/firebase/firestore-driver.ts`), which
+// closes the equivalent hole for the Firestore write mask.
+//
+// ⚠️ THIS IS A SECURITY CONTROL, NOT HOUSEKEEPING — see the paragraph above.
+// Setting a key to `false` deliberately EXCLUDES it from imports; that is a real
+// choice and must be commented where it is made. Today all five are all-true.
+// See `docs/SPEC_DEVIATIONS.md` SD-3.
+const keysOf = <T,>(m: Record<keyof T, true>): Set<keyof T> =>
+  new Set(Object.keys(m) as (keyof T)[])
+
+const ALLOWED_PROJECT_KEYS = keysOf<Project>({
+  id: true, name: true, sprintCadenceWeeks: true, projectStartDate: true,
+  projectFinishDate: true, firstSprintStartDate: true, unitOfMeasure: true,
+  productivityAdjustments: true, milestones: true, createdAt: true,
+  updatedAt: true,
+})
+const ALLOWED_SPRINT_KEYS = keysOf<Sprint>({
+  id: true, projectId: true, sprintNumber: true, sprintStartDate: true,
+  sprintFinishDate: true, customFinishDate: true, doneValue: true,
+  backlogAtSprintEnd: true, includedInForecast: true, createdAt: true,
+  updatedAt: true,
+})
+const ALLOWED_MILESTONE_KEYS = keysOf<Milestone>({
+  id: true, name: true, backlogSize: true, color: true, showOnChart: true,
+  createdAt: true, updatedAt: true,
+})
+const ALLOWED_PA_KEYS = keysOf<ProductivityAdjustment>({
+  id: true, name: true, startDate: true, endDate: true, factor: true,
+  enabled: true, reason: true, createdAt: true, updatedAt: true,
+})
+const ALLOWED_CHANGELOG_KEYS = keysOf<ChangeLogEntry>({
+  t: true, op: true, entity: true, id: true, count: true, source: true,
+})
 
 function pick<K extends string>(src: Record<string, unknown>, allowed: Set<K>): Record<string, unknown> {
   const out: Record<string, unknown> = {}

@@ -221,7 +221,7 @@ describe('C17 — local-restore-required and stamp timestamps', () => {
 
 // --- C4: `incoming` genuinely changes -------------------------------------
 
-describe('C4 — class-1 fields DO change', () => {
+describe('C4 — `incoming` fields DO change', () => {
   // This check exists because C1, C2, C3 and C5 all pass on a no-op merge that
   // simply returns the existing project. Without it the suite would be green
   // while `update` did nothing at all.
@@ -928,9 +928,9 @@ describe('C5, C12, C18 — store integration', () => {
   })
 })
 
-// --- C13: class-3 pins across the vendored contract fixtures --------------
+// --- C13: local-producer-artifact pins across the vendored contract fixtures ---
 
-describe('C13 — class-3 producer artifacts, pinned across all 17 fixtures', () => {
+describe('C13 — local-producer-artifact fields, pinned across all 17 fixtures', () => {
   // Resolved from this file's own location rather than process.cwd(), matching
   // storymap-contract.test.ts. A top-level fileURLToPath(new URL(...)) throws
   // under this runner; import.meta.dirname + join is the idiom that works.
@@ -998,6 +998,9 @@ describe('C13 — class-3 producer artifacts, pinned across all 17 fixtures', ()
 // "viewingProjectId reconciliation" at project-store.ts:634; `C17` is the
 // timestamp checks here and "atomic merge" at useImportState.ts:162. These
 // five were picked because they are free in BOTH — grep before adding more.
+// ⚠️ C1–C30 are ALL OCCUPIED across the two schemes as of v0.43.1. The next
+// free number is C31. Sweep with `git grep -I -oh "\bC[0-9]\+\b" -- src`
+// — the `-I` matters, `favicon.ico` matches otherwise and inflates the census.
 //
 // A cloud migration can reassign a project's id. A later Story Map send of the
 // same project then classifies as a NAME conflict, and `update` used to be
