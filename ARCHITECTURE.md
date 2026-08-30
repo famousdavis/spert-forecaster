@@ -57,7 +57,13 @@ src/
 │   │   ├── constants.ts        # DEFAULT_TRIAL_COUNT, percentile bounds
 │   │   └── types.ts            # Forecast-specific types
 │   ├── auth/                   # Firebase auth UI (SignInButtons, UserMenu, StorageModeSection, SharingSection)
-│   ├── projects/               # Project CRUD & reordering
+│   ├── projects/               # Project CRUD, reordering, and the import pipeline
+│   │   ├── hooks/
+│   │   │   ├── useImportState.ts         # Import state machine + `ingestPayload` seam
+│   │   │   └── useCrosslinkReceiver.ts   # Story Map handover receiver (postMessage)
+│   │   └── lib/
+│   │       ├── crosslinkProtocol.ts      # Pure reducer + ALLOWED_SENDER_ORIGINS
+│   │       └── crosslinkLatch.ts         # Module-load capture of ?crosslink / xid
 │   ├── settings/               # Global settings (simulation, chart defaults, theme)
 │   └── sprint-history/         # Sprint data entry & velocity stats
 ├── shared/                     # Cross-feature utilities
@@ -88,6 +94,26 @@ src/
 - **Sampler factory pattern** (`createSampler`, `createBootstrapSampler`) to decouple distribution selection from trial execution
 - **`SimulationContext`** interface to group related simulation parameters (config, velocities, productivity factors, scope growth)
 - **`runAllDistributions<T>()`** generic helper to sweep all six distributions (T-Normal, Lognormal, Gamma, Bootstrap, Triangular, Uniform) with a single callback
+
+**Crosslink transport (v0.42.0)**: SPERT Story Map can hand a project directly to this app in the
+same browser, replacing the JSON download/upload round trip. Story Map opens this app with
+`?crosslink=storymap&xid=…` and transfers the export over `postMessage`; the wire is
+`OPEN → OFFER → ACK|NACK`, keyed on `opcode` / `protocol` / `exchangeId`.
+
+- **File import is unchanged and retained** — `postMessage` is same-browser only, so the file
+  remains the cross-device path.
+- **One shared seam**: `ingestPayload(content, transport)` takes both transports from `JSON.parse`
+  onward, *including* `validateImportData`. The `transport` argument affects message wording only
+  and never what is imported — the same payload must produce an identical outcome either way.
+- **The receiver queues rather than gates.** Cloud readiness is not monotonic, so an offer arriving
+  before Firestore hydration is held and applied once ready, not refused. Its hold expiry derives
+  from the sender's own deadline, so the two cannot drift apart.
+- **Security surface**: sender origins are allowlisted and environment-split (production never
+  contains `localhost`), the sender window identity is checked against `window.opener`, and
+  `Cross-Origin-Opener-Policy` must not be set — it would sever the channel the check depends on.
+- **`useImportState()` is owned by `AppShell`**, not `ProjectsTab`, and passed down as one prop.
+  `ProjectsTab` unmounts on tab switch and would otherwise take a held payload with it. Consequence
+  on the file path too: import preview state now survives tab switches.
 
 **Hook decomposition**: `useForecastState` orchestrates forecast lifecycle by composing focused hooks: `useSprintData` (statistics), `useForecastInputs` (form state), `useChartSettings` (chart config), `useScopeGrowthState` (scope growth state + resolution), and `useSimulationWorker` (Web Worker bridge). It maintains separate `simulationData` (swapped per milestone for CDF/histogram) and `overallSimulationData` (always total-backlog, used by burn-up chart).
 
