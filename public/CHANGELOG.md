@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.42.1 - 2026-08-29
+
+Moving your projects to the cloud could leave your sprint history behind, without saying so. If it happened to you, it has already happened — read on.
+
+When you switch from local storage to cloud storage, the app uploads each project to your account. Almost always it keeps the project's existing internal identifier. Occasionally it cannot: the identifier is already taken in the cloud, or it belongs to another account and the app is not permitted to look. In those cases it assigns a fresh identifier and carries on.
+
+Carrying on is where it went wrong. A project's sprints are stored alongside it, each one tagged with the identifier of the project it belongs to. When the project was given a new identifier, its sprints were still tagged with the old one, so the app looked for sprints belonging to the new identifier, found none, and uploaded the project with an empty sprint history. It then reported the upload as a success.
+
+Nothing on screen contradicted that. The Projects tab shows a project's name, its sprint cadence and its unit of measure — not how many sprints it has. The loss only became visible on the Sprint History or Forecast tab, by which point the local copy had already been replaced by the empty cloud copy. Migration runs one way, so there was nothing to go back to.
+
+**If your forecast lost its sprint history after you switched to cloud storage, this is why.** Re-import the project from its original file or from SPERT® Story Map to restore it.
+
+### Fixed
+- **Sprint history now moves with a project when its identifier changes during cloud migration.** The sprints are re-tagged to match the identifier the project is actually saved under, so they arrive with it instead of being dropped. Sprint identifiers themselves are left alone — the project is being moved, not copied.
+- **A migration that could not check for a clashing identifier now tells you it assigned a new one.** Previously only an outright clash was reported; the case where the app was not permitted to look reported nothing at all, so a project whose identifier changed for that reason looked like an ordinary successful upload.
+
+### Notes
+- **The safety check that is meant to stop a cloud load from wiping local data counts projects, not sprints.** It is why an empty-but-present project passed straight through. Widening it is a genuine design question — a project with no sprints yet is perfectly normal — so it has been recorded rather than changed here.
+
 ## v0.42.0 - 2026-08-29
 
 SPERT® Story Map can now hand a project straight to this app, so the download-then-upload round trip is optional rather than the only way.
