@@ -28,12 +28,25 @@ import { InvitationBanner } from './InvitationBanner'
 import { LocalStorageWarningBanner } from './LocalStorageWarningBanner'
 import { AiConnectivityProvider } from '@/features/connect-ai/AiConnectivityProvider'
 import { ConnectAiLauncher } from '@/features/connect-ai/components/ConnectAiLauncher'
+// Deep imports rather than widening `@/features/projects`' barrel, which deliberately exports
+// only `ProjectsTab`. The precedent is two lines above; no lint rule enforces either choice.
+import { useImportState } from '@/features/projects/hooks/useImportState'
+import { useCrosslinkReceiver } from '@/features/projects/hooks/useCrosslinkReceiver'
 
 export function AppShell() {
   const [activeTab, setActiveTab] = useState<TabId>('projects')
   const [isShortcutsHelpOpen, setIsShortcutsHelpOpen] = useState(false)
   const [cloudModalOpen, setCloudModalOpen] = useState(false)
   const setViewingProjectId = useProjectStore((state) => state.setViewingProjectId)
+  // ⚠️ Owned HERE, not in ProjectsTab, because ProjectsTab unmounts on every tab switch
+  // (see the conditional render below) and a transfer arriving mid-switch would have nothing
+  // to land on. The visible consequence is on the FILE path too: an import preview or banner
+  // now survives leaving the Projects tab and coming back, where it used to be discarded.
+  const importState = useImportState()
+  // Inert unless this tab was opened by SPERT Story Map with a transfer parameter AND has an
+  // opener. Mounted beside InvitationBanner rather than inside a tab for the same reason the
+  // hook above is: the tabs come and go.
+  useCrosslinkReceiver(importState)
   const { effectiveTheme } = useTheme()
   const faviconSrc = effectiveTheme === 'dark'
     ? '/spert-favicon-forecaster-dark.png'
@@ -122,7 +135,7 @@ export function AppShell() {
         <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} />
 
         <main className="mt-8 flex-1">
-          {activeTab === 'projects' && <ErrorBoundary><ProjectsTab onViewHistory={handleViewHistory} /></ErrorBoundary>}
+          {activeTab === 'projects' && <ErrorBoundary><ProjectsTab onViewHistory={handleViewHistory} importState={importState} /></ErrorBoundary>}
           {activeTab === 'sprint-history' && <ErrorBoundary><SprintHistoryTab /></ErrorBoundary>}
           {activeTab === 'forecast' && <ErrorBoundary><ForecastTab onTabChange={setActiveTab} /></ErrorBoundary>}
           {activeTab === 'about' && <ErrorBoundary><AboutTab /></ErrorBoundary>}

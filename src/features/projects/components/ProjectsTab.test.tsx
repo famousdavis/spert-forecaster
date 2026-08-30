@@ -49,8 +49,27 @@ vi.mock('@/shared/hooks', async () => {
 })
 
 import { ProjectsTab } from './ProjectsTab'
+import { useImportState } from '../hooks/useImportState'
 import { useProjectStore } from '@/shared/state/project-store'
 import { loadOwnedProjectIds } from '@/shared/firebase/firestore-driver'
+
+/**
+ * Mount ProjectsTab with a REAL `useImportState`, the way AppShell does.
+ *
+ * ⚠️ This MUST be a wrapper component that calls the hook. Do NOT replace it with a
+ * hand-built object satisfying `ReturnType<typeof useImportState>`. Note that none of the
+ * `vi.mock` calls above mocks `useImportState` — every test in this file exercises the real
+ * hook against real store state, and that is the point of the file. A fake bundle would
+ * typecheck, go green, and quietly turn a wiring suite into a mock-assertion suite: coverage
+ * unchanged, meaning gone.
+ */
+function renderProjectsTab() {
+  function Harness() {
+    const importState = useImportState()
+    return <ProjectsTab importState={importState} />
+  }
+  return render(<Harness />)
+}
 
 function resetStore() {
   useProjectStore.setState({
@@ -77,17 +96,17 @@ beforeEach(() => {
 
 describe('ProjectsTab — import wiring', () => {
   it('renders without crashing', () => {
-    render(<ProjectsTab />)
+    renderProjectsTab()
     expect(screen.getByText('Projects')).toBeTruthy()
   })
 
   it('renders the Import button', () => {
-    render(<ProjectsTab />)
+    renderProjectsTab()
     expect(screen.getByRole('button', { name: /Import projects from JSON/i })).toBeTruthy()
   })
 
   it('hides Export All when projects array is empty', () => {
-    render(<ProjectsTab />)
+    renderProjectsTab()
     expect(screen.queryByRole('button', { name: /Export all projects/i })).toBeNull()
   })
 
@@ -103,12 +122,12 @@ describe('ProjectsTab — import wiring', () => {
         },
       ],
     })
-    render(<ProjectsTab />)
+    renderProjectsTab()
     expect(screen.getByRole('button', { name: /Export all projects/i })).toBeTruthy()
   })
 
   it('hides Load Sample toolbar button when projects array is empty (empty-state CTA covers this case)', () => {
-    render(<ProjectsTab />)
+    renderProjectsTab()
     // Toolbar button has accessible name "Load Sample" (exact); empty-state CTA's
     // accessible name is "Load Sample Project" (distinct). Anchored regex prevents
     // the empty-state from matching here.
@@ -127,19 +146,19 @@ describe('ProjectsTab — import wiring', () => {
         },
       ],
     })
-    render(<ProjectsTab />)
+    renderProjectsTab()
     expect(screen.getByRole('button', { name: /^Load Sample$/i })).toBeTruthy()
   })
 
   // v0.33.3 — ProjectForm is hidden on first-touch until the user signals intent.
   describe('ProjectForm visibility gating (v0.33.3)', () => {
     it('hides the ProjectForm on first-touch (zero projects, no edit, no focus flag)', () => {
-      render(<ProjectsTab />)
+      renderProjectsTab()
       expect(screen.queryByLabelText('Project Name')).toBeNull()
     })
 
     it('shows the ProjectForm after clicking "Create New Project" in the welcome empty-state', () => {
-      render(<ProjectsTab />)
+      renderProjectsTab()
       // Welcome empty-state button has visible text "Create New Project".
       const createBtn = screen.getByRole('button', { name: /Create New Project/i })
       fireEvent.click(createBtn)
@@ -149,7 +168,7 @@ describe('ProjectsTab — import wiring', () => {
     it('shows the ProjectForm when shouldFocusNewProjectForm flag is set on mount (cross-tab path)', () => {
       // Forecast-tab CTA sets the flag, switches tabs, ProjectsTab mounts with flag true.
       useProjectStore.setState({ shouldFocusNewProjectForm: true })
-      render(<ProjectsTab />)
+      renderProjectsTab()
       expect(screen.getByLabelText('Project Name')).toBeTruthy()
     })
 
@@ -165,13 +184,13 @@ describe('ProjectsTab — import wiring', () => {
           },
         ],
       })
-      render(<ProjectsTab />)
+      renderProjectsTab()
       expect(screen.getByLabelText('Project Name')).toBeTruthy()
     })
   })
 
   it('does NOT render the preview section initially (importPreview is null)', () => {
-    render(<ProjectsTab />)
+    renderProjectsTab()
     expect(screen.queryByRole('region', { name: /Review import/i })).toBeNull()
   })
 
@@ -196,7 +215,7 @@ describe('ProjectsTab — import wiring', () => {
   })
 
   it('hidden file input uses name "projectImportFile" (preserved attribute)', () => {
-    const { container } = render(<ProjectsTab />)
+    const { container } = renderProjectsTab()
     const input = container.querySelector('input[type="file"]')
     expect(input?.getAttribute('name')).toBe('projectImportFile')
   })
@@ -223,7 +242,7 @@ describe('ProjectsTab — share-button refresh after cloud snapshot (v0.35.2)', 
     mockAuthMode.mode = 'cloud'
 
     // Initial render: no projects. loadOwnedProjectIds called once with empty result.
-    render(<ProjectsTab />)
+    renderProjectsTab()
     await waitFor(() => {
       expect(vi.mocked(loadOwnedProjectIds)).toHaveBeenCalledTimes(1)
     })
@@ -278,7 +297,7 @@ describe('ProjectsTab — share-button refresh after cloud snapshot (v0.35.2)', 
     mockAuthMode.user = { uid: 'user-1' }
     mockAuthMode.mode = 'local'
 
-    render(<ProjectsTab />)
+    renderProjectsTab()
 
     // Give the effect a tick to no-op.
     await new Promise((r) => setTimeout(r, 0))

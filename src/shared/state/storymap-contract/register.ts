@@ -177,12 +177,28 @@ export const REGISTER: readonly RegisterRow[] = [
 ]
 
 /**
- * Gates in `useImportState.handleFileChange` that refuse a file BEFORE
- * `validateImportData` runs. Not throws, so outside the 33 — but they are
- * rejections, and the register's promise is about rejections.
+ * Refusals raised in `useImportState` that are NOT `throw`s from the validator, so they fall
+ * outside the 33 — but they are rejections, and the register's promise is about rejections.
+ *
+ * ⚠️ They are NOT all "before `validateImportData`", which is what this comment used to claim
+ * in both repos. P03/P05 fire AFTER it, on the classified result; P04 fires before it. What
+ * unites them is that they are refusals the validator does not raise, not their position.
+ *
+ * ⚠️ `line` CONVENTION: the `showBanner(` call line for a banner refusal, and the
+ * `return refuse(` line for one that also returns a reason to the crosslink sender. P03 and
+ * P05 share a line because they are one condition with two wordings. Nothing reads `line` —
+ * see MAINTENANCE above — but half-stale numbers are worse than none, so they are re-derived
+ * whenever this file's subject moves.
  */
 export const PRE_VALIDATOR_REGISTER: readonly RegisterRow[] = [
-  { id: 'P01', line: 215, message: 'Import failed: Please select a JSON file (.json)', status: 'UNREACHABLE', basis: 'jsonExtension' },
-  { id: 'P02', line: 220, message: 'Import failed: File exceeds the 10 MB limit', status: 'UNREACHABLE', basis: 'underSizeCap' },
-  { id: 'P03', line: 247, message: 'The file contains no projects to import.', status: 'UNREACHABLE', basis: 'singleProject' },
+  { id: 'P01', line: 380, message: 'Import failed: Please select a JSON file (.json)', status: 'UNREACHABLE', basis: 'jsonExtension' },
+  { id: 'P02', line: 385, message: 'Import failed: File exceeds the 10 MB limit', status: 'UNREACHABLE', basis: 'underSizeCap' },
+  { id: 'P03', line: 336, message: 'The file contains no projects to import.', status: 'UNREACHABLE', basis: 'singleProject' },
+  // Added with the crosslink transport. A payload arriving over the wire never had a File, so
+  // the size ceiling is measured on the string instead of on `file.size`.
+  { id: 'P04', line: 315, message: 'Import failed: The project data exceeds the 10 MB limit', status: 'UNREACHABLE', basis: 'underSizeCap' },
+  { id: 'P05', line: 336, message: 'The transfer contains no projects to import.', status: 'UNREACHABLE', basis: 'singleProject' },
+  // Found by the completeness check the moment it was written — this refusal had existed
+  // unregistered since the importer shipped, and nothing was red.
+  { id: 'P06', line: 321, message: 'Import failed: Invalid JSON format.', status: 'UNREACHABLE', basis: 'validJson' },
 ]

@@ -493,7 +493,7 @@ describe('C8 — counter-sum, and no duplicate ids of EITHER kind', () => {
 
 describe('C16 — precedence by ACTION, with eviction', () => {
   // A hand-built payload: a real Story Map export is always ONE project
-  // (exportForForecaster.ts:143, `projects: [project]`), so this collision can
+  // (spert-story-map's `exportForForecaster.ts`, `projects: [project]`), so this collision can
   // only be constructed by hand. It passes every validator today because
   // classifyImportData keys on the declared `source` string alone.
   const e1 = existingProject({ id: 'e1', name: 'Shared Name' })

@@ -37,7 +37,20 @@ type ImportPreviewState = {
 
 type ImportBannerState = { kind: 'success' | 'error'; text: string; details?: string[] }
 
-export type { ImportMode, ImportPreviewState, ImportBannerState }
+/** How a payload reached the importer. The ONLY thing allowed to vary by it is wording. */
+type ImportTransport = 'file' | 'crosslink'
+
+/**
+ * What ingesting a payload did.
+ *
+ * ⚠️ `nackReason` ABSENT with `didApply` false is not a failure — it means the payload was
+ * accepted and a preview is open, waiting for a human. Only a present `nackReason` is a
+ * refusal. Deliberately not named `ok` or `result`: both already mean something else here
+ * (`outcome.ok` from the store action, `outcome.result` a few lines below it).
+ */
+type IngestResult = { didApply: boolean; nackReason?: string }
+
+export type { ImportMode, ImportPreviewState, ImportBannerState, ImportTransport, IngestResult }
 
 export function useImportState() {
   // C10/C23: No projects/sprints/viewingProjectId subscriptions. All async
@@ -127,7 +140,7 @@ export function useImportState() {
       imported: ParsedImportData,
       decisions: Map<string, ConflictAction>,
       originalConflicts: ImportConflict[],
-    ) => {
+    ): Promise<IngestResult> => {
       // C-FS1 (pitfall #86): flushSync forces React to commit setApplying(true)
       // to the DOM before the synchronous applySmartImportAction() runs. Without
       // this, React 18 batches setApplying(true)→...→setApplying(false) inside
@@ -139,14 +152,12 @@ export function useImportState() {
         const freshConflicts = detectImportConflicts(imported, currentProjects)
         if (!conflictsEqual(freshConflicts, originalConflicts)) {
           // Hook-level stale-data guard (fast early exit before calling store).
-          showBanner({
-            kind: 'error',
-            text:
-              originalConflicts.length === 0
-                ? 'The workspace changed during import. Please try again.'
-                : 'The workspace changed while the preview was open. Please review your import again.',
-          })
-          return
+          const text =
+            originalConflicts.length === 0
+              ? 'The workspace changed during import. Please try again.'
+              : 'The workspace changed while the preview was open. Please review your import again.'
+          showBanner({ kind: 'error', text })
+          return { didApply: false, nackReason: text }
         }
         // C17/C28: Store action performs the merge atomically inside Zustand's
         // set(). It re-detects conflicts against state.projects at write time
@@ -158,11 +169,9 @@ export function useImportState() {
           source: imported.exportType,
         })
         if (!outcome.ok) {
-          showBanner({
-            kind: 'error',
-            text: 'The workspace changed during import. Please try again.',
-          })
-          return
+          const text = 'The workspace changed during import. Please try again.'
+          showBanner({ kind: 'error', text })
+          return { didApply: false, nackReason: text }
         }
         // C28: Banner built from outcome.result.
         const { result } = outcome
@@ -178,11 +187,14 @@ export function useImportState() {
           // Built from the WRITE-TIME result, never from the preview.
           details: buildImportBannerDetails(result),
         })
+        // ⚠️ TRUE only here. The crosslink sender reports success from this flag, so it must
+        // mean "the store was written", not "nothing threw" — a preview opening and a stale
+        // guard refusing both reach the caller as false.
+        return { didApply: true }
       } catch (err) {
-        showBanner({
-          kind: 'error',
-          text: `Import failed: ${err instanceof Error ? err.message : 'Unknown error'}`,
-        })
+        const text = `Import failed: ${err instanceof Error ? err.message : 'Unknown error'}`
+        showBanner({ kind: 'error', text })
+        return { didApply: false, nackReason: text }
       } finally {
         setApplying(false)
       }
@@ -191,7 +203,7 @@ export function useImportState() {
   )
 
   const applyReplaceAll = useCallback(
-    async (imported: LegacyImportData) => {
+    async (imported: LegacyImportData): Promise<IngestResult> => {
       // C-FS1 (pitfall #86): see applyMergeDecisions above.
       flushSync(() => setApplying(true))
       try {
@@ -204,16 +216,135 @@ export function useImportState() {
               ? `All data replaced. ${n} project${n !== 1 ? 's' : ''} imported.`
               : 'All data replaced.',
         })
+        return { didApply: true }
       } catch (err) {
-        showBanner({
-          kind: 'error',
-          text: `Import failed: ${err instanceof Error ? err.message : 'Unknown error'}`,
-        })
+        const text = `Import failed: ${err instanceof Error ? err.message : 'Unknown error'}`
+        showBanner({ kind: 'error', text })
+        return { didApply: false, nackReason: text }
       } finally {
         setApplying(false)
       }
     },
     [importDataAndSelectFirstAction, showBanner],
+  )
+
+  /**
+   * Is the workspace in a state where an import may be applied at all?
+   *
+   * ⚠️ RETURNS its verdict rather than showing a banner, because the crosslink path has to
+   * turn the same refusal into a NACK the sender can read. The two entry points then render
+   * it differently — banner on the file path, NACK on the wire — from one predicate.
+   */
+  const assertIngestReady = useCallback((): string | null => {
+    if (getStorageMode() === 'cloud' && !useProjectStore.getState().cloudDataLoaded) {
+      return 'Cloud projects are still loading — please try again in a moment.'
+    }
+    return null
+  }, [])
+
+  /**
+   * Where a VALID payload goes: straight in, replacing everything, or to a preview.
+   *
+   * Split out of `ingestPayload` only to keep that function under the complexity ratchet —
+   * it raises no refusals of its own, so every refusal literal stays in one place, which is
+   * what the register's completeness check reads. The order here is part of the shared half
+   * and is transport-invariant like the rest of it.
+   */
+  const routeImport = useCallback(
+    async (imported: ParsedImportData): Promise<IngestResult> => {
+      // C23: Read from store at call time.
+      const { projects: currentProjects, sprints: currentSprints } = useProjectStore.getState()
+      const conflicts = detectImportConflicts(imported, currentProjects)
+      // C2/C8/C18: Cloud guard — see pre-flight #5 for safety analysis.
+      const isCloudMode = getStorageMode() === 'cloud'
+
+      // Fast path 1: zero-conflict additive — local mode only.
+      if (
+        !isCloudMode &&
+        (imported.exportType === 'spert-forecaster-project-export' ||
+          imported.exportType === 'spert-story-map') &&
+        conflicts.length === 0
+      ) {
+        return await applyMergeDecisions(imported, new Map(), [])
+      }
+
+      // Fast path 2: empty workspace replace — local mode only.
+      if (!isCloudMode && imported.exportType === 'legacy' && currentProjects.length === 0) {
+        return await applyReplaceAll(imported)
+      }
+
+      const initialMode: ImportMode = imported.exportType === 'legacy' ? 'replace-all' : 'merge'
+      showPreview({
+        imported,
+        conflicts,
+        decisions: computeDefaultDecisions(conflicts, imported, currentSprints),
+        mode: initialMode,
+      })
+      // Accepted, not applied, and NOT a refusal — `nackReason` is absent. A conflicting
+      // payload waits for a human to click Confirm, and the sender must say so rather than
+      // claim either success or failure.
+      return { didApply: false }
+    },
+    [showPreview, computeDefaultDecisions, applyMergeDecisions, applyReplaceAll],
+  )
+
+  /**
+   * THE SHARED HALF. Everything from `JSON.parse` through `showPreview`, including
+   * `validateImportData` — which has to be inside, because `classifyImportData` validates
+   * nothing at all: it takes an `ExportData` and casts.
+   *
+   * ⚠️ The condition set and the evaluation order here are TRANSPORT-INVARIANT. `transport`
+   * is allowed to change wording and nothing else. If you find yourself adding
+   * `if (transport === …)` around a *check*, that is the bug this comment exists to prevent —
+   * the whole point is that a payload refused over one route is refused over the other.
+   *
+   * The gates that sit OUTSIDE this function — the file picker, the extension gate, the
+   * `file.size` pre-check, `assertIngestReady` — are per-transport by design, and that
+   * asymmetry is deliberate: they guard the act of *arriving*, not the payload.
+   */
+  const ingestPayload = useCallback(
+    async (content: string, transport: ImportTransport): Promise<IngestResult> => {
+      const refuse = (text: string): IngestResult => {
+        showBanner({ kind: 'error', text })
+        return { didApply: false, nackReason: text }
+      }
+      try {
+        // The ceiling, on the STRING. `file.size` upstream is a cheap pre-check on a route
+        // that happens to have a File; a payload that arrives over the wire never had one.
+        if (new Blob([content]).size > MAX_FILE_SIZE) {
+          return refuse('Import failed: The project data exceeds the 10 MB limit')
+        }
+        let raw: unknown
+        try {
+          raw = JSON.parse(content)
+        } catch {
+          return refuse('Import failed: Invalid JSON format.')
+        }
+        try {
+          validateImportData(raw)
+        } catch (err) {
+          return refuse(
+            `Import failed: ${err instanceof Error ? err.message : 'Validation error'}`,
+          )
+        }
+        const imported = classifyImportData(raw as ExportData)
+        if (imported.projects.length === 0) {
+          // One condition, two wordings — the only kind of transport variance allowed. Both
+          // literals live here on purpose: the register matches them as plain substrings of
+          // this file's source, with no interpolation handling, so an assembled string would
+          // stop being findable.
+          return refuse(
+            transport === 'file'
+              ? 'The file contains no projects to import.'
+              : 'The transfer contains no projects to import.',
+          )
+        }
+        return await routeImport(imported)
+      } catch (err) {
+        return refuse(`Import failed: ${err instanceof Error ? err.message : 'Unknown error'}`)
+      }
+    },
+    [showBanner, routeImport],
   )
 
   const handleFileChange = useCallback(
@@ -224,13 +355,15 @@ export function useImportState() {
       // Fix for Pitfall #88 hydration race: reject file picks until cloud data
       // is loaded. The Import button (disabled={isCloudPending}) is the primary
       // gate. This guard covers programmatic triggers, future drag-and-drop, etc.
-      // Uses getState() + getStorageMode() (same pattern as the existing fast-path
-      // guards) because this is an event callback, not a render function.
-      if (getStorageMode() === 'cloud' && !useProjectStore.getState().cloudDataLoaded) {
-        showBanner({
-          kind: 'error',
-          text: 'Cloud projects are still loading — please try again in a moment.',
-        })
+      //
+      // ⚠️ Stays THIRD, behind the two guards above — it is not "first in each entry point".
+      // Moving it would change what this path says: pick `notes.txt` while the cloud is
+      // loading and today you get "Cloud projects are still loading"; ahead of the extension
+      // gate you would get "Please select a JSON file (.json)". Same predicate, different
+      // observable behaviour, so the predicate is DUPLICATED rather than moved.
+      const notReady = assertIngestReady()
+      if (notReady) {
+        showBanner({ kind: 'error', text: notReady })
         return
       }
       readerPendingRef.current = true
@@ -256,66 +389,7 @@ export function useImportState() {
       const reader = new FileReader()
       reader.onload = (event) => {
         readerPendingRef.current = false
-        try {
-          const content = event.target?.result as string
-          let raw: unknown
-          try {
-            raw = JSON.parse(content)
-          } catch {
-            showBanner({ kind: 'error', text: 'Import failed: Invalid JSON format.' })
-            return
-          }
-          try {
-            validateImportData(raw)
-          } catch (err) {
-            showBanner({
-              kind: 'error',
-              text: `Import failed: ${err instanceof Error ? err.message : 'Validation error'}`,
-            })
-            return
-          }
-          const imported = classifyImportData(raw as ExportData)
-          if (imported.projects.length === 0) {
-            showBanner({ kind: 'error', text: 'The file contains no projects to import.' })
-            return
-          }
-          // C23: Read from store at call time.
-          const { projects: currentProjects, sprints: currentSprints } =
-            useProjectStore.getState()
-          const conflicts = detectImportConflicts(imported, currentProjects)
-          // C2/C8/C18: Cloud guard — see pre-flight #5 for safety analysis.
-          const isCloudMode = getStorageMode() === 'cloud'
-
-          // Fast path 1: zero-conflict additive — local mode only.
-          if (
-            !isCloudMode &&
-            (imported.exportType === 'spert-forecaster-project-export' ||
-              imported.exportType === 'spert-story-map') &&
-            conflicts.length === 0
-          ) {
-            void applyMergeDecisions(imported, new Map(), [])
-            return
-          }
-
-          // Fast path 2: empty workspace replace — local mode only.
-          if (!isCloudMode && imported.exportType === 'legacy' && currentProjects.length === 0) {
-            void applyReplaceAll(imported)
-            return
-          }
-
-          const initialMode: ImportMode = imported.exportType === 'legacy' ? 'replace-all' : 'merge'
-          showPreview({
-            imported,
-            conflicts,
-            decisions: computeDefaultDecisions(conflicts, imported, currentSprints),
-            mode: initialMode,
-          })
-        } catch (err) {
-          showBanner({
-            kind: 'error',
-            text: `Import failed: ${err instanceof Error ? err.message : 'Unknown error'}`,
-          })
-        }
+        void ingestPayload(event.target?.result as string, 'file')
       }
       reader.onerror = () => {
         readerPendingRef.current = false
@@ -332,7 +406,7 @@ export function useImportState() {
         })
       }
     },
-    [showBanner, showPreview, computeDefaultDecisions, applyMergeDecisions, applyReplaceAll],
+    [showBanner, assertIngestReady, ingestPayload],
   )
 
   const handleConfirmMerge = useCallback(() => {
@@ -340,15 +414,13 @@ export function useImportState() {
     // Belt-and-suspenders: the disabled Import button is the primary gate.
     // This guard handles the edge case where the preview was opened in local
     // mode and the user switched to cloud before confirming.
-    if (getStorageMode() === 'cloud' && !useProjectStore.getState().cloudDataLoaded) {
-      showBanner({
-        kind: 'error',
-        text: 'Cloud projects are still loading — please try again in a moment.',
-      })
+    const notReady = assertIngestReady()
+    if (notReady) {
+      showBanner({ kind: 'error', text: notReady })
       return
     }
     void applyMergeDecisions(importPreview.imported, importPreview.decisions, importPreview.conflicts)
-  }, [importPreview, applyMergeDecisions, showBanner])
+  }, [importPreview, applyMergeDecisions, showBanner, assertIngestReady])
 
   const handleImportCancel = useCallback(() => {
     clearImportFlow()
@@ -397,6 +469,9 @@ export function useImportState() {
     handleConfirmReplaceAll,
     dismissBanner,
     handleFileChange,
+    // The seam. `useCrosslinkReceiver` is the other caller.
+    ingestPayload,
+    assertIngestReady,
     handleConfirmMerge,
     handleImportCancel,
     onModeChange,
