@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.43.1 - 2026-08-30
+
+Housekeeping with one real edge to it: a gap in how the app protects itself from malformed import files, closed before it could cost anyone anything.
+
+When you import a project file, the app copies across only the fields it recognises and silently discards everything else. That is deliberate — it stops a hand-edited or malformed file from smuggling unexpected data into your projects, and from there into your cloud storage. The list of recognised fields was maintained by hand, and nothing checked it was complete. If a future field were ever added to the app without being added to that list, it would have been quietly dropped from every import, with no error and no failing test — the kind of fault that shows up months later as "why didn't that come across?"
+
+The five lists are now derived from the field definitions themselves, so leaving one out stops the build. Nothing changes about what is imported today; the lists were already correct, and every one of the app's 1,600 tests passes unchanged. This closes the gap for every field added from now on.
+
+### Fixed
+- **The import field lists can no longer fall out of step with the app's own data.** Adding a field without deciding whether it may be imported is now a build error rather than a silent omission.
+- **Three leftover labels from the previous release's terminology cleanup**, missed because the search pattern used to find them did not match a hyphenated spelling.
+
+### Notes
+- **Excluding a field from imports is still possible and still a deliberate choice** — it now has to be written down where it is made, rather than achieved by leaving it off a list.
+- **The reasoning is recorded** in `docs/SPEC_DEVIATIONS.md` (SD-3), including how the protection was verified by deliberately breaking it.
+
 ## v0.43.0 - 2026-08-30
 
 The Update option now survives a move to cloud storage. Until today, switching to the cloud could quietly put it out of reach for good.
