@@ -594,3 +594,144 @@ describe('useImportState — cloudDataLoaded exposure', () => {
     expect(result.current.cloudDataLoaded).toBe(true)
   })
 })
+
+// ---------------------------------------------------------------------------
+// the seam — ingestPayload and assertIngestReady
+// ---------------------------------------------------------------------------
+
+/** A minimal Story Map export: the shape the crosslink transport actually carries. */
+function storyMapExport(projectId = 'prod-1', name = 'From Story Map') {
+  return JSON.stringify({
+    version: '1.0',
+    exportedAt: '2026-01-01T00:00:00.000Z',
+    source: 'spert-story-map',
+    projects: [
+      {
+        id: projectId,
+        name,
+        unitOfMeasure: 'Story Points',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      },
+    ],
+    sprints: [],
+  })
+}
+
+describe('useImportState — ingestPayload is reachable from BOTH transports', () => {
+  it('applies a clean payload arriving over the crosslink, with no preview', () => {
+    // Fast path 1, local mode, zero conflicts — applies with NO user interaction. That is
+    // also precisely why production must never allowlist a localhost sender.
+    const { result } = renderHook(() => useImportState())
+    let outcome: { didApply: boolean; nackReason?: string } | undefined
+    return act(async () => {
+      outcome = await result.current.ingestPayload(storyMapExport(), 'crosslink')
+    }).then(() => {
+      expect(outcome).toEqual({ didApply: true })
+      expect(result.current.importPreview).toBeNull()
+      expect(useProjectStore.getState().projects).toHaveLength(1)
+    })
+  })
+
+  it('applies the SAME payload identically over the file transport', () => {
+    const { result } = renderHook(() => useImportState())
+    return act(async () => {
+      await result.current.ingestPayload(storyMapExport(), 'file')
+    }).then(() => {
+      expect(useProjectStore.getState().projects).toHaveLength(1)
+    })
+  })
+
+  it('opens a preview and applies NOTHING when the payload conflicts', async () => {
+    useProjectStore.setState({ projects: [makeProject({ id: 'prod-1', name: 'Existing' })] })
+    const { result } = renderHook(() => useImportState())
+    let outcome: { didApply: boolean; nackReason?: string } | undefined
+    await act(async () => {
+      outcome = await result.current.ingestPayload(storyMapExport('prod-1'), 'crosslink')
+    })
+    // didApply false with NO nackReason is "accepted for review" — not a refusal. The sender
+    // must not report this as either success or failure.
+    expect(outcome).toEqual({ didApply: false })
+    expect(result.current.importPreview).not.toBeNull()
+    expect(useProjectStore.getState().projects).toHaveLength(1)
+  })
+})
+
+describe('useImportState — the size ceiling applies to the STRING', () => {
+  it('refuses an over-ceiling payload on the crosslink path', async () => {
+    // The file path pre-checks `file.size`; a payload arriving over the wire never had a
+    // File, so the ceiling has to be measured on the content itself.
+    const { result } = renderHook(() => useImportState())
+    const oversized = `{"pad":"${'x'.repeat(10 * 1024 * 1024 + 10)}"}`
+    let outcome: { didApply: boolean; nackReason?: string } | undefined
+    await act(async () => {
+      outcome = await result.current.ingestPayload(oversized, 'crosslink')
+    })
+    expect(outcome?.didApply).toBe(false)
+    expect(outcome?.nackReason).toContain('10 MB limit')
+    expect(useProjectStore.getState().projects).toHaveLength(0)
+  })
+
+  it('CONTROL — a payload just under the ceiling is not refused for size', async () => {
+    // Without this the test above passes even if the ceiling rejects everything.
+    const { result } = renderHook(() => useImportState())
+    let outcome: { didApply: boolean; nackReason?: string } | undefined
+    await act(async () => {
+      outcome = await result.current.ingestPayload(storyMapExport(), 'crosslink')
+    })
+    expect(outcome?.nackReason).toBeUndefined()
+  })
+})
+
+describe('useImportState — refusals reach the sender as reasons', () => {
+  it('returns the validator message rather than only showing a banner', async () => {
+    const { result } = renderHook(() => useImportState())
+    let outcome: { didApply: boolean; nackReason?: string } | undefined
+    await act(async () => {
+      outcome = await result.current.ingestPayload('{"projects":"nope","sprints":[]}', 'crosslink')
+    })
+    expect(outcome?.didApply).toBe(false)
+    expect(outcome?.nackReason).toContain('projects')
+    expect(result.current.importBanner?.kind).toBe('error')
+  })
+
+  it('refuses invalid JSON', async () => {
+    const { result } = renderHook(() => useImportState())
+    let outcome: { didApply: boolean; nackReason?: string } | undefined
+    await act(async () => {
+      outcome = await result.current.ingestPayload('not json at all', 'crosslink')
+    })
+    expect(outcome?.nackReason).toBe('Import failed: Invalid JSON format.')
+  })
+
+  it('words the empty-payload refusal per transport, and ONLY the wording', async () => {
+    const empty = JSON.stringify({ version: '1.0', source: 'spert-story-map', projects: [], sprints: [] })
+    const { result } = renderHook(() => useImportState())
+    let viaFile: { nackReason?: string } | undefined
+    let viaCrosslink: { nackReason?: string } | undefined
+    await act(async () => {
+      viaFile = await result.current.ingestPayload(empty, 'file')
+      viaCrosslink = await result.current.ingestPayload(empty, 'crosslink')
+    })
+    expect(viaFile?.nackReason).toBe('The file contains no projects to import.')
+    expect(viaCrosslink?.nackReason).toBe('The transfer contains no projects to import.')
+  })
+})
+
+describe('useImportState — assertIngestReady returns its verdict', () => {
+  it('returns null when the workspace is ready', () => {
+    const { result } = renderHook(() => useImportState())
+    expect(result.current.assertIngestReady()).toBeNull()
+  })
+
+  it('returns the message — not a banner — while cloud data is loading', () => {
+    // Returning it is what lets the crosslink path turn the same refusal into a NACK.
+    hoisted.mode = 'cloud'
+    useProjectStore.setState({ cloudDataLoaded: false })
+    const { result } = renderHook(() => useImportState())
+    expect(result.current.assertIngestReady()).toBe(
+      'Cloud projects are still loading — please try again in a moment.',
+    )
+    expect(result.current.importBanner).toBeNull()
+  })
+})

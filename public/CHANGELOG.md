@@ -1,5 +1,31 @@
 # Changelog
 
+## v0.42.0 - 2026-08-29
+
+SPERT® Story Map can now hand a project straight to this app, so the download-then-upload round trip is optional rather than the only way.
+
+Until now, moving a project across meant three steps and a file on your disk: export from Story Map, find the file, import it here. Every one of those steps worked, and none of them was interesting. Story Map now has a **Send to SPERT Forecaster** button that opens this app in a new tab and hands the project over directly. What arrives is byte-for-byte the same data the file contained — the two routes share one function that produces it, precisely so neither can send something the other would not.
+
+This is a one-time handover. Nothing stays attached afterwards, nothing polls, and closing either tab ends it. Send the same project again later and you get a fresh transfer, treated exactly like a fresh import — including the Update option added in v0.41.0.
+
+**The file download is unchanged and is going nowhere.** It remains the only way to move a project between two different machines, or to keep a copy, or to send a project to someone else. The new route works only between two tabs in the same browser.
+
+What arrives is checked exactly as a file is. The same validator runs, the same size ceiling applies, the same conflict preview opens, and a transfer that conflicts with a project you already have imports nothing until you click Confirm — Story Map is told a review is waiting rather than being told it succeeded.
+
+### Added
+- **A direct handover from SPERT Story Map, in the same browser.** The sending tab opens this app, the two exchange a short handshake, and the project data crosses in one message. Both sides check the other's exact web address before anything is read, and a transfer from anywhere else is ignored without reply.
+- **A held transfer, for the case where your cloud projects are still loading.** In cloud mode the app cannot safely accept an import until Firestore has finished its first load, which is exactly when a freshly opened tab arrives. The transfer is held rather than refused, and applied as soon as loading finishes.
+- **A time limit on a held transfer, so a stale one can never apply late.** The hold expires shortly before the sender stops waiting, and Story Map is told why. Without it, a transfer that had already given up could be applied minutes later — after you had given up on it too and imported the file by hand — leaving the same project in twice.
+
+### Changed
+- **An import preview or result banner now survives leaving the Projects tab and coming back.** Previously, switching tabs mid-import discarded the preview and you started over. This is a change to the existing file import as well as the new route, and it is the visible half of moving import handling up into the app shell so a transfer arriving during a tab switch has somewhere to land.
+- **The size ceiling is now measured on the data itself rather than only on the file.** A transfer never has a file to measure, so the 10 MB limit is applied to the content in both cases. The file check remains as a cheap first pass.
+
+### Notes
+- **The receiving tab accepts a transfer only from the web address it was opened by, and only for the one exchange it was opened for.** A hand-typed transfer address does nothing at all. In production the app accepts transfers only from Story Map's real address; local addresses are never accepted outside development.
+- **A refusal now carries its reason back to Story Map** rather than only appearing here, so a transfer that fails tells you why in the tab you were looking at.
+- **The internal register of import refusals gained a completeness check**, which immediately found one refusal that had gone unrecorded since the importer shipped.
+
 ## v0.41.0 - 2026-08-29
 
 A third choice when you re-import a project from SPERT® Story Map, because until now there were only two and neither was what most people wanted.

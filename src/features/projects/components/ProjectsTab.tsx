@@ -19,7 +19,9 @@ import { ProjectForm, type ProjectFormHandle } from './ProjectForm'
 import { ImportPreviewSection } from './ImportPreviewSection'
 import { ProjectsEmptyState } from '@/shared/components/ProjectsEmptyState'
 import { loadSampleProject } from '../lib/sample-project'
-import { useImportState } from '../hooks/useImportState'
+// Type-only: the hook is CALLED in AppShell now, not here. Importing the value would put it
+// back in this component's runtime graph and invite someone to call it again by accident.
+import type { useImportState } from '../hooks/useImportState'
 import { exportSingleProject } from '../lib/export-project'
 import { getWorkspaceId, getStorageMode } from '@/shared/state/storage'
 import { auth } from '@/shared/firebase/config'
@@ -29,9 +31,20 @@ import type { Project } from '@/shared/types'
 
 interface ProjectsTabProps {
   onViewHistory?: (projectId: string) => void
+  /**
+   * ⚠️ Owned by `AppShell`, not by this component, because this component UNMOUNTS on every
+   * tab switch and a transfer arriving mid-switch would land on nothing.
+   *
+   * Passed as ONE bundle rather than 15 props: the hook returns 19 members and this component
+   * uses 15 of them, and spreading them into the prop list would put a hook's return shape
+   * into a component's public API and churn the signature on every change to it. Required,
+   * not optional — a missing prop then fails `tsc`, which the ship gate runs BEFORE the
+   * tests, rather than failing at runtime in front of a user.
+   */
+  importState: ReturnType<typeof useImportState>
 }
 
-export function ProjectsTab({ onViewHistory }: ProjectsTabProps) {
+export function ProjectsTab({ onViewHistory, importState }: ProjectsTabProps) {
   const isClient = useIsClient()
   const idPrefix = useId()
   const projects = useProjectStore((state) => state.projects)
@@ -61,7 +74,7 @@ export function ProjectsTab({ onViewHistory }: ProjectsTabProps) {
     handleConfirmReplaceAll,
     dismissBanner,
     cloudDataLoaded,
-  } = useImportState()
+  } = importState
 
   const [editingProject, setEditingProject] = useState<Project | null>(null)
   // v0.33.3: form is hidden on first-touch (zero projects, no edit in flight) until
