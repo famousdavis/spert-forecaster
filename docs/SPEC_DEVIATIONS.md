@@ -83,15 +83,24 @@ than by a check, and the most recent in the *sprint* table. A field added to
 - ⚠️ The tables make omission impossible and the classification **discoverable**;
   they **cannot make it true**. `Record<keyof T, UpdateFieldClass>` accepts any
   member for any key, so a wrong-but-valid entry compiles. Deleting the
-  milestone `color`/`showOnChart` claw-backs leaves `tsc` and the whole suite
-  green while the table still asserts the opposite. **Do not read a green
+  milestone `color`/`showOnChart` claw-backs left `tsc` and the whole suite
+  green while the table still asserted the opposite. **Do not read a green
   typecheck as "the table is correct."**
+  ⚠️ **The SUITE half of that no longer holds — SD-4 added a contract test that
+  fails two tests on exactly that mutation.** The `tsc` half is unchanged and
+  always will be: it is a property of the type, not of the coverage.
 - Every guard added here was verified by mutation, not by reading.
 
 **Source comment:** the three constants sit immediately above the
-`// --- Update merge: …` banner in `src/shared/state/import-utils.ts`,
-module-local and `void`-ed. The comments that previously read *"§3's class
-table"* — with no document named — now cite the constants and this entry.
+`// --- Update merge: …` banner in `src/shared/state/import-utils.ts`. The
+comments that previously read *"§3's class table"* — with no document named —
+now cite the constants and this entry.
+
+⚠️ **Superseded (see SD-4, v0.43.2):** the constants were module-local and
+`void`-ed when this entry was written. They are now **exported**, and the
+`void`s are gone, so `field-class-contract.test.ts` can read them. This is a
+factual correction to what this entry records, not a reversal of its reasoning —
+SD-2 gave no rationale for keeping them local, and none was intended.
 
 ## SD-3: Import allowlists derived from `Record<keyof T, true>` (v0.43.1)
 
@@ -144,3 +153,94 @@ stated, published, and independently reproduced three times, and all three
 reproductions used that same predicate. **Independent reproduction of an
 enumeration validates the execution, not the predicate.** Now swept with
 `[Cc]lass[- ]?[1-4]`.
+
+## SD-4: The field-class tables are bound to the merge functions by a contract test (v0.43.2)
+
+**Spec reference:** none. This closes the limit SD-2 stated in writing — that the
+tables *"make omission impossible and the classification discoverable; they
+cannot make the classification true."*
+
+**The defect it closes.** The merge behaviour, the tables and the tests were
+three independent encodings of one fact with nothing tying them together.
+Measured: delete the `color`/`showOnChart` claw-backs from
+`mergeMilestonesForUpdate` and `tsc` exits 0 with **all 1600 tests green**, while
+those rows go on claiming `local-producer-artifact`. ⚠️ **A wrong entry is worse
+than no entry — it is documentation that looks enforced.** The same file now
+fails two tests on that mutation.
+
+**Change.** `PROJECT_/SPRINT_/MILESTONE_UPDATE_FIELD_CLASSES` and
+`UpdateFieldClass` are **exported** and the `void`s removed (superseding what
+SD-2 recorded); `src/shared/state/field-class-contract.test.ts` reads them,
+runs the shipped merge functions, and asserts each row's OUTCOME GROUP.
+
+**Why it is not circular.** ⚠️ **The table supplies only the PREDICTION; the
+OBSERVATION comes from running the merge.** Every fixture is a hand-written
+literal — a fixture generated from a table would make the observation
+table-shaped and the check decorative. Fixture values must additionally be
+**own, enumerable, non-accessor and stable across reads**: the merges spread
+their inputs, so a getter is re-read and can return a different value each time.
+That is *not* implied by "hand-written literal", and `assertPlainData` enforces
+it.
+
+**The boundary, both directions.**
+
+> **Cross-group corruptions go red, EXCEPT on the enumerated coincidences below.
+> Within-group corruptions stay green. BOTH halves are asserted by controls.**
+
+⚠️ **No count is quoted, deliberately.** Regenerate any figure from a harness and
+state its units and its policy beside it. A one-directional form (*"if red, then
+it crossed"*) is satisfied vacuously by a check that never reds, and an inherited
+count is how a shortfall gets re-hidden after the table was made honest.
+
+**The enumerated exceptions** — separable from no fixture, for structural
+reasons, each stated as the coinciding SET rather than as "unobservable":
+
+| row | coincides with |
+|---|---|
+| `project.id` [`pinned-identity`] | `keeps-existing` |
+| `sprint.projectId` [`pinned-identity`] | `keeps-existing` |
+| `sprint.id` [`match-key`] | `takes-incoming`, `keeps-existing` |
+| `milestone.id` [`match-key`] | `takes-incoming`, `keeps-existing` |
+
+`project.id`: `existing.id` **is** the container identity, so the two
+predictions are one expression. `sprint.projectId`: `priorById` is built from
+`existingSprints.filter(s => s.projectId === existingProjectId)`, so **every
+matched prior's `projectId` IS the container identity by construction** — a
+matched prior violating it is unreachable. ⚠️ **An added-branch fixture does NOT
+separate it**, because the assertion set is table-driven: corrupting the row out
+of `pinned-identity` removes the very assertion that would catch it. The `id`
+rows: a matched pair has equal ids by the definition of matching.
+
+**NEVER-HOLDS, and a change in the CHARACTER of the check.** A group with no
+defined referent — on a **table** *or* on a **row** — never holds there, so
+classing a row into it is caught. ⚠️ **Those cells are caught DEFINITIONALLY —
+the group is not defined for that row — rather than BEHAVIOURALLY, by running
+the merge and comparing.** That remains non-circular **only** because
+`groupIsDefined` is derived from the **merge function signatures** —
+`mergeMilestonesForUpdate` takes no container parameter, only
+`mergeProjectForUpdate` delegates, `priorById` is keyed on `id` — and never from
+the tables under test. ⚠️ **A later reader who rebuilds that map from the tables
+converts a sound check into a tautology.** Rebuild it from the signatures.
+
+**Precedence.** NEVER-HOLDS is a **table-and-row**-scope rule about which groups
+are DEFINED. The added-branch rule is a **branch**-scope rule about which
+assertions RUN on a given instance. **Branch scope is evaluated last and wins on
+the added instance** — where `keeps-existing` and `match-key` legitimately come
+from incoming under the existence partition, and asserting them there
+manufactures false failures on rows the tables get right.
+
+**What it does not prove.** ⚠️ It binds the tables to **this** repo's merge
+functions. The `incoming` vs `incoming-when-emitted` and `local-restore-defensive`
+vs `local-restore-required` distinctions are **producer** facts about what
+`exportForForecaster.ts` emits; a consumer-side check cannot see them, because
+`{...existing, ...incoming}` with a key absent yields existing's value for **any**
+class. Route those to the producer — `storymap-contract.test.ts` is the better
+long-term home — and do not call them unknowable.
+
+**Verified by mutation, not by reading.** Cross-group corruption on each of the
+three tables → red on the right row; within-group corruption → **green, as
+designed**; `match-key` on a non-id row and `pinned-identity` on a table with no
+container → red via NEVER-HOLDS at row and table scope; the documented
+`sprint.projectId` exception → green. ⚠️ **A suite with only positive controls
+cannot tell a correct boundary from an accidental one.**
+

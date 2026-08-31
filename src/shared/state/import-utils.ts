@@ -387,16 +387,26 @@ export function conflictsEqual(a: ImportConflict[], b: ImportConflict[]): boolea
 // load-bearing under a name conflict, and it is still one row. No row's class
 // depends on the conflict type — which is what lets one table serve both.
 //
-// ⚠️ DOCUMENTATION, NOT A MECHANISM — the merge functions below do not read
-// them. `Record<keyof T, UpdateFieldClass>` makes OMISSION impossible (add a
-// field to Project/Sprint/Milestone without classing it and `tsc` fails), but
-// it CANNOT make a classification true: every class type-checks against every
-// key. Measured: delete `color`/`showOnChart` from mergeMilestonesForUpdate and
-// tsc stays green with the whole suite passing, while these rows go on claiming
-// `local-producer-artifact`. Omission is the failure that actually recurred —
-// `unitOfMeasure`, then `createdAt`/`updatedAt`, then `sprintNumber`, four
-// fields over three revisions — and it is the hole these close.
-type UpdateFieldClass =
+// ⚠️ NOT READ BY THE MERGE FUNCTIONS — but no longer unenforced. Since SD-4,
+// `field-class-contract.test.ts` runs the merges below and asserts each row's
+// outcome group, so a WRONG entry now fails a test. Read SD-4 before changing a
+// class: the boundary it can and cannot see is stated there, with its
+// enumerated exceptions.
+//
+// ⚠️ WHAT THE TYPE ALONE STILL CANNOT DO. `Record<keyof T, UpdateFieldClass>`
+// makes OMISSION impossible (add a field to Project/Sprint/Milestone without
+// classing it and `tsc` fails), but it CANNOT make a classification true: every
+// class type-checks against every key. Omission is the failure that actually
+// recurred — `unitOfMeasure`, then `createdAt`/`updatedAt`, then `sprintNumber`,
+// four fields over three revisions — and it is the hole the Record closes.
+//
+// ⚠️ The CLASSIFICATION hole is closed by SD-4's contract test, not by the type.
+// Deleting the `color`/`showOnChart` claw-backs from mergeMilestonesForUpdate
+// USED to leave `tsc` clean and the whole suite green while these rows went on
+// claiming `local-producer-artifact`. It now fails two tests in
+// `field-class-contract.test.ts`. ⚠️ Do not read a green `tsc` as "the table is
+// correct" — that was never what it meant, and still is not.
+export type UpdateFieldClass =
   | 'incoming'                // producer authoritative; the spread already does this
   | 'incoming-when-emitted'   // as 'incoming', but CONDITIONALLY emitted; absence leaves local
   | 'local-restore-defensive' // a real export never emits it; the restore defends a CRAFTED payload
@@ -409,7 +419,7 @@ type UpdateFieldClass =
                               // ⚠️ "pinned TO a value" — NOT this file's dominant
                               // "pinned BY a test/SHA" sense (PINNED_STORY_MAP).
 
-const PROJECT_UPDATE_FIELD_CLASSES: Record<keyof Project, UpdateFieldClass> = {
+export const PROJECT_UPDATE_FIELD_CLASSES: Record<keyof Project, UpdateFieldClass> = {
   name: 'incoming',
   // ⚠️ VACUOUS against a real export, and that is not a reason to reclassify.
   // exportForForecaster.ts reads `product.sprintCadenceWeeks || 2`, so its
@@ -432,7 +442,7 @@ const PROJECT_UPDATE_FIELD_CLASSES: Record<keyof Project, UpdateFieldClass> = {
   id: 'pinned-identity',
 }
 
-const SPRINT_UPDATE_FIELD_CLASSES: Record<keyof Sprint, UpdateFieldClass> = {
+export const SPRINT_UPDATE_FIELD_CLASSES: Record<keyof Sprint, UpdateFieldClass> = {
   sprintNumber: 'incoming',
   sprintStartDate: 'incoming',
   sprintFinishDate: 'incoming',
@@ -447,7 +457,7 @@ const SPRINT_UPDATE_FIELD_CLASSES: Record<keyof Sprint, UpdateFieldClass> = {
   projectId: 'pinned-identity',
 }
 
-const MILESTONE_UPDATE_FIELD_CLASSES: Record<keyof Milestone, UpdateFieldClass> = {
+export const MILESTONE_UPDATE_FIELD_CLASSES: Record<keyof Milestone, UpdateFieldClass> = {
   name: 'incoming',
   backlogSize: 'local-restore-required',
   // ⚠️ Not merely "less preferred": exportForForecaster.ts assigns from a
@@ -461,10 +471,16 @@ const MILESTONE_UPDATE_FIELD_CLASSES: Record<keyof Milestone, UpdateFieldClass> 
   id: 'match-key',
 }
 
-// Documentation only — nothing reads these.
-void PROJECT_UPDATE_FIELD_CLASSES
-void SPRINT_UPDATE_FIELD_CLASSES
-void MILESTONE_UPDATE_FIELD_CLASSES
+// ⚠️ EXPORTED SO A TEST CAN READ THEM — see `field-class-contract.test.ts`
+// and docs/SPEC_DEVIATIONS.md SD-4,
+// which runs the merge functions below and asserts each row's OUTCOME GROUP.
+// Same split the repo already uses in `firestore-driver.ts`: a compile-time
+// guard stays local and `void`-ed (`_PROJECT_WRITE_KEYS_GUARD`), a table a test
+// must read is exported (`PROJECT_MERGE_FIELDS`). The `void`s are gone because
+// the export is now the reader.
+//
+// ⚠️ They are STILL not read by the merge functions. The contract test is a
+// SECOND, INDEPENDENT encoding — it does not make these tables authoritative.
 
 // --- Update merge: the field-class tables above, plus §4.4's and §4.4a's
 // existence partitions ---
