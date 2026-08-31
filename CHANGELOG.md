@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.43.2 - 2026-08-30
+
+Internal only. A table the app keeps about its own merge rules can no longer quietly disagree with what the merge actually does.
+
+When a project is re-imported from SPERT® Story Map with the Update option, every field is merged by a rule — take the incoming value, keep yours, or stamp a fresh one. v0.43.0 wrote those rules down for all twenty-nine fields, so that adding a field without deciding its rule became a build error. What that could not do was check the written rule against the merge itself: a rule could be recorded wrongly and nothing would notice.
+
+That gap was real rather than theoretical. Removing the code that protects two milestone fields left every one of the app's tests passing while the table went on claiming they were protected. **Documentation that looks enforced is worse than none**, because it stops the next person looking.
+
+A contract test now runs the real merge for all twenty-nine fields and checks each one behaves as its written rule says. The same removal that used to pass silently now fails two tests by name.
+
+### Fixed
+- **The written merge rules are now checked against the merge itself.** A rule recorded wrongly, or code changed out from under a correct rule, fails the build instead of passing quietly.
+- **Fixtures used by that check are verified to be plain data**, so a hand-written test object cannot smuggle in behaviour that makes the check pass for the wrong reason.
+
+### Notes
+- **Six field-and-rule combinations cannot be distinguished by observing the merge**, for structural reasons — an identifier that is both the thing being matched on and the thing being checked, for instance. They are listed explicitly rather than left as a silent gap, and the reasoning is recorded in `docs/SPEC_DEVIATIONS.md` (SD-4).
+- **No behaviour changes.** Nothing about importing, merging or forecasting works differently.
+
 ## v0.43.1 - 2026-08-30
 
 Housekeeping with one real edge to it: a gap in how the app protects itself from malformed import files, closed before it could cost anyone anything.
