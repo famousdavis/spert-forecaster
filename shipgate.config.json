@@ -17,6 +17,8 @@
     ]
   },
   "claudeMdVersionPatterns": [],
+  "gitBaseBranch": "main",
+  "_gitBaseBranchNote": "Consumed by TWO scripts at two different moments, and the split is the point. shipgate.mjs uses it PRE-merge for one assertion only — that this clone is not BEHIND origin/<branch>, i.e. the release is being cut on top of current main. verify-sync.mjs uses it POST-merge for the three-way SHA comparison (local, remote-tracking, GitHub API) plus a clean-tree check. Neither check can live in the other's moment: the gate runs partway through a release with the version and changelog edits UNCOMMITTED, so a clean-tree assertion there would fail every release; and the post-merge SHA condition does not exist yet when the gate runs. Both self-skip under CI: actions/checkout is shallow and detached, so origin/<branch> is not a meaningful local ref there, and a CI runner has no view of a developer's clone at all — which is why this drift was invisible to every mechanism the suite already had. Remove this key to disable both checks; the gate then prints nothing for them rather than passing silently.",
   "commands": [
     { "name": "lint", "run": "npm run lint", "expectProblems": 9 },
     { "name": "typecheck (incl. test files — next build skips them)", "run": "npm run typecheck" },

@@ -63,7 +63,7 @@
  *   npm run shipgate -- --checks-only    skip the lint/test/build commands
  */
 
-import { execSync } from 'node:child_process'
+import { execFileSync, execSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
@@ -316,6 +316,74 @@ if (config.claudeMdVersionPatterns?.length) {
           `CLAUDE.md ${pattern}`,
           stale.map((m) => `stale claim "${m[0].trim()}" — repo is at ${version}`).join('\n'),
         )
+      }
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// G8 — release base freshness
+//
+// ONE assertion, and deliberately only one: that this clone is not BEHIND
+// origin/<gitBaseBranch>. A release cut on a stale base silently omits whatever
+// landed on main in the meantime, and no other check in this file can see it —
+// every check above reads the working tree, which looks entirely correct.
+//
+// WHAT THIS STEP IS NOT. It is not a clean-tree check, and must never become
+// one. This gate runs at Releasing step 5, AFTER the version and changelog edits
+// and BEFORE the branch is cut, so the tree is uncommitted by design at exactly
+// this moment; asserting cleanliness here would fail every release. It is also
+// not the post-merge sync check — that condition does not exist yet when this
+// runs. That one lives in `scripts/verify-sync.mjs` (`npm run verify:sync`),
+// and the two share this config key so they cannot disagree about the branch.
+//
+// Being AHEAD is normal and is not reported: the release commits are ahead.
+//
+// A fetch failure FAILS the step rather than skipping it. The comparison reads a
+// remote-tracking ref, so a swallowed fetch error would leave a stale ref being
+// compared against itself — which agrees, and reads as a pass.
+// ─────────────────────────────────────────────────────────────────────────────
+if (config.gitBaseBranch) {
+  console.log(`\n${BOLD}Release base${RESET}`)
+  const baseBranch = config.gitBaseBranch
+
+  if (process.env.CI) {
+    // actions/checkout is shallow and detached: origin/<branch> is not a
+    // meaningful local ref here, and a runner has no view of a developer's
+    // clone in any case. Skipping loudly rather than passing silently.
+    console.log(`  ${DIM}– CI checkout is shallow and detached, skipping${RESET}`)
+  } else {
+    const git = (args) => {
+      // An argument array, not a shell string: the branch name reaches git as
+      // one argv entry and can never be re-parsed as a second command.
+      try {
+        return { ok: true, out: execFileSync('git', args, { cwd: ROOT, encoding: 'utf-8', stdio: 'pipe' }).trim() }
+      } catch (err) {
+        return { ok: false, out: `${err.stdout ?? ''}${err.stderr ?? ''}`.trim() || String(err.message) }
+      }
+    }
+
+    const fetched = git(['fetch', 'origin', baseBranch, '--quiet'])
+    if (!fetched.ok) {
+      fail(
+        `fetch origin/${baseBranch}`,
+        `${fetched.out}\nThe base-freshness check reads a remote-tracking ref, so it cannot run. ` +
+          'Fix the fetch or drop gitBaseBranch from shipgate.config.json — do not ship unverified.',
+      )
+    } else {
+      const behind = git(['rev-list', '--count', `HEAD..origin/${baseBranch}`])
+      if (!behind.ok) {
+        fail(`compare HEAD to origin/${baseBranch}`, behind.out)
+      } else if (behind.out !== '0') {
+        fail(
+          `not behind origin/${baseBranch}`,
+          `HEAD is ${behind.out} commit(s) behind origin/${baseBranch}.\n` +
+            `This release would be cut on a stale base and would omit them. Run:\n` +
+            `  git pull --ff-only origin ${baseBranch}\n` +
+            'A non-fast-forward means local commits the remote lacks — report it, do not force.',
+        )
+      } else {
+        pass(`not behind origin/${baseBranch}`, 'release base is current')
       }
     }
   }

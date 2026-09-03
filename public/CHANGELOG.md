@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.43.3 - 2026-09-03
+
+Release tooling only. No application code changed and nothing about how the app behaves is different.
+
+Releasing this app includes bringing the local copy of the project back into line with the copy on the server once a release has landed. Merging advances the server; it does not touch the local copy. If the local one is left behind, every report still reads as though the release arrived everywhere, and the next release is then built on the wrong starting point. That step existed only as a line in a written checklist.
+
+Two mechanisms that look like they should have covered it could not. The pre-release check runs before a release is merged, so the condition it would be checking does not exist yet. The automated build cannot check it either, because it is a fact about the machine doing the release rather than about the project, and a fresh automated copy has no view of anyone's working copy. **The gap was invisible rather than merely unaddressed**, which is why it survived from the day the gate was introduced.
+
+### Added
+- **A pre-release check that the release is not being cut on a stale base.** The gate now refuses to proceed if the local copy is behind the server. No other gate check can see that, because they all read the working tree, which looks entirely correct. Being ahead is normal and is not reported.
+- **A post-release command that verifies the local copy actually advanced.** It compares three sources — the local copy, the local record of the server, and the server's own answer — and reports which one disagrees. Three rather than two, because the first two can be stale together and agree with each other while both are wrong.
+
+### Notes
+- **The pre-release check deliberately does not require a clean working copy**, and must not start to. It runs partway through a release, after the version and changelog edits and before they are committed, so uncommitted work is expected at that exact moment; requiring cleanliness there would fail every release. That check belongs to the post-release command, where it is correct.
+- **Both compare fingerprints rather than reading a command's own message.** The step had once been reported as done elsewhere in the suite from the tail of a command whose informative line had been trimmed away, and a message saying everything was already current cannot distinguish a real check with nothing to do from no check at all. Running a command is not the same as checking its effect.
+- **A fetch failure fails the pre-release check rather than skipping it.** The comparison reads a remote-tracking ref, so a swallowed error would compare a stale ref with itself, agree, and read as a pass.
+- **The release script stays byte-identical across the suite.** It is deliberately the same file in every SPERT® repo so no one app can drift onto its own rules; this repo now carries the same version as the others.
+
 ## v0.43.2 - 2026-08-30
 
 Internal only. A table the app keeps about its own merge rules can no longer quietly disagree with what the merge actually does.
