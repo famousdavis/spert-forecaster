@@ -59,7 +59,11 @@ const RESET = '\x1b[0m'
 const failures = []
 
 function pass(label, detail) {
-  console.log(`  ${GREEN}✓${RESET} ${label}${detail ? ` ${DIM}${detail}${RESET}` : ''}`)
+  // Suffix computed first rather than nested inside the outer template: a nested
+  // template literal is a lint error under sonarjs/no-nested-template-literals,
+  // which spert-scheduler applies to scripts/. Matches shipgate.mjs's own pass().
+  const suffix = detail ? ` ${DIM}${detail}${RESET}` : ''
+  console.log(`  ${GREEN}✓${RESET} ${label}${suffix}`)
 }
 
 function fail(label, detail) {
