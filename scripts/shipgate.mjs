@@ -65,7 +65,7 @@
 
 import { execFileSync, execSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 
 const ROOT = process.cwd()
 const CONFIG_PATH = join(ROOT, 'shipgate.config.json')
@@ -92,6 +92,33 @@ function fail(label, detail) {
 function readIfPresent(relPath) {
   const full = join(ROOT, relPath)
   return existsSync(full) ? readFileSync(full, 'utf-8') : null
+}
+
+/**
+ * Read a gitignored file from the MAIN worktree when this is a linked one.
+ *
+ * `git worktree add` copies tracked files only, so `CLAUDE.md` — gitignored in
+ * every SPERT repo — is absent from every worktree. G7 below used to read that
+ * absence and skip, which silently disabled the version check in exactly the
+ * workflow the release process mandates. Measured 2026-09-04: a gate run from a
+ * worktree printed the skip line and passed green, in all nine repos.
+ *
+ * `--git-dir` and `--git-common-dir` are equal in a normal clone and differ in a
+ * linked worktree, where the common dir is the main repo's `.git`. Its parent is
+ * the main worktree root. Returns null when this is not a linked worktree, when
+ * the file is not there either, or when git cannot answer.
+ */
+function readFromMainWorktree(relPath) {
+  try {
+    const git = (args) =>
+      execFileSync('git', args, { cwd: ROOT, encoding: 'utf-8', stdio: 'pipe' }).trim()
+    const commonDir = git(['rev-parse', '--git-common-dir'])
+    if (git(['rev-parse', '--git-dir']) === commonDir) return null
+    const full = join(resolve(ROOT, commonDir, '..'), relPath)
+    return existsSync(full) ? readFileSync(full, 'utf-8') : null
+  } catch {
+    return null
+  }
 }
 
 if (!existsSync(CONFIG_PATH)) {
@@ -293,13 +320,28 @@ if (config.changelog?.extraSurfaces?.length) {
 //
 // Only declared version-claim patterns are checked. Historical prose such as
 // "v2.5.6 cleared nine GHSAs" is correct as written and must not be flagged.
+//
+// ABSENCE HAS TWO CAUSES AND ONLY ONE IS BENIGN. In CI the file is genuinely
+// never checked out, and skipping is right. In a linked worktree it is absent
+// only because `git worktree add` does not copy gitignored files — there the
+// check must still run, against the main worktree's copy. Treating those two
+// alike is what let a mandated workflow disable this check without saying so,
+// so an absence that is neither is now a FAILURE rather than a skip.
 // ─────────────────────────────────────────────────────────────────────────────
-const claudeMd = readIfPresent('CLAUDE.md')
+const claudeMd = readIfPresent('CLAUDE.md') ?? readFromMainWorktree('CLAUDE.md')
 if (config.claudeMdVersionPatterns?.length) {
   console.log(`\n${BOLD}CLAUDE.md currency${RESET}`)
-  if (claudeMd === null) {
-    // Absent in CI — it is gitignored and never checked out there.
-    console.log(`  ${DIM}– CLAUDE.md not present, skipping${RESET}`)
+  if (claudeMd === null && process.env.CI) {
+    // Genuinely absent: gitignored, and never checked out by actions/checkout.
+    console.log(`  ${DIM}– CI: CLAUDE.md is never checked out, skipping${RESET}`)
+  } else if (claudeMd === null) {
+    fail(
+      'CLAUDE.md currency',
+      'declared in shipgate.config.json, but the file was not found and this is not CI.\n' +
+        'It is gitignored, so `git worktree add` does not copy it, and the main-worktree\n' +
+        'lookup did not find it either. Restore CLAUDE.md, or run the gate from the main\n' +
+        'clone. Skipping here would silently disable the version check.',
+    )
   } else {
     for (const pattern of config.claudeMdVersionPatterns) {
       const re = new RegExp(pattern, 'gm')

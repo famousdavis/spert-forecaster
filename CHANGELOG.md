@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.43.5 - 2026-09-03
+
+Release tooling only. No application code changed and nothing about how the app behaves is different.
+
+The release gate can check that a project's internal notes file declares the same version number as everything else. That check skips when the notes file is not present, which is correct on the automated build server, where the file is deliberately excluded from the repository and genuinely is not there.
+
+The same absence had a second, unrelated cause, and the check could not tell the two apart. When a release is prepared in a separate working copy — which is how these releases are normally prepared — the tooling that creates that copy leaves excluded files behind. The check saw a missing file, assumed the build-server reason, and skipped. It printed a skip line and the gate went green, so **nothing looked wrong**.
+
+### Changed
+- **The two reasons are now told apart.** On the build server the check skips as before. Otherwise it looks for the notes file in the main working copy and reads it from there, so the check runs even when the release is being prepared elsewhere.
+- **An absence that is neither is now a failure.** A check that cannot run should say so rather than pass quietly.
+
+### Notes
+- **Preventive here, not a live fix.** This project declares an empty list of version patterns, so that check never runs in it. The corrected script is taken because it is deliberately identical in every project in the suite; four of the nine switch the check on and five, including this one, do not.
+- **This entry's first draft was prose-only and this repo's own guard rejected it** — the same trap that once let two entries here render as empty headings for weeks.
+
 ## v0.43.4 - 2026-09-03
 
 Release tooling only. No application code changed and nothing about how the app behaves is different.
