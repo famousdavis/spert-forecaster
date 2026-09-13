@@ -45,7 +45,7 @@ import { describe, it, expect } from 'vitest'
  * deliberately — in which case all nine repos need the same update.
  */
 const SUITE_LICENSE_BODY_SHA256 =
-  '06d6dbc5fee76aa6b82198254e4a7489ef20718f7bd4445b87432878d2160630'
+  '1e6f03b041f4a5f42a3d50b554657371742c9ffca7608028129621130222effe'
 
 const REPO_URL = 'https://github.com/famousdavis/spert-forecaster'
 
