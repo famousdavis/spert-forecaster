@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.43.6 - 2026-09-13
+
+Licence text only. No application code changed and nothing about how the app behaves is different.
+
+The SPERT® Suite business — the spertsuite.com website, the hosting it runs on, and the SPERT®, Statistical PERT® and Estimation Made Easy® trademarks — transferred to famousdavis, LLC on September 12, 2026. The licence's trademark clause still named the previous owner while the newly published Terms of Service named the company, so **two published legal documents disagreed about who owns the marks**.
+
+### Changed
+- **The trademark clause now names famousdavis, LLC.** Fifteen lines, all inside that one clause. The file is still 756 lines and the clause is still what it was: a declination to grant trademark rights, permitted by Section 7(e) of the GPL.
+
+### Notes
+- **⚠️ Copyright in the software did not transfer, and the licence still says so.** It is held by William W. Davis, MSPM, PMP personally and licensed to the company. The clauses requiring his name to be kept as the author, and withholding his name from promotional use, are unchanged — as are the copyright notices in every source file, the footer, and the About tab's credit. Two different names now appear in the licence and both are correct: the company operates the service, the individual owns the code.
+- **Nothing you may do with this software changed.** Still GPL v3 with the same additional terms — free to take, change and share; a modified version must still be released under a different name; credit to the original author must still travel with it.
+- **Eight projects, one file, one pass.** The licence is copied byte-for-byte into eight projects and each pins a checksum of it, so changing it in one place alone fails the other seven at once. All eight were updated together and are released separately.
+
 ## v0.43.5 - 2026-09-03
 
 Release tooling only. No application code changed and nothing about how the app behaves is different.
