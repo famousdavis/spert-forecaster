@@ -9,9 +9,16 @@ import { join } from 'node:path'
 import { describe, it, expect } from 'vitest'
 
 /**
- * `LICENSE` is a suite-wide artifact copied by hand into nine repositories. The
+ * `LICENSE` is a suite-wide artifact copied by hand into eight repositories. The
  * canonical copy lives in the SPERT® Suite landing-page repository. Every line
- * is identical across all nine except line 4, which names that repo's URL.
+ * is identical across all eight except line 4, which names that repo's URL.
+ *
+ * It was NINE until 2026-08-21, and the historical notes below still say nine
+ * because they describe that period. spert-ssv withdrew the GPL v3 grant and
+ * deleted its copy at v0.2.17 — it is private, instructor-only and conveyed to
+ * nobody, so there is no recipient to offer source terms to. Do not restore it,
+ * and do not "correct" the nines below to eight: both counts are right, for
+ * different dates.
  *
  * Hand-copying with nothing asserting conformance is exactly how it drifted
  * before, and the drift was severe and invisible for months:
@@ -42,7 +49,7 @@ import { describe, it, expect } from 'vitest'
  * If this fails: do not edit LICENSE to satisfy the test. Copy the canonical
  * file from the landing-page repository, restore line 4 to this repo's URL, and
  * only update SUITE_LICENSE_BODY_SHA256 if the canonical itself changed
- * deliberately — in which case all nine repos need the same update.
+ * deliberately — in which case all eight repos need the same update.
  */
 const SUITE_LICENSE_BODY_SHA256 =
   '1e6f03b041f4a5f42a3d50b554657371742c9ffca7608028129621130222effe'
