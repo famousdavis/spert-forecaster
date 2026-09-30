@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.43.8 - 2026-09-30
+
+Nothing about the app changed. The script that runs deliberate breakages, and its checks, only: no application code, no behaviour, no appearance, no data.
+
+The release checks include a tool that breaks the code on purpose and confirms that a named check then fails, which is how a check is shown to be able to fail at all. It read each test run's printed output to find the summary, and kept at most 1,048,576 bytes of it, Node's default. Node counts a run's two output streams together against that limit. When a run printed more, its output was cut off before the summary, and the tool stopped and said the breakage had almost certainly stopped the code compiling. That named the wrong cause.
+
+### Changed
+- **The tool keeps up to 64 MiB of a run's output**, as the suite's mutation-testing script already does.
+- **When a run still overflows, the tool says so.** It names the buffer as the cause, whether the overflow is in the first run, a breakage's run, or the last run that checks everything was put back, and it never says the code failed to compile. A run with no summary that did not overflow keeps the compile message.
+- **Three new checks, each with its own control:** an overflowed run with no summary is reported as an overflow, and the same run without the overflow gets the compile message; an overflow is refused even when a summary survived, and the same run without one is accepted; the message names the buffer's size.
+
+### Notes
+- **Found in SPERT Scheduler, which carries the same tool byte for byte.** There a passing whole suite prints 1,005,236 bytes, 43,340 under the old limit, and a breakage that fails fourteen checks printed 1,121,581 and was reported as a compile failure. With the change it runs to a verdict: fourteen failing, exactly the fourteen named before the run. The two copies are changed in the same pass and are still identical.
+- **Here it had not bitten yet.** This project's whole suite prints 253,686 bytes (1,659 tests), about a quarter of the old limit, and both committed breakage specs run a single test file. Both were rerun with the new tool: 8 breakages of 8 and 9 of 9 fail their named checks, as before.
+- **The change was itself broken on purpose.** Giving an overflow the compile message again fails all three new checks; dropping the overflow from the comparison fails the two that go through it; and, in SPERT Scheduler, taking the new limit out brings the overflow back, now reported as an overflow.
+
 ## v0.43.7 - 2026-09-13
 
 Nothing about the app changed. A comment in a release check only: no application code, no behaviour, no appearance, no data.

@@ -117,6 +117,29 @@ export function checkNeedleUnique(source, needle, label) {
   };
 }
 
+/** The most output one run may print, stdout and stderr together. Node's default is 1 MiB. */
+export const RUN_MAX_BUFFER = 64 * 1024 * 1024;
+
+/**
+ * Did the run's output fit in the buffer?
+ *
+ * ⚠️ Node's synchronous `execFileSync` counts stdout AND stderr TOGETHER against
+ * `maxBuffer`, and on overflow it stops reading and throws ENOBUFS. The output is cut off
+ * before vitest's summary, so an overflowed run looks exactly like one that never compiled —
+ * and was reported as one, until the buffer was named. A passing whole suite printed just
+ * under the old 1 MiB default; a straw whose failures dump the rendered page printed over it.
+ */
+export function checkOutputComplete(overflowed, maxBuffer = RUN_MAX_BUFFER) {
+  if (!overflowed) return { ok: true };
+  return {
+    ok: false,
+    reason:
+      `the run printed more than the runner's output buffer (${maxBuffer / (1024 * 1024)} MiB, ` +
+      "stdout and stderr counted together), so vitest's summary was cut off — nothing can " +
+      "be read from it. Narrow testFile, or raise RUN_MAX_BUFFER",
+  };
+}
+
 /**
  * Is a mutated run comparable to the baseline at all?
  *
@@ -124,7 +147,11 @@ export function checkNeedleUnique(source, needle, label) {
  * executed a different number of tests than the baseline is not weaker evidence — it is no
  * evidence, and must stop the tool rather than flow into a verdict.
  */
-export function checkRunComparable(baselineTotal, mutantTotal) {
+export function checkRunComparable(baselineTotal, mutantTotal, { overflowed = false } = {}) {
+  // An overflowed run has no summary either, so this must come first: the compile message
+  // below would name the wrong cause.
+  const complete = checkOutputComplete(overflowed);
+  if (!complete.ok) return complete;
   if (mutantTotal === null) {
     return {
       ok: false,
@@ -150,10 +177,16 @@ function runTests(testFile) {
         cwd: ROOT,
         encoding: "utf8",
         stdio: ["ignore", "pipe", "pipe"],
+        maxBuffer: RUN_MAX_BUFFER,
       }),
+      overflowed: false,
     };
   } catch (e) {
-    return { code: e.status ?? 1, out: `${e.stdout ?? ""}${e.stderr ?? ""}` };
+    return {
+      code: e.status ?? 1,
+      out: `${e.stdout ?? ""}${e.stderr ?? ""}`,
+      overflowed: e.code === "ENOBUFS",
+    };
   }
 }
 
@@ -202,7 +235,7 @@ function runOneMutation(m, testFile, baselineTotal) {
 
   // ⚠️ Comparability BEFORE verdict. This is the check whose absence produced a wrong
   // answer on 2026-08-02: a non-compiling mutant ran zero tests and read as a survivor.
-  const comparable = checkRunComparable(baselineTotal, parseTestTotal(res.out));
+  const comparable = checkRunComparable(baselineTotal, parseTestTotal(res.out), res);
   if (!comparable.ok) {
     abort(`${m.id}\n   ✖ UNINTERPRETABLE: ${comparable.reason}. ABORT.`, res.out.slice(-1500));
   }
@@ -228,6 +261,10 @@ async function main() {
   );
 
   const baseline = runTests(testFile);
+  const baselineComplete = checkOutputComplete(baseline.overflowed);
+  if (!baselineComplete.ok) {
+    abort(`BASELINE IS UNREADABLE: ${baselineComplete.reason}. ABORT.`);
+  }
   const baselineTotal = parseTestTotal(baseline.out);
   if (baseline.code !== 0 || baselineTotal === null) {
     abort(
@@ -244,6 +281,10 @@ async function main() {
 
   const restored = runTests(testFile);
   console.log(`\nrestored: exit ${restored.code}, ${parseTestTotal(restored.out)} tests`);
+  const restoredComplete = checkOutputComplete(restored.overflowed);
+  if (!restoredComplete.ok) {
+    abort(`RESTORE UNVERIFIED: ${restoredComplete.reason}. ABORT.`);
+  }
   if (restored.code !== 0) {
     abort("RESTORE FAILED — sources are not back to baseline.");
   }

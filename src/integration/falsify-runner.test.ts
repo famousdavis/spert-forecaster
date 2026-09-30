@@ -10,6 +10,8 @@ import {
   checkRunComparable,
   countOccurrences,
   checkNeedleUnique,
+  checkOutputComplete,
+  RUN_MAX_BUFFER,
 } from "../../scripts/falsify.mjs";
 
 /**
@@ -95,6 +97,54 @@ describe("checkRunComparable", () => {
       expect(result.ok).toBe(false);
       expect(result.reason).toBeTruthy();
     }
+  });
+});
+
+/**
+ * An overflowed run has no summary either — Node's synchronous `execFileSync` counts stdout
+ * and stderr TOGETHER against `maxBuffer` and cuts the output off before vitest's summary. The
+ * runner used to report that as "failed to compile", naming a cause that was not the cause.
+ * Each test below carries its control: the same no-summary run WITHOUT the overflow still gets
+ * the compile message, so neither message can pass by being the only one the runner has.
+ */
+describe("an overflowed run", () => {
+  const COMPILE = /failed to compile|NOTHING RAN/i;
+  const BUFFER = /output buffer \(64 MiB, stdout and stderr counted together\)/;
+
+  it("is reported as an overflow, never as a failure to compile", () => {
+    const overflowed = checkRunComparable(25, parseTestTotal(TRANSFORM_ERROR_OUTPUT), {
+      overflowed: true,
+    });
+    expect(overflowed.ok).toBe(false);
+    expect(overflowed.reason).toMatch(BUFFER);
+    expect(overflowed.reason).not.toMatch(COMPILE);
+
+    // Control: the same no-summary run, without the overflow, keeps the compile message.
+    const notOverflowed = checkRunComparable(25, parseTestTotal(TRANSFORM_ERROR_OUTPUT), {
+      overflowed: false,
+    });
+    expect(notOverflowed.ok).toBe(false);
+    expect(notOverflowed.reason).toMatch(COMPILE);
+    expect(notOverflowed.reason).not.toMatch(BUFFER);
+  });
+
+  it("is not comparable even when a summary survived, for the baseline and every straw", () => {
+    // What the baseline and the restore check read: the overflow alone decides.
+    const overflowed = checkOutputComplete(true);
+    expect(overflowed.ok).toBe(false);
+    expect(overflowed.reason).toMatch(BUFFER);
+    expect(overflowed.reason).not.toMatch(COMPILE);
+    expect(checkRunComparable(25, 25, { overflowed: true }).reason).toMatch(BUFFER);
+
+    // Control: without the overflow, both accept the run.
+    expect(checkOutputComplete(false).ok).toBe(true);
+    expect(checkRunComparable(25, 25, { overflowed: false }).ok).toBe(true);
+  });
+
+  it("names the buffer size the run was given", () => {
+    expect(RUN_MAX_BUFFER).toBe(64 * 1024 * 1024);
+    expect(checkOutputComplete(true, 1024 * 1024).reason).toMatch(/\(1 MiB,/);
+    expect(checkOutputComplete(true).reason).toMatch(/\(64 MiB,/); // control: the default
   });
 });
 
