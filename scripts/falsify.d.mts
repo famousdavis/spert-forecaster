@@ -45,15 +45,29 @@ export interface RunComparability {
   reason?: string;
 }
 
+/** The most output one run may print, stdout and stderr together. Node's default is 1 MiB. */
+export const RUN_MAX_BUFFER: number;
+
+/**
+ * Did the run's output fit in the buffer?
+ *
+ * Node's synchronous `execFileSync` counts stdout and stderr TOGETHER against `maxBuffer`
+ * and throws ENOBUFS on overflow, cutting the output off before vitest's summary. Such a
+ * run looks exactly like one that never compiled, so the reason names the buffer instead.
+ */
+export function checkOutputComplete(overflowed: boolean, maxBuffer?: number): RunComparability;
+
 /**
  * Is a mutated run comparable to the baseline at all?
  *
  * Answers only "can this run be interpreted", never "did the mutation survive". A run
  * that executed a different number of tests than the baseline — or produced no summary —
  * is not weaker evidence, it is NO evidence, and must stop the tool rather than flow
- * into a verdict.
+ * into a verdict. An overflowed run is reported as an overflow, never as a failure to
+ * compile.
  */
 export function checkRunComparable(
   baselineTotal: number,
   mutantTotal: number | null,
+  run?: { overflowed?: boolean },
 ): RunComparability;
