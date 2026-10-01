@@ -9,6 +9,8 @@ import {
   computeVisibleForecastMilestones,
   buildMilestonePickerOptions,
   pickerFallback,
+  planMilestoneRun,
+  runMilestoneTotal,
 } from './milestones'
 import type { Milestone } from '@/shared/types'
 
@@ -199,5 +201,68 @@ describe('pickerFallback', () => {
 
   it('is null when nothing is offered', () => {
     expect(pickerFallback([])).toBeNull()
+  })
+})
+
+describe('buildMilestonePickerOptions with an Entire Project scope', () => {
+  it('offers it last as "Entire Project (Total)", and no milestone is the total', () => {
+    const ms = [m('MVP', 10), m('Beta', 30)]
+    const opts = buildMilestonePickerOptions(ms, computeMilestoneCompletionInfo(ms), 2)
+    expect(opts).toEqual([
+      { value: 0, label: 'MVP' },
+      { value: 1, label: 'Beta' },
+      { value: 2, label: 'Entire Project (Total)' },
+    ])
+    expect(pickerFallback(opts)).toBe(2)
+  })
+
+  it('still offers it when every milestone is complete', () => {
+    const ms = [m('MVP', 0), m('Beta', 0)]
+    expect(buildMilestonePickerOptions(ms, computeMilestoneCompletionInfo(ms), 2))
+      .toEqual([{ value: 2, label: 'Entire Project (Total)' }])
+  })
+})
+
+describe('planMilestoneRun', () => {
+  it('milestones short of the backlog: appends the backlog and a trailing project scope', () => {
+    const plan = planMilestoneRun([40, 60], ['Alpha', 'Beta'], 100, 'Demo')
+    expect(plan.runThresholds).toEqual([40, 60, 100])
+    expect(plan.scopes.map((s) => [s.kind, s.milestoneIndex, s.label, s.cumulativeThreshold])).toEqual([
+      ['milestone', 0, 'Alpha', 40],
+      ['milestone', 1, 'Beta', 60],
+      ['project', null, 'Demo', 100],
+    ])
+  })
+
+  it('milestones covering the backlog, within rounding: D20 — N scopes, the last cumulative-final', () => {
+    for (const [t, b] of [[[40, 100], 100], [[0.12, 0.24], 0.25], [[0.13, 0.26], 0.25]] as const) {
+      const plan = planMilestoneRun([...t], ['A', 'B'], b, 'Demo')
+      expect(plan.runThresholds, `${t} vs ${b}`).toEqual([...t])
+      expect(plan.scopes.map((s) => s.kind)).toEqual(['milestone', 'cumulative-final'])
+    }
+  })
+
+  it('milestones past the backlog: D20, with the ones past it flagged', () => {
+    const plan = planMilestoneRun([60, 110, 130], ['A', 'B', 'C'], 70, 'Demo')
+    expect(plan.runThresholds).toEqual([60, 110, 130])
+    expect(plan.scopes.map((s) => s.thresholdUnreachable)).toEqual([false, true, true])
+    expect(plan.scopes.at(-1)!.kind).toBe('cumulative-final')
+  })
+
+  it('names a milestone it has no name for', () => {
+    expect(planMilestoneRun([10], [], 10, 'Demo').scopes[0].label).toBe('Milestone 1')
+  })
+})
+
+describe('runMilestoneTotal', () => {
+  it('reads the milestone scopes, not a trailing project scope', () => {
+    const { scopes } = planMilestoneRun([40, 60], ['A', 'B'], 100, 'Demo')
+    expect(runMilestoneTotal(scopes)).toEqual({ total: 60, count: 2 })
+  })
+
+  it('is null for a run without milestones', () => {
+    expect(runMilestoneTotal([
+      { kind: 'project', milestoneIndex: null, label: 'Demo', cumulativeThreshold: 100, thresholdUnreachable: false },
+    ])).toBeNull()
   })
 })

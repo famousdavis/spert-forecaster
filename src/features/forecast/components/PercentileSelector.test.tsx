@@ -23,7 +23,7 @@ function ms(sizes: number[]): Milestone[] {
   }))
 }
 
-function renderSelector(milestones: Milestone[], selectedMilestoneIndex: number) {
+function renderSelector(milestones: Milestone[], selectedMilestoneIndex: number, projectScopeIndex: number | null = null) {
   const onMilestoneIndexChange = vi.fn()
   const view = render(
     <PercentileSelector
@@ -41,6 +41,7 @@ function renderSelector(milestones: Milestone[], selectedMilestoneIndex: number)
       milestoneCompletionInfo={computeMilestoneCompletionInfo(milestones)}
       selectedMilestoneIndex={selectedMilestoneIndex}
       onMilestoneIndexChange={onMilestoneIndexChange}
+      projectScopeIndex={projectScopeIndex}
     />
   )
   const select = view.container.querySelector('select[name="customPercentileMilestone"]') as HTMLSelectElement | null
@@ -64,5 +65,13 @@ describe('PercentileSelector — milestone picker', () => {
     // One helper builds both lists now; this pins that they cannot drift again.
     const { options } = renderSelector(ms([10, 30, 0]), 1)
     expect(options).toEqual([[0, 'MVP'], [1, 'Beta (Total)']])
+  })
+})
+
+describe('PercentileSelector — with an Entire Project scope', () => {
+  it('offers it last as the total, exactly as the chart pickers do', () => {
+    const { options, onMilestoneIndexChange } = renderSelector(ms([0, 100, 150]), 3, 3)
+    expect(options).toEqual([[1, 'Beta'], [2, 'GA'], [3, 'Entire Project (Total)']])
+    expect(onMilestoneIndexChange).not.toHaveBeenCalled()
   })
 })

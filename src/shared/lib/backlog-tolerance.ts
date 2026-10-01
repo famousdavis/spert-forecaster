@@ -35,8 +35,10 @@
 //
 // ⚠️ ONE RULE. Every comparison of milestone figures against the backlog goes
 // through this module — the unreachable flag on a run's scopes, the Connect AI
-// divergence fields, and the Story Map contract check. A second constant
-// anywhere is a bug; backlog-tolerance.test.ts fails on a stray literal.
+// divergence fields, the Story Map contract check, and (v0.45.0) the switch
+// that gives a run an Entire Project scope and the notice for milestones past
+// the backlog. A second constant anywhere is a bug; backlog-tolerance.test.ts
+// fails on a stray literal.
 
 /** The rounding allowance for a figure summed from `k` separately rounded milestones. */
 export function backlogTolerance(k: number): number {
@@ -58,4 +60,13 @@ export function exceedsBacklog(threshold: number, backlog: number, k: number): b
  */
 export function coversBacklog(sum: number, backlog: number, k: number): boolean {
   return Math.abs(sum - backlog) <= backlogTolerance(k)
+}
+
+/**
+ * True when `sum` is SHORT of `backlog` by more than rounding can explain —
+ * work exists outside every milestone. The condition for a run to date the
+ * backlog as its own Entire Project scope (v0.45.0).
+ */
+export function fallsShortOfBacklog(sum: number, backlog: number, k: number): boolean {
+  return !coversBacklog(sum, backlog, k) && sum < backlog
 }

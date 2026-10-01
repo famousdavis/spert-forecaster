@@ -48,6 +48,7 @@ import { MAX_TRIAL_SPRINTS, DEFAULT_PERCENTILES } from '@/features/forecast/cons
 import {
   computeMilestoneCompletionInfo,
   computeVisibleForecastMilestones,
+  projectScopeIndexOf,
 } from '@/features/forecast/lib/milestones'
 import {
   targetDateToSprintCount,
@@ -351,9 +352,7 @@ export function buildSnapshot(input: SnapshotInput): Record<string, unknown> {
   const selectedIdx = view?.selectedMilestoneIndex ?? 0
   const onScreen = { chartedIncomplete, selectedIdx, summaryScope, lastIdx: run.scopes.length - 1 }
 
-  const scopes = allComplete
-    ? [collapsedScope()]
-    : run.scopes.map((scope, i) => ({
+  const mapped = run.scopes.map((scope, i) => ({
         kind: scope.kind,
         milestoneIndex: scope.milestoneIndex,
         label: scope.label,
@@ -364,22 +363,10 @@ export function buildSnapshot(input: SnapshotInput): Record<string, unknown> {
           run, i, computedDistributions, percentileSet, anchorStart, anchorCadence, anchorLastSprint
         ),
       }))
+  const projectIdx = projectScopeIndexOf(run.scopes)
+  const scopes = allComplete ? collapseCompleted(mapped, projectIdx) : mapped
 
-  if (allComplete) {
-    // ⚠️ "Zero" does not mean "sprint 1". A zero threshold is reached once
-    // delivered work has kept pace with any modelled scope growth; this note
-    // said "all scopes resolve at the first sprint" until v0.44.1, which is
-    // false when growth outruns a sprint's delivery.
-    notVisibleToYou.push(
-      'Every milestone in this project is marked complete (zero work ' +
-      'remaining), so every cumulative threshold is zero: each is reached as ' +
-      'soon as delivered work has kept pace with any modelled scope growth, ' +
-      'which is the first forecast sprint when scope growth is not modelled. ' +
-      'One placeholder scope is reported instead of a per-milestone ' +
-      "breakdown, and the summary scope selector has no counterpart in this " +
-      "snapshot's scope list."
-    )
-  }
+  if (allComplete) notVisibleToYou.push(allCompleteNote(projectIdx !== null))
   if (scopes.some((s) => !s.renderedOnScreen)) {
     notVisibleToYou.push(
       'Some scopes carry results the user is not currently looking at; they ' +
@@ -533,6 +520,38 @@ function buildByDistribution(
 }
 
 /**
+ * Every milestone complete: N rows of zero thresholds under N names say
+ * nothing, so they collapse. When the run has an Entire Project scope
+ * (v0.45.0) it is KEPT — it is the remaining work outside every milestone, and
+ * the only date in the run that means anything. Otherwise, one placeholder.
+ */
+function collapseCompleted<T>(mapped: T[], projectIdx: number | null): Array<T | ReturnType<typeof collapsedScope>> {
+  return projectIdx !== null ? [mapped[projectIdx]] : [collapsedScope()]
+}
+
+/**
+ * ⚠️ "Zero" does not mean "sprint 1". A zero threshold is reached once
+ * delivered work has kept pace with any modelled scope growth; this note said
+ * "all scopes resolve at the first sprint" until v0.44.1, which is false when
+ * growth outruns a sprint's delivery.
+ */
+function allCompleteNote(projectKept: boolean): string {
+  if (projectKept) {
+    return 'Every milestone in this project is marked complete (zero work ' +
+      'remaining), so their scopes are omitted. The one scope reported is the ' +
+      "project's remaining backlog — work outside every milestone, still to " +
+      'do — and it is the Entire Project scope the forecast summary shows.'
+  }
+  return 'Every milestone in this project is marked complete (zero work ' +
+    'remaining), so every cumulative threshold is zero: each is reached as ' +
+    'soon as delivered work has kept pace with any modelled scope growth, ' +
+    'which is the first forecast sprint when scope growth is not modelled. ' +
+    'One placeholder scope is reported instead of a per-milestone ' +
+    "breakdown, and the summary scope selector has no counterpart in this " +
+    "snapshot's scope list."
+}
+
+/**
  * The all-milestones-complete collapse.
  *
  * Every threshold is zero, so every scope resolves at sprint 1 and a
@@ -610,12 +629,17 @@ function buildUserSelections(args: {
   // renderedOnScreen rule reads too.
 
   // The index joins results.scopes. In the all-milestones-complete case the
-  // builder collapses scopes to one entry, so a record-clamped index has no
-  // counterpart; emit null there.
+  // builder collapses scopes to one entry: the Entire Project scope when the
+  // run has one (v0.45.0), and an index pointing at it becomes 0; any other
+  // record-clamped index has no counterpart, and neither does the
+  // placeholder, so emit null there.
   const allComplete = milestones.length > 0 && completion.every((c) => c.completed)
   const rawIndex = view?.selectedMilestoneIndex ?? 0
-  const selectedMilestoneIndex =
-    allComplete || !record ? null : Math.min(rawIndex, record.scopes.length - 1)
+  const clamped = record ? Math.min(rawIndex, record.scopes.length - 1) : null
+  const keptProject = record ? projectScopeIndexOf(record.scopes) : null
+  const selectedMilestoneIndex = !allComplete
+    ? clamped
+    : (keptProject !== null && clamped === keptProject ? 0 : null)
 
   return {
     summaryScope,

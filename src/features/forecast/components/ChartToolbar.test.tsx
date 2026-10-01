@@ -15,7 +15,7 @@ function ms(sizes: number[], hidden: number[] = []): Milestone[] {
   }))
 }
 
-function renderToolbar(milestones: Milestone[], selectedMilestoneIndex: number) {
+function renderToolbar(milestones: Milestone[], selectedMilestoneIndex: number, projectScopeIndex: number | null = null) {
   const onMilestoneIndexChange = vi.fn()
   const view = render(
     <ChartToolbar
@@ -24,6 +24,7 @@ function renderToolbar(milestones: Milestone[], selectedMilestoneIndex: number) 
       milestoneCompletionInfo={computeMilestoneCompletionInfo(milestones)}
       selectedMilestoneIndex={selectedMilestoneIndex}
       onMilestoneIndexChange={onMilestoneIndexChange}
+      projectScopeIndex={projectScopeIndex}
     />
   )
   const select = view.container.querySelector('select#cdf-milestone-select') as HTMLSelectElement | null
@@ -58,5 +59,18 @@ describe('ChartToolbar — milestone picker', () => {
     const { options, onMilestoneIndexChange } = renderToolbar(ms([10, 30, 20], [2]), 2)
     expect(options.map(([value]) => value)).toEqual([0, 1])
     expect(onMilestoneIndexChange).toHaveBeenCalledWith(1)
+  })
+})
+
+describe('ChartToolbar — with an Entire Project scope', () => {
+  it('offers it last as the total, and keeps a selection on it', () => {
+    const { options, onMilestoneIndexChange } = renderToolbar(ms([10, 30]), 2, 2)
+    expect(options).toEqual([[0, 'MVP'], [1, 'Beta'], [2, 'Entire Project (Total)']])
+    expect(onMilestoneIndexChange).not.toHaveBeenCalled()
+  })
+
+  it('moves an invalid selection to it', () => {
+    const { onMilestoneIndexChange } = renderToolbar(ms([10, 30, 0]), 2, 3)
+    expect(onMilestoneIndexChange).toHaveBeenCalledWith(3)
   })
 })

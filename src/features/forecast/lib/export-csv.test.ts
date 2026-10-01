@@ -3,7 +3,7 @@
 // See LICENSE file in the project root for full license text.
 
 import { describe, it, expect } from 'vitest'
-import { generateForecastCsv, generateFilename } from './export-csv'
+import { generateForecastCsv, generateFilename, buildMilestoneCsvData } from './export-csv'
 import type { PercentileResults } from './monte-carlo'
 
 function makePercentileResults(base: number): PercentileResults {
@@ -280,6 +280,43 @@ describe('generateForecastCsv', () => {
     expect(milestoneSection).toHaveLength(2)
   })
 
+  it('adds the Entire Project row after the milestones, and only it is the total', () => {
+    // v0.45.0: milestones that fall short of the backlog give the run a scope
+    // of its own for the whole backlog.
+    const ms = [makePercentileResults(3), makePercentileResults(5)]
+    const data = {
+      ...baseExportData,
+      milestoneData: {
+        milestones: [
+          { name: 'MVP', backlogSize: 40, cumulativeBacklog: 40 },
+          { name: 'GA Release', backlogSize: 20, cumulativeBacklog: 60 },
+        ],
+        distributions: { truncatedNormal: ms, lognormal: ms, gamma: ms, bootstrap: null, triangular: ms, uniform: ms },
+        project: {
+          backlog: 100,
+          results: {
+            truncatedNormal: makePercentileResults(9), lognormal: makePercentileResults(9), gamma: makePercentileResults(9),
+            bootstrap: null, triangular: makePercentileResults(9), uniform: makePercentileResults(9),
+          },
+        },
+      },
+    }
+    const lines = generateForecastCsv(data).split('\n')
+    const heads = lines.filter((l) => l.startsWith('Milestone:') || l.startsWith('Entire Project'))
+    expect(heads).toEqual([
+      'Milestone: MVP - 40 remaining / 40 cumulative',
+      'Milestone: GA Release - 20 remaining / 60 cumulative',
+      'Entire Project (Total) - 100 remaining',
+    ])
+    // The project row carries the project's own numbers.
+    const at = lines.indexOf('Entire Project (Total) - 100 remaining')
+    expect(lines[at + 2]).toBe(`P50,${makePercentileResults(9).p50.sprintsRequired},${makePercentileResults(9).p50.finishDate},` +
+      `${makePercentileResults(9).p50.sprintsRequired},${makePercentileResults(9).p50.finishDate},` +
+      `${makePercentileResults(9).p50.sprintsRequired},${makePercentileResults(9).p50.finishDate},` +
+      `${makePercentileResults(9).p50.sprintsRequired},${makePercentileResults(9).p50.finishDate},` +
+      `${makePercentileResults(9).p50.sprintsRequired},${makePercentileResults(9).p50.finishDate}`)
+  })
+
   it('includes scope growth info when provided', () => {
     const data = {
       ...baseExportData,
@@ -389,5 +426,43 @@ describe('generateFilename', () => {
   it('includes .csv extension', () => {
     const filename = generateFilename('test')
     expect(filename).toMatch(/\.csv$/)
+  })
+})
+
+describe('buildMilestoneCsvData', () => {
+  const quad = (n: number) => ({
+    truncatedNormal: makePercentileResults(n), lognormal: makePercentileResults(n), gamma: makePercentileResults(n),
+    bootstrap: null, triangular: makePercentileResults(n), uniform: makePercentileResults(n),
+  })
+  const milestones = [
+    { id: 'm1', name: 'MVP', backlogSize: 40, color: '#10b981', createdAt: '', updatedAt: '' },
+    { id: 'm2', name: 'GA', backlogSize: 60, color: '#3b82f6', createdAt: '', updatedAt: '' },
+  ]
+
+  it('a D20 run: every scope is a milestone row, and there is no project row', () => {
+    const md = buildMilestoneCsvData(milestones, {
+      quadResults: [quad(3), quad(5)],
+      scopes: [
+        { kind: 'milestone', milestoneIndex: 0, label: 'MVP', cumulativeThreshold: 40, thresholdUnreachable: false },
+        { kind: 'cumulative-final', milestoneIndex: 1, label: 'GA', cumulativeThreshold: 100, thresholdUnreachable: false },
+      ],
+    })
+    expect(md.milestones.map((m) => m.cumulativeBacklog)).toEqual([40, 100])
+    expect(md.distributions.lognormal).toHaveLength(2)
+    expect(md.project).toBeUndefined()
+  })
+
+  it('a run with an Entire Project scope: the milestone rows stop before it', () => {
+    const md = buildMilestoneCsvData(milestones, {
+      quadResults: [quad(3), quad(5), quad(9)],
+      scopes: [
+        { kind: 'milestone', milestoneIndex: 0, label: 'MVP', cumulativeThreshold: 40, thresholdUnreachable: false },
+        { kind: 'milestone', milestoneIndex: 1, label: 'GA', cumulativeThreshold: 100, thresholdUnreachable: false },
+        { kind: 'project', milestoneIndex: null, label: 'Demo', cumulativeThreshold: 120, thresholdUnreachable: false },
+      ],
+    })
+    expect(md.distributions.lognormal).toHaveLength(2)
+    expect(md.project?.backlog).toBe(120)
+    expect(md.project?.results.lognormal.p50.sprintsRequired).toBe(makePercentileResults(9).p50.sprintsRequired)
   })
 })

@@ -25,8 +25,8 @@
 //  - Every sprint MUST have includedInForecast: true. The Forecast tab's auto-derivation
 //    of remainingBacklog (useForecastInputs.ts) reads from useSprintData's filtered set,
 //    which keeps only includedInForecast === true. If any sprint has false, the seed's
-//    "200 pre-fill backlog" promise breaks silently.
-//  - Last sprint's backlogAtSprintEnd = 200 is the pre-fill source. No setForecastInput
+//    "460 pre-fill backlog" promise breaks silently.
+//  - Last sprint's backlogAtSprintEnd = 460 is the pre-fill source. No setForecastInput
 //    needed — auto-derivation handles it on every page load (sprints are persisted,
 //    forecastInputs are session-only).
 

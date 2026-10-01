@@ -169,7 +169,9 @@ export function runTrial(
  * Core trial runner with milestone checkpoints: records the sprint number
  * at which each cumulative backlog threshold is reached.
  *
- * @param remainingBacklog - Total work remaining (sum of all milestones)
+ * @param remainingBacklog - The whole remaining backlog; every trial runs until it is done. The
+ *   thresholds need not add up to it: less means work outside every milestone, and a threshold
+ *   past it is never crossed, so it is dated at the trial's final sprint.
  * @param cumulativeThresholds - Ascending cumulative backlog values for each milestone
  * @param sampler - Function that returns a velocity sample from the chosen distribution
  * @param productivityFactors - Optional per-sprint multipliers (index 0 = first sprint)

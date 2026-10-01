@@ -76,6 +76,8 @@ export function ForecastTab({ onTabChange }: ForecastTabProps = {}) {
     simulationData,
     overallResults,
     overallSimulationData,
+    projectScopeIndex,
+    milestonesPastBacklog,
     milestoneResultsState,
     customPercentile,
     customResults,
@@ -251,6 +253,7 @@ export function ForecastTab({ onTabChange }: ForecastTabProps = {}) {
                   milestones={milestones}
                   milestoneResultsState={milestoneResultsState}
                   milestoneCompletionInfo={milestoneCompletionInfo}
+                  milestonesPastBacklog={milestonesPastBacklog}
                   hasBootstrap={overallResults.bootstrap !== null}
                   forecastMode={forecastMode}
                   modelScopeGrowth={modelScopeGrowth}
@@ -272,6 +275,8 @@ export function ForecastTab({ onTabChange }: ForecastTabProps = {}) {
                       milestoneResultsState={milestoneResultsState}
                       cumulativeThresholds={cumulativeThresholds}
                       milestoneCompletionInfo={milestoneCompletionInfo}
+                      projectScopeIndex={projectScopeIndex}
+                      remainingBacklog={Number(remainingBacklog) || 0}
                       unitOfMeasure={selectedProject.unitOfMeasure}
                       effectiveMean={effectiveMean}
                       effectiveStdDev={effectiveStdDev}
@@ -374,6 +379,7 @@ export function ForecastTab({ onTabChange }: ForecastTabProps = {}) {
                   milestoneCompletionInfo={milestoneCompletionInfo}
                   selectedMilestoneIndex={selectedMilestoneIndex}
                   onMilestoneIndexChange={handleMilestoneIndexChange}
+                  projectScopeIndex={projectScopeIndex}
                 />
               </div>
             )}
@@ -418,6 +424,7 @@ export function ForecastTab({ onTabChange }: ForecastTabProps = {}) {
             milestoneCompletionInfo={milestoneCompletionInfo}
             selectedMilestoneIndex={selectedMilestoneIndex}
             onMilestoneIndexChange={handleMilestoneIndexChange}
+            projectScopeIndex={projectScopeIndex}
           />
 
           {/* Probability Distribution Histogram */}
@@ -439,6 +446,7 @@ export function ForecastTab({ onTabChange }: ForecastTabProps = {}) {
             milestoneCompletionInfo={milestoneCompletionInfo}
             selectedMilestoneIndex={selectedMilestoneIndex}
             onMilestoneIndexChange={handleMilestoneIndexChange}
+            projectScopeIndex={projectScopeIndex}
           />
         </>
       )}

@@ -34,11 +34,16 @@ import { useSimulationWorker, type QuadForecastResult } from './useSimulationWor
 import { useScopeGrowthState } from './useScopeGrowthState'
 import { currentSimulationGeneration } from '@/shared/lib/simulation-generation'
 import { preCalculateSprintFactors } from '../lib/productivity'
-import { generateForecastCsv, downloadCsv, generateFilename } from '../lib/export-csv'
+import { generateForecastCsv, downloadCsv, generateFilename, buildMilestoneCsvData } from '../lib/export-csv'
 import { safeParseNumber } from '@/shared/lib/validation'
 import { MIN_SPRINTS_FOR_HISTORY, DEFAULT_SELECTED_PERCENTILES } from '../constants'
 import type { ForecastMode } from '@/shared/types'
-import { computeMilestoneCompletionInfo } from '../lib/milestones'
+import {
+  computeMilestoneCompletionInfo,
+  planMilestoneRun,
+  projectScopeIndexOf,
+  runMilestoneTotal,
+} from '../lib/milestones'
 import { exceedsBacklog } from '@/shared/lib/backlog-tolerance'
 import { canRunForecast, getRunForecastBlockedReason } from '../lib/run-forecast-prereqs'
 
@@ -243,6 +248,27 @@ export function useForecastState() {
   const overallResults = record ? (record.quadResults[record.quadResults.length - 1] ?? null) : null
   const overallSimulationData = record ? (record.simData[record.simData.length - 1] ?? null) : null
 
+  // The Entire Project scope a milestone run adds when the milestones fall
+  // short of the backlog (planMilestoneRun) — always the LAST scope. Null when
+  // the run has none, and null for a run without milestones, whose only scope
+  // is also kind 'project' but has no milestones to stand apart from.
+  const projectScopeIndex = useMemo(
+    () => (record ? projectScopeIndexOf(record.scopes) : null),
+    [record]
+  )
+
+  // Milestones that add up to MORE than the backlog, by more than rounding.
+  // Those past it are dated at project completion, and the forecast summary
+  // says so (v0.45.0). Read from the run, so it describes the dates on screen.
+  const milestonesPastBacklog = useMemo(() => {
+    const milestones = record ? runMilestoneTotal(record.scopes) : null
+    if (!record || !milestones) return null
+    const backlog = record.runConfig.remainingBacklog
+    return exceedsBacklog(milestones.total, backlog, milestones.count)
+      ? { milestoneTotal: milestones.total, backlog }
+      : null
+  }, [record])
+
   // customResults / customResults2 are DERIVED now, not imperative state.
   //
   // ACCEPTED BEHAVIOR CHANGE: as useState cells they retained their previous
@@ -390,41 +416,26 @@ export function useForecastState() {
 
     try {
       if (useMilestones) {
+        // The scopes and the thresholds to send, including the Entire Project
+        // scope when the milestones fall short of the backlog — see
+        // planMilestoneRun in ../lib/milestones for why it is the same run.
+        const plan = planMilestoneRun(thresholds, milestoneNames, runConfig.remainingBacklog, project.name)
         const milestoneResult = await runMilestoneSimulation({
           config,
           historicalVelocities: sprintData.canUseBootstrap ? sprintData.historicalVelocities : undefined,
           productivityFactors,
-          milestoneThresholds: thresholds,
+          milestoneThresholds: plan.runThresholds,
           scopeGrowthPerSprint: scopeGrowthArg,
         }, runProjectId)
         if (currentSimulationGeneration() !== startGen) return  // G1 — stale result, sign-out fired
 
         const { perMilestoneResults, perMilestoneSimData } = extractMilestoneData(
-          milestoneResult, thresholds.length
+          milestoneResult, plan.runThresholds.length
         )
-        const lastIdx = perMilestoneResults.length - 1
-        // D20: with milestones, cumulative-final REPLACES the last milestone
-        // entry, so N milestones yield N scopes.
-        const scopes: ForecastScope[] = thresholds.map((threshold, i) => ({
-          kind: i === lastIdx ? 'cumulative-final' : 'milestone',
-          milestoneIndex: i,
-          label: milestoneNames[i] ?? `Milestone ${i + 1}`,
-          cumulativeThreshold: threshold,
-          // Threshold past the backlog by more than rounding can explain, and
-          // NOTHING ELSE. A trial that exits by completion has crossed every
-          // threshold <= backlog regardless of scope growth, because the
-          // crossing test runs in the same loop iteration `remaining` goes
-          // non-positive. Growth delays crossings; it does not prevent them.
-          // Do not add a scope-growth disjunct.
-          //
-          // A threshold within the allowance of the backlog is dated at
-          // completion either way, which is the right date for it: it IS the
-          // backlog, give or take Story Map's rounding (0.13 + 0.13 against
-          // 0.25). k = i + 1 milestones are summed into it.
-          thresholdUnreachable: exceedsBacklog(threshold, runConfig.remainingBacklog, i + 1),
-        }))
-        if (publishIfStillCurrent(perMilestoneResults, perMilestoneSimData, scopes)) {
-          setSelectedMilestoneIndexAction(runProjectId, lastIdx)
+        // The charts default to the LAST scope: the Entire Project scope when
+        // the run has one, else the last milestone (D20).
+        if (publishIfStillCurrent(perMilestoneResults, perMilestoneSimData, plan.scopes)) {
+          setSelectedMilestoneIndexAction(runProjectId, plan.scopes.length - 1)
         }
       } else {
         const quadResults = await runSimulation({
@@ -546,27 +557,9 @@ export function useForecastState() {
     // export the OVERALL scope, never the dropdown's selection (see above).
     if (!selectedProject || !overallResults || !overallSimulationData || !selectedProject.sprintCadenceWeeks) return
 
-    let milestoneExportData: Parameters<typeof generateForecastCsv>[0]['milestoneData']
-    if (inputs.hasMilestones && milestoneResultsState) {
-      let cumulative = 0
-      const msExport = inputs.milestones.map((m) => {
-        cumulative += m.backlogSize
-        return { name: m.name, backlogSize: m.backlogSize, cumulativeBacklog: cumulative }
-      })
-      milestoneExportData = {
-        milestones: msExport,
-        distributions: {
-          truncatedNormal: milestoneResultsState.milestoneResults.map((r) => r.truncatedNormal),
-          lognormal: milestoneResultsState.milestoneResults.map((r) => r.lognormal),
-          gamma: milestoneResultsState.milestoneResults.map((r) => r.gamma),
-          bootstrap: milestoneResultsState.milestoneResults[0]?.bootstrap
-            ? milestoneResultsState.milestoneResults.map((r) => r.bootstrap!)
-            : null,
-          triangular: milestoneResultsState.milestoneResults.map((r) => r.triangular),
-          uniform: milestoneResultsState.milestoneResults.map((r) => r.uniform),
-        },
-      }
-    }
+    const milestoneExportData = inputs.hasMilestones && milestoneResultsState && record
+      ? buildMilestoneCsvData(inputs.milestones, record)
+      : undefined
 
     const csvContent = generateForecastCsv({
       config: {
@@ -669,6 +662,8 @@ export function useForecastState() {
     simulationData,
     overallResults,
     overallSimulationData,
+    projectScopeIndex,
+    milestonesPastBacklog,
     milestoneResultsState,
     customPercentile,
     customResults,

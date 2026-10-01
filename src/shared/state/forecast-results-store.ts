@@ -26,8 +26,17 @@ import { PROJECT_SCOPE } from '@/shared/types/scope'
 import type { RunConfig } from '@/shared/lib/forecast-staleness'
 
 /**
- * One forecastable scope. With milestones present, `cumulative-final`
- * replaces the last `milestone` entry, so N milestones yield N scopes (D20).
+ * One forecastable scope.
+ *
+ * - Without milestones: one `project` scope, at the backlog.
+ * - With milestones that cover the backlog (within rounding) or pass it:
+ *   `cumulative-final` replaces the last `milestone` entry, so N milestones
+ *   yield N scopes (D20).
+ * - With milestones that fall SHORT of it (v0.45.0): every milestone is a
+ *   `milestone` scope, and a trailing `project` scope dates the backlog
+ *   itself — N + 1. See planMilestoneRun in features/forecast/lib/milestones.
+ *
+ * The overall scope — what "Entire Project" reads — is always the LAST.
  */
 export interface ForecastScope {
   kind: 'project' | 'milestone' | 'cumulative-final'
