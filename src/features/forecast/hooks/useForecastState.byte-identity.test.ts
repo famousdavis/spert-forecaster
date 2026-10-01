@@ -223,10 +223,16 @@ describe('the record round-trip is lossless (milestone scopes)', () => {
   // and both behave identically under `>` and `>=`. Neither is at the
   // boundary, so the fixture cannot discriminate the operator.
   //
+  // Since v0.44.1 the boundary is not the backlog itself but the backlog plus
+  // a rounding allowance (exceedsBacklog, shared/lib/backlog-tolerance.ts), so
+  // the operator lives there and is pinned there ("exclusive above and
+  // inclusive within"). These tests pin the WIRING: that the flag goes
+  // through the allowance at all, with k = i + 1.
+  //
   // A threshold EQUAL to the backlog is reachable: completing all the backlog
-  // crosses it. And it is the common case, not a corner — the last milestone's
-  // cumulative normally equals the backlog exactly, which is what makes the
-  // off-by-one worth pinning.
+  // crosses it. It is the fully-allocated case — every milestone figure summed
+  // to the backlog — which Story Map's rounding can miss by a few hundredths
+  // either way; a project with work outside every milestone sums to LESS.
   it('a threshold exactly EQUAL to the backlog is reachable — the case > and >= disagree on', async () => {
     useProjectStore.setState({
       projects: [{
@@ -250,6 +256,43 @@ describe('the record round-trip is lossless (milestone scopes)', () => {
     // 40 + 60 = 100, exactly the backlog.
     expect(scopes.map((s) => s.cumulativeThreshold)).toEqual([40, 100])
     expect(scopes.map((s) => s.thresholdUnreachable)).toEqual([false, false])
+  })
+
+  /** Run a two-milestone forecast against `backlog` and return the scopes. */
+  async function runTwoMilestones(backlog: string, sizes: [number, number]) {
+    useProjectStore.setState({
+      projects: [{
+        ...useProjectStore.getState().projects[0],
+        milestones: [
+          { id: 'm1', name: 'Alpha', backlogSize: sizes[0], color: '#3b82f6', createdAt: '', updatedAt: '' },
+          { id: 'm2', name: 'Beta', backlogSize: sizes[1], color: '#10b981', createdAt: '', updatedAt: '' },
+        ],
+      }],
+      forecastInputs: {
+        [PROJECT_ID]: { remainingBacklog: backlog, velocityMean: '20', velocityStdDev: '4' },
+      },
+    })
+    vi.mocked(useSimulationWorker).mockReturnValue({
+      runSimulation: vi.fn(),
+      runMilestoneSimulation: vi.fn().mockResolvedValue(milestoneWorkerResult(2)),
+    })
+    const { result } = renderHook(() => useForecastState())
+    await waitFor(() => expect(result.current.canRun).toBe(true))
+    await act(async () => { await result.current.handleRunForecast() })
+    return useForecastResultsStore.getState().record!.scopes
+  }
+
+  it('Story Map rounding past the backlog is NOT unreachable: 0.13 + 0.13 against 0.25', async () => {
+    // 0.125 + 0.125 = 0.25, each figure rounded up by Story Map. A strict
+    // `threshold > backlog` told Connect AI the second milestone could not be
+    // reached.
+    const scopes = await runTwoMilestones('0.25', [0.13, 0.13])
+    expect(scopes.map((s) => s.thresholdUnreachable)).toEqual([false, false])
+  })
+
+  it('a real overshoot just past the allowance IS unreachable (k = 2, +0.02)', async () => {
+    const scopes = await runTwoMilestones('12', [6.02, 6])
+    expect(scopes.map((s) => s.thresholdUnreachable)).toEqual([false, true])
   })
 })
 

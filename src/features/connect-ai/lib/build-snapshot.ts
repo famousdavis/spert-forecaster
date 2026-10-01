@@ -55,6 +55,7 @@ import {
 } from '@/features/forecast/lib/deadline'
 import { canRunForecast, getRunForecastBlockedReason } from '@/features/forecast/lib/run-forecast-prereqs'
 import { safeParseNumber } from '@/shared/lib/validation'
+import { coversBacklog } from '@/shared/lib/backlog-tolerance'
 import { APP_VERSION } from '@/shared/constants'
 import {
   MAX_SNAPSHOT_SPRINTS,
@@ -214,6 +215,11 @@ export function buildSnapshot(input: SnapshotInput): Record<string, unknown> {
     )
   }
 
+  const summaryScope = summaryScopeIndex(view, milestones, completion)
+  const userSelections = buildUserSelections({
+    view, milestones, completion, visibleDistributions, record, summaryScope,
+  })
+
   const body: Record<string, unknown> = {
     app: 'forecaster',
     appVersion: APP_VERSION,
@@ -295,9 +301,7 @@ export function buildSnapshot(input: SnapshotInput): Record<string, unknown> {
       forecastStartDateSource: record ? 'run-captured' : 'live',
       trialCount: record?.runConfig.trialCount ?? comparand.trialCount,
     },
-    userSelections: buildUserSelections({
-      view, milestones, completion, visibleDistributions, record,
-    }),
+    userSelections,
   }
 
   const results: Record<string, unknown> = {
@@ -335,8 +339,7 @@ export function buildSnapshot(input: SnapshotInput): Record<string, unknown> {
     )
   }
 
-  const finalThreshold = run.scopes[run.scopes.length - 1]?.cumulativeThreshold ?? 0
-  const finalScopeCoversBacklog = finalThreshold >= run.runConfig.remainingBacklog
+  const { finalScopeCoversBacklog, backlogDivergence } = milestoneBacklogFacts(run)
 
   const percentileSet = unionAscending(
     view?.selectedResultsPercentiles ?? [],
@@ -346,6 +349,7 @@ export function buildSnapshot(input: SnapshotInput): Record<string, unknown> {
 
   const allComplete = milestones.length > 0 && completion.every((c) => c.completed)
   const selectedIdx = view?.selectedMilestoneIndex ?? 0
+  const onScreen = { chartedIncomplete, selectedIdx, summaryScope, lastIdx: run.scopes.length - 1 }
 
   const scopes = allComplete
     ? [collapsedScope()]
@@ -355,25 +359,25 @@ export function buildSnapshot(input: SnapshotInput): Record<string, unknown> {
         label: scope.label,
         cumulativeThreshold: scope.cumulativeThreshold,
         thresholdUnreachable: scope.thresholdUnreachable,
-        // The two-filter rule governs only the PER-MILESTONE tables. The main
-        // results table renders the selected scope unconditionally, so a
-        // hidden-but-selected milestone would otherwise be marked false on
-        // exactly what the user is reading.
-        renderedOnScreen:
-          (scope.milestoneIndex !== null && chartedIncomplete.has(scope.milestoneIndex)) ||
-          i === selectedIdx,
+        renderedOnScreen: isRenderedOnScreen(scope.milestoneIndex, i, onScreen),
         byDistribution: buildByDistribution(
           run, i, computedDistributions, percentileSet, anchorStart, anchorCadence, anchorLastSprint
         ),
       }))
 
   if (allComplete) {
+    // ⚠️ "Zero" does not mean "sprint 1". A zero threshold is reached once
+    // delivered work has kept pace with any modelled scope growth; this note
+    // said "all scopes resolve at the first sprint" until v0.44.1, which is
+    // false when growth outruns a sprint's delivery.
     notVisibleToYou.push(
       'Every milestone in this project is marked complete (zero work ' +
-      'remaining), so every cumulative threshold is zero and all scopes ' +
-      'resolve at the first sprint. One placeholder scope is reported ' +
-      'instead of a per-milestone breakdown, and the summary scope selector ' +
-      "has no counterpart in this snapshot's scope list."
+      'remaining), so every cumulative threshold is zero: each is reached as ' +
+      'soon as delivered work has kept pace with any modelled scope growth, ' +
+      'which is the first forecast sprint when scope growth is not modelled. ' +
+      'One placeholder scope is reported instead of a per-milestone ' +
+      "breakdown, and the summary scope selector has no counterpart in this " +
+      "snapshot's scope list."
     )
   }
   if (scopes.some((s) => !s.renderedOnScreen)) {
@@ -399,9 +403,7 @@ export function buildSnapshot(input: SnapshotInput): Record<string, unknown> {
 
   results.computedDistributions = computedDistributions
   results.modeExcludedDistributions = modeExcluded
-  results.backlogDivergence = finalThreshold === run.runConfig.remainingBacklog
-    ? null
-    : { finalMilestoneThreshold: finalThreshold, remainingBacklog: run.runConfig.remainingBacklog }
+  results.backlogDivergence = backlogDivergence
   results.finalScopeCoversBacklog = finalScopeCoversBacklog
   results.scopes = scopes
   body.results = results
@@ -410,16 +412,69 @@ export function buildSnapshot(input: SnapshotInput): Record<string, unknown> {
     view, run, computedDistributions, anchorStart, anchorCadence,
   })
   if (body.deadlineProbability) {
+    // Until v0.44.1 this also said the panel's "Entire Project" received a
+    // milestone-swapped series. It did; it no longer does — the panel reads
+    // the overall scope, as this block does.
     notVisibleToYou.push(
       'The deadline probability here is computed independently from the ' +
-      'stored run, so it may differ from the panel on screen — including ' +
-      'when that panel\'s own scope selector reads "Entire Project", because ' +
-      'the panel receives a milestone-swapped series.'
+      'stored run, for the Entire Project scope and every computed ' +
+      'distribution, so it may differ from the panel on screen: that panel ' +
+      'keeps its own scope and distribution choices, which this snapshot ' +
+      'does not carry.'
     )
   }
 
   body.notVisibleToYou = notVisibleToYou
   return finalize(body, budget, notVisibleToYou)
+}
+
+/**
+ * ⚠️ FACTS ABOUT THE MILESTONES (v0.44.1): the run's milestone scopes against
+ * the run's backlog, through the shared rounding allowance — never the LAST
+ * scope. When milestones fall short of the backlog the last scope can be the
+ * project's own, whose threshold is the backlog by construction; reading it
+ * would report "covers" exactly when they do not. And the strict comparison
+ * this replaced reported Story Map's rounding (0.13 + 0.13 against 0.25) and
+ * float noise (0.1 + 0.2 against 0.3) as divergences.
+ *
+ * A run with no milestones covers its own backlog and diverges from nothing.
+ */
+function milestoneBacklogFacts(run: ForecastRunRecord): {
+  finalScopeCoversBacklog: boolean
+  backlogDivergence: { finalMilestoneThreshold: number; remainingBacklog: number } | null
+} {
+  const milestoneScopes = run.scopes.filter((s) => s.milestoneIndex !== null)
+  const backlog = run.runConfig.remainingBacklog
+  if (milestoneScopes.length === 0) return { finalScopeCoversBacklog: true, backlogDivergence: null }
+  const total = milestoneScopes[milestoneScopes.length - 1].cumulativeThreshold
+  if (coversBacklog(total, backlog, milestoneScopes.length)) {
+    return { finalScopeCoversBacklog: true, backlogDivergence: null }
+  }
+  return {
+    finalScopeCoversBacklog: total > backlog,
+    backlogDivergence: { finalMilestoneThreshold: total, remainingBacklog: backlog },
+  }
+}
+
+/**
+ * Is any surface on the Forecast tab reading this scope? One clause per
+ * surface. The two-filter rule governs only the PER-MILESTONE tables. The
+ * chart and Custom Percentile pickers show the selected scope, hidden or not.
+ * The forecast summary shows its own scope — the overall one for "Entire
+ * Project" — and with no per-milestone table to show, the results table falls
+ * back to the overall scope. Before v0.44.1 the summary and that fallback read
+ * the SELECTED scope, so the second clause covered them; now they read the
+ * overall one and need their own.
+ */
+function isRenderedOnScreen(
+  milestoneIndex: number | null,
+  i: number,
+  ctx: { chartedIncomplete: Set<number>; selectedIdx: number; summaryScope: number | null; lastIdx: number },
+): boolean {
+  if (milestoneIndex !== null && ctx.chartedIncomplete.has(milestoneIndex)) return true
+  if (i === ctx.selectedIdx) return true
+  if (ctx.summaryScope === null ? i === ctx.lastIdx : milestoneIndex === ctx.summaryScope) return true
+  return ctx.chartedIncomplete.size === 0 && i === ctx.lastIdx
 }
 
 const BASE_NOT_VISIBLE = [
@@ -509,14 +564,40 @@ function collapsedScope() {
  * screen reads "Gamma", or a milestone index while the screen reads "Entire
  * Project".
  */
+/**
+ * The scope the forecast summary is showing, as a milestone index — or null
+ * for "Entire Project". It reproduces the selector's DERIVED value
+ * (`effectiveScope` in ForecastSummary), not the stored cell.
+ *
+ * effectiveScope: a milestone id survives ONLY if that milestone is not
+ * completed. ForecastSummary filters its scope options on !completed ALONE —
+ * NOT on the two-filter chart rule — so a milestone with showOnChart false IS
+ * still selectable there. Using the two-filter helper would drop it and
+ * reproduce the very defect this reproduction exists to avoid.
+ */
+function summaryScopeIndex(
+  view: ForecastViewState | undefined,
+  milestones: Milestone[],
+  completion: Array<{ completed: boolean }>,
+): number | null {
+  const storedScope: ScopeSelection = view?.summaryScope ?? PROJECT_SCOPE
+  if (storedScope === PROJECT_SCOPE) return null
+  const idx = milestones.findIndex((m) => m.id === storedScope)
+  // Unreachable by construction — the completed check already removes any
+  // id the selector would not offer — but emit null rather than -1 if it
+  // somehow occurs.
+  return idx >= 0 && !completion[idx]?.completed ? idx : null
+}
+
 function buildUserSelections(args: {
   view: ForecastViewState | undefined
   milestones: Milestone[]
   completion: Array<{ completed: boolean }>
   visibleDistributions: DistributionType[]
   record: ForecastRunRecord | null
+  summaryScope: number | null
 }): Record<string, unknown> {
-  const { view, milestones, completion, visibleDistributions, record } = args
+  const { view, milestones, completion, visibleDistributions, record, summaryScope } = args
 
   // effectiveDistribution: the stored choice if still offered, else the first
   // option. Reachable by enabling only Gamma in Settings.
@@ -525,20 +606,8 @@ function buildUserSelections(args: {
     ? stored
     : (visibleDistributions[0] ?? stored)
 
-  // effectiveScope: a milestone id survives ONLY if that milestone is not
-  // completed. ForecastSummary filters its scope options on !completed ALONE
-  // — NOT on the two-filter chart rule — so a milestone with showOnChart
-  // false IS still selectable here. Using the two-filter helper would drop it
-  // and reproduce the very defect this reproduction exists to avoid.
-  const storedScope: ScopeSelection = view?.summaryScope ?? PROJECT_SCOPE
-  let summaryScope: number | null = null
-  if (storedScope !== PROJECT_SCOPE) {
-    const idx = milestones.findIndex((m) => m.id === storedScope)
-    // Unreachable by construction — the completed check already removes any
-    // id the selector would not offer — but emit null rather than -1 if it
-    // somehow occurs.
-    summaryScope = idx >= 0 && !completion[idx]?.completed ? idx : null
-  }
+  // effectiveScope: resolved once by summaryScopeIndex, which the
+  // renderedOnScreen rule reads too.
 
   // The index joins results.scopes. In the all-milestones-complete case the
   // builder collapses scopes to one entry, so a record-clamped index has no

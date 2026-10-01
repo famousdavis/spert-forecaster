@@ -76,3 +76,43 @@ export function computeVisibleForecastMilestones(
     .filter(({ milestone: m }) => m.showOnChart !== false)
     .filter(({ originalIndex }) => !completionInfo[originalIndex]?.completed)
 }
+
+/** One option in a forecast-control milestone picker. `value` indexes the run's scopes. */
+export interface MilestonePickerOption {
+  value: number
+  label: string
+}
+
+/**
+ * The options every forecast-control milestone picker offers: the CDF and
+ * Histogram toolbars, and the Custom Percentile panel. ONE builder for all
+ * three. They used to keep separate copies, and the copies drifted — v0.32.1
+ * taught the chart pickers to hide completed milestones, and the Custom
+ * Percentile picker kept offering them until v0.44.1, where picking one
+ * charted a threshold of zero.
+ *
+ * Charted, not-completed milestones, in order. When there is more than one,
+ * the last carries "(Total)".
+ */
+export function buildMilestonePickerOptions(
+  milestones: Milestone[],
+  completionInfo: MilestoneCompletionInfo[] = [],
+): MilestonePickerOption[] {
+  const visible = computeVisibleForecastMilestones(milestones, completionInfo)
+  return visible.map(({ milestone, originalIndex }, i) => ({
+    value: originalIndex,
+    label: i === visible.length - 1 && visible.length > 1 ? `${milestone.name} (Total)` : milestone.name,
+  }))
+}
+
+/**
+ * Where a picker moves a selection it no longer offers: the LAST option, never
+ * the first. A run leaves the selection on its last scope; when that milestone
+ * is complete, the last option still shares its cumulative threshold (a
+ * completed milestone adds nothing to the running sum), so the chart keeps
+ * showing what it showed. The first option is a different forecast entirely.
+ * Null when nothing is offered.
+ */
+export function pickerFallback(options: MilestonePickerOption[]): number | null {
+  return options.length > 0 ? options[options.length - 1].value : null
+}

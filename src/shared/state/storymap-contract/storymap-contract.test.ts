@@ -48,6 +48,7 @@ import { validateImportData } from '../import-validation'
 import { classifyImportData, isStoryMapExport, MAX_STRING_LENGTH as UTILS_MAX_STRING_LENGTH } from '../import-utils'
 import { MAX_MILESTONES } from '@/features/forecast/constants'
 import { getLastSprintBacklog } from '@/shared/lib/forecast-derivations'
+import { exceedsBacklog } from '@/shared/lib/backlog-tolerance'
 import type { Sprint } from '@/shared/types'
 import {
   REGISTER,
@@ -834,14 +835,18 @@ describe('vendored-set coverage, derived rather than described', () => {
  * classifier, end to end.
  *
  * ⚠️ The sum uses this repo's own `getLastSprintBacklog`, which is where the
- * forecast's default remaining backlog comes from, and allows 0.005 for
- * per-release rounding. It holds for these payloads because they carry no
- * anomalies; it is NOT a property of every real export (Story Map can exceed it
- * when progress sits outside a rib's current allocation).
+ * forecast's default remaining backlog comes from, and compares through
+ * `exceedsBacklog` — the app's own rounding allowance, the same rule as the
+ * forecast's unreachable flag and the Connect AI divergence fields. Until
+ * v0.44.1 this check carried a private allowance of its own; one rule, no
+ * second constant. At the v0.44.0 re-vendor every payload with milestones
+ * summed to its last backlog EXACTLY, so this check never exercises the
+ * allowance — backlog-tolerance.test.ts pins it. The sum holds for these
+ * payloads because they carry no anomalies; it is NOT a property of every real
+ * export (Story Map can exceed it when progress sits outside a rib's current
+ * allocation).
  */
 describe('the vendored set — milestone figures are REMAINING work', () => {
-  const ROUNDING_ALLOWANCE = 0.005
-
   it.each(MANIFEST.entries.map((e) => [e.file, e] as const))(
     '%s declares milestoneBacklog: \'remaining\'',
     (_file, entry) => {
@@ -866,7 +871,7 @@ describe('the vendored set — milestone figures are REMAINING work', () => {
       const sum = milestones.reduce((acc, m) => acc + m.backlogSize, 0)
       const lastBacklog = getLastSprintBacklog(sprintsOf(payload) as unknown as Sprint[])
       expect(lastBacklog, 'payload has no backlogAtSprintEnd to compare against').toBeDefined()
-      expect(sum).toBeLessThanOrEqual(lastBacklog! + ROUNDING_ALLOWANCE)
+      expect(exceedsBacklog(sum, lastBacklog!, milestones.length)).toBe(false)
     },
   )
 })

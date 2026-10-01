@@ -8,7 +8,8 @@ import { useEffect, useMemo } from 'react'
 import type { Milestone } from '@/shared/types'
 import {
   type MilestoneCompletionInfo,
-  computeVisibleForecastMilestones,
+  buildMilestonePickerOptions,
+  pickerFallback,
 } from '../lib/milestones'
 import { type ChartFontSize, CHART_FONT_SIZE_LABELS } from '../types'
 
@@ -33,27 +34,23 @@ export function ChartToolbar({
   fontSize = 'small',
   onFontSizeChange,
 }: ChartToolbarProps) {
-  // Forecast controls offer only chart-eligible, not-yet-completed milestones — see
-  // computeVisibleForecastMilestones in ../lib/milestones for the rationale.
-  const visibleMilestones = useMemo(
-    () => computeVisibleForecastMilestones(milestones, milestoneCompletionInfo),
+  // One builder for every forecast-control picker — see
+  // buildMilestonePickerOptions in ../lib/milestones for why it is shared.
+  const options = useMemo(
+    () => buildMilestonePickerOptions(milestones, milestoneCompletionInfo),
     [milestones, milestoneCompletionInfo]
   )
 
-  // Auto-correct selected index when it's not among the visible milestones
+  // Move a selection the picker no longer offers to its LAST option — see
+  // pickerFallback for why not the first.
   useEffect(() => {
-    if (visibleMilestones.length === 0 || !onMilestoneIndexChange) return
-    const isValid = visibleMilestones.some((v) => v.originalIndex === selectedMilestoneIndex)
-    if (!isValid) {
-      onMilestoneIndexChange(visibleMilestones[0].originalIndex)
-    }
-  }, [visibleMilestones, selectedMilestoneIndex, onMilestoneIndexChange])
+    if (!onMilestoneIndexChange) return
+    if (options.some((o) => o.value === selectedMilestoneIndex)) return
+    const fallback = pickerFallback(options)
+    if (fallback !== null) onMilestoneIndexChange(fallback)
+  }, [options, selectedMilestoneIndex, onMilestoneIndexChange])
 
-  const lastVisibleIdx = visibleMilestones.length > 0
-    ? visibleMilestones[visibleMilestones.length - 1].originalIndex
-    : -1
-
-  const showMilestoneSelector = visibleMilestones.length > 0 && onMilestoneIndexChange
+  const showMilestoneSelector = options.length > 0 && onMilestoneIndexChange
   const showFontSize = !!onFontSizeChange
 
   if (!showMilestoneSelector && !showFontSize) return null
@@ -74,9 +71,9 @@ export function ChartToolbar({
             onChange={(e) => onMilestoneIndexChange(Number(e.target.value))}
             className="text-sm border border-spert-border dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 dark:text-gray-100"
           >
-            {visibleMilestones.map(({ milestone: m, originalIndex }) => (
-              <option key={m.id} value={originalIndex}>
-                {m.name}{originalIndex === lastVisibleIdx && visibleMilestones.length > 1 ? ' (Total)' : ''}
+            {options.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
               </option>
             ))}
           </select>

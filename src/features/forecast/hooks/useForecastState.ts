@@ -39,6 +39,7 @@ import { safeParseNumber } from '@/shared/lib/validation'
 import { MIN_SPRINTS_FOR_HISTORY, DEFAULT_SELECTED_PERCENTILES } from '../constants'
 import type { ForecastMode } from '@/shared/types'
 import { computeMilestoneCompletionInfo } from '../lib/milestones'
+import { exceedsBacklog } from '@/shared/lib/backlog-tolerance'
 import { canRunForecast, getRunForecastBlockedReason } from '../lib/run-forecast-prereqs'
 
 /** Per-milestone QuadResults and QuadSimulationData */
@@ -226,10 +227,20 @@ export function useForecastState() {
     return Math.max(0, Math.min(selectedMilestoneIndex, record.scopes.length - 1))
   }, [record, selectedMilestoneIndex])
 
+  // The SELECTED scope — what the CDF, Histogram and Custom Percentile
+  // "Milestone:" dropdowns point at. Charts only.
   const results = record?.quadResults[activeScopeIndex] ?? null
   const simulationData = record?.simData[activeScopeIndex] ?? null
-  // Overall (total backlog) simulation data — used by the burn-up chart; not
-  // swapped by the milestone dropdown, so it is always the LAST scope.
+  // The OVERALL scope — always the LAST one, never swapped by a dropdown.
+  //
+  // ⚠️ "ENTIRE PROJECT" READS THESE, NEVER `results`/`simulationData`. Until
+  // v0.44.1 ForecastTab passed the selected scope to the forecast summary, the
+  // Deadline Probability panel, the results table and the CSV export, and each
+  // rendered it as the entire project: picking "Beta Release" in the CDF chart
+  // re-dated the whole project to Beta's date. On the Forecast tab only the
+  // burn-up already read the overall scope.
+  // (ForecastTab.entire-project.test.tsx)
+  const overallResults = record ? (record.quadResults[record.quadResults.length - 1] ?? null) : null
   const overallSimulationData = record ? (record.simData[record.simData.length - 1] ?? null) : null
 
   // customResults / customResults2 are DERIVED now, not imperative state.
@@ -399,12 +410,18 @@ export function useForecastState() {
           milestoneIndex: i,
           label: milestoneNames[i] ?? `Milestone ${i + 1}`,
           cumulativeThreshold: threshold,
-          // Threshold above the backlog, and NOTHING ELSE. A trial that exits
-          // by completion has crossed every threshold <= backlog regardless of
-          // scope growth, because the crossing test runs in the same loop
-          // iteration `remaining` goes non-positive. Growth delays crossings;
-          // it does not prevent them. Do not add a scope-growth disjunct.
-          thresholdUnreachable: threshold > runConfig.remainingBacklog,
+          // Threshold past the backlog by more than rounding can explain, and
+          // NOTHING ELSE. A trial that exits by completion has crossed every
+          // threshold <= backlog regardless of scope growth, because the
+          // crossing test runs in the same loop iteration `remaining` goes
+          // non-positive. Growth delays crossings; it does not prevent them.
+          // Do not add a scope-growth disjunct.
+          //
+          // A threshold within the allowance of the backlog is dated at
+          // completion either way, which is the right date for it: it IS the
+          // backlog, give or take Story Map's rounding (0.13 + 0.13 against
+          // 0.25). k = i + 1 milestones are summed into it.
+          thresholdUnreachable: exceedsBacklog(threshold, runConfig.remainingBacklog, i + 1),
         }))
         if (publishIfStillCurrent(perMilestoneResults, perMilestoneSimData, scopes)) {
           setSelectedMilestoneIndexAction(runProjectId, lastIdx)
@@ -525,7 +542,9 @@ export function useForecastState() {
   }
 
   const handleExportCsv = () => {
-    if (!selectedProject || !results || !simulationData || !selectedProject.sprintCadenceWeeks) return
+    // Sections 2-4 are the forecast of the backlog section 1 states, so they
+    // export the OVERALL scope, never the dropdown's selection (see above).
+    if (!selectedProject || !overallResults || !overallSimulationData || !selectedProject.sprintCadenceWeeks) return
 
     let milestoneExportData: Parameters<typeof generateForecastCsv>[0]['milestoneData']
     if (inputs.hasMilestones && milestoneResultsState) {
@@ -566,18 +585,18 @@ export function useForecastState() {
         selectedCV: effectiveForecastMode === 'subjective' ? inputs.selectedCV : undefined,
         volatilityMultiplier: effectiveForecastMode !== 'subjective' ? inputs.volatilityMultiplier : undefined,
       },
-      truncatedNormalResults: results.truncatedNormal,
-      lognormalResults: results.lognormal,
-      gammaResults: results.gamma,
-      bootstrapResults: results.bootstrap,
-      triangularResults: results.triangular,
-      uniformResults: results.uniform,
-      truncatedNormalSprintsRequired: simulationData.truncatedNormal,
-      lognormalSprintsRequired: simulationData.lognormal,
-      gammaSprintsRequired: simulationData.gamma,
-      bootstrapSprintsRequired: simulationData.bootstrap,
-      triangularSprintsRequired: simulationData.triangular,
-      uniformSprintsRequired: simulationData.uniform,
+      truncatedNormalResults: overallResults.truncatedNormal,
+      lognormalResults: overallResults.lognormal,
+      gammaResults: overallResults.gamma,
+      bootstrapResults: overallResults.bootstrap,
+      triangularResults: overallResults.triangular,
+      uniformResults: overallResults.uniform,
+      truncatedNormalSprintsRequired: overallSimulationData.truncatedNormal,
+      lognormalSprintsRequired: overallSimulationData.lognormal,
+      gammaSprintsRequired: overallSimulationData.gamma,
+      bootstrapSprintsRequired: overallSimulationData.bootstrap,
+      triangularSprintsRequired: overallSimulationData.triangular,
+      uniformSprintsRequired: overallSimulationData.uniform,
       milestoneData: milestoneExportData,
     })
 
@@ -648,6 +667,7 @@ export function useForecastState() {
     // Results
     results,
     simulationData,
+    overallResults,
     overallSimulationData,
     milestoneResultsState,
     customPercentile,

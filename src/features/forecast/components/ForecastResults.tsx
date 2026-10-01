@@ -22,6 +22,8 @@ import {
 import { useSettingsStore } from '@/shared/state/settings-store'
 
 interface ForecastResultsProps {
+  /** The OVERALL scope, for the single table shown when no per-milestone table
+   *  is. Never the chart dropdowns' selection (it was, until v0.44.1). */
   results: QuadResults
   forecastMode: ForecastMode
   completedSprintCount: number

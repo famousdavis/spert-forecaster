@@ -25,8 +25,9 @@ import {
 interface DeadlineProbabilityPanelProps {
   targetDate: string
   onTargetDateChange: (date: string) => void
-  /** Project-scope sortedSprintsRequired arrays. Caller (ForecastTab) only renders
-   *  this panel when results+simulationData are available, so this prop is
+  /** The OVERALL scope's sortedSprintsRequired arrays — "Entire Project". Never
+   *  the chart dropdowns' selection (it was, until v0.44.1). Caller (ForecastTab)
+   *  only renders this panel when results are available, so this prop is
    *  non-nullable at the type level. */
   simulationData: QuadSimulationData
   /** Per-milestone results+sim-data. Null when the project has no milestones or
