@@ -244,3 +244,64 @@ container → red via NEVER-HOLDS at row and table scope; the documented
 `sprint.projectId` exception → green. ⚠️ **A suite with only positive controls
 cannot tell a correct boundary from an accidental one.**
 
+**Extended in v0.44.0 (SD-5).** The milestone `backlogSize` row became the one
+per-basis class, so the milestone and project merges now run under both bases.
+Two more corruptions were run, each alone, each confirmed applied by diff:
+forcing the row to an unconditional `incoming` goes red on the **`'total'` run
+only**, and forcing it to `local-restore-required` goes red on the
+**`'remaining'` run only**. Each run sees exactly the corruption the other cannot.
+Both also redden one STRUCTURAL check — that the row's two predictions differ —
+which reads the table rather than running the merge, and is a second, weaker
+line: on its own it would pass a merge that ignored the basis.
+
+## SD-5: Milestone `backlogSize` on Update follows the payload's declared basis (v0.44.0)
+
+**Spec reference:** none. It changes the class SD-2 recorded for one row —
+milestone `backlogSize`, from `local-restore-required` to the new
+`incoming-when-declared`. SD-2's table still covers all 29 keys.
+
+**What changed in the producer.** SPERT Story Map v0.53.8 (famousdavis/spert-story-map#193)
+sends each milestone's `backlogSize` as the work REMAINING in its release —
+allocated points less recorded progress, measured at the last exported sprint —
+and declares it with a top-level `milestoneBacklog: 'remaining'`. Every earlier
+export sent the release's TOTAL with no declaration, and those files exist
+forever. The numbers alone cannot tell the two apart.
+
+**Change.**
+1. `classifyImportData` reads the declaration onto `StoryMapImportData.milestoneBacklog`:
+   `'remaining'` for exactly that string, `'total'` for anything else or nothing.
+   It is a property of the PAYLOAD — required on that type, absent from
+   `ExportData` and `Project`, and never persisted.
+2. The basis travels `applyImportDecisions` → `mergeProjectForUpdate` →
+   `mergeMilestonesForUpdate` as a REQUIRED parameter, and every merge hop throws
+   on anything else. There is no default below classification, so a caller that
+   forgets it fails loudly rather than silently keeping or taking.
+3. Cell 1 (matched) takes the incoming `backlogSize` iff `'remaining'`. Cells 2–4
+   are unchanged.
+4. The disclosure carries the basis. The cell-2 line says what the figure is for
+   each kind of file; every replaced figure is named old → new, a completion
+   (`>0 → 0`) and a reopen (`0 → >0`) are named as such, and the placement line
+   no longer claims a direction it cannot know.
+
+**Why.** Brief 32 kept the local figure because taking a total "would have reset
+every milestone's remaining work to full scope on every refresh". That premise
+still holds for old files and no longer holds for new ones: the incoming figure
+now means what this app's field means, and keeping the local one leaves it stale
+after every send. Measured on the owner's workflow — first send after sprint 2
+gives 30/50/20; the re-send after sprint 3 kept 30/50/20 while Story Map sent
+10/30/20.
+
+**Consequence — user-visible.** For a milestone matched to a Story Map release,
+Story Map becomes the source of truth for remaining work, as it already was for
+sprint progress. A figure edited here is replaced by the next Update from a
+v0.53.8+ export, and the banner names it. Milestones created here never match
+and are unaffected. Old files behave exactly as before.
+
+**The race this does NOT create.** `anyUpdateNowRefused` (project-store.ts)
+re-checks only sprint availability, and stays that way: no availability rule
+reads a milestone, and the preview never shows milestone figures. The reasoning
+is recorded beside the guard.
+
+**The marker is declared, not proven** — exactly like `source`. Only the exact
+string counts; `["remaining"]` (which passes `==`) and `"Remaining"` do not.
+

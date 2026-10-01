@@ -128,7 +128,8 @@ export function buildMilestoneSummaryText(
 }
 
 /** Past-tense per-milestone line used in the breakdown for completed milestones.
- *  A milestone is "completed" when the user has set its backlogSize to 0. The system
+ *  A milestone is "completed" when its backlogSize is 0 — set by the user, or sent by
+ *  Story Map v0.53.8+ for a finished release. The system
  *  does not know *when* it completed (release-history lives in GanttApp), so the
  *  line is intentionally terse — name + state, no sprint number, no date. The word
  *  "completed" rather than "shipped" or "released" — not every milestone represents

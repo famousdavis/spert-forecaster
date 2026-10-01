@@ -253,10 +253,11 @@ export function validateImportData(data: unknown): data is ExportData {
         if (m.name.length > MAX_STRING_LENGTH) {
           throw new Error(`Project ${i}, milestone at index ${j} has a name exceeding ${MAX_STRING_LENGTH} characters.`)
         }
-        // Floor is 0, not 0.01: backlogSize === 0 is the user-maintained
-        // "milestone completed" sentinel (introduced with the v0.31.2
-        // milestone model). Negative values, NaN, and non-numbers are still
-        // rejected by isValidNumber.
+        // Floor is 0, not 0.01: backlogSize === 0 is the "milestone completed"
+        // sentinel (introduced with the v0.31.2 milestone model) — set by the
+        // user, or, since Story Map v0.53.8, sent by Story Map for a release
+        // whose work is all done. Negative values, NaN, and non-numbers are
+        // still rejected by isValidNumber.
         if (!isValidNumber(m.backlogSize, 0, MAX_NUMERIC_VALUE)) {
           throw new Error(`Project ${i}, milestone at index ${j} has invalid backlogSize (must be >= 0 and <= ${MAX_NUMERIC_VALUE}).`)
         }

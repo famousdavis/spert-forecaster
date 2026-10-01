@@ -29,6 +29,29 @@ export function isStoryMapExport(data: ExportData): data is StoryMapExportData {
   return (data as unknown as Record<string, unknown>).source === 'spert-story-map'
 }
 
+// What a Story Map payload's `milestone.backlogSize` MEANS.
+//   'remaining' — the work left in the release. Story Map v0.53.8 and later, which
+//                 declare it with a top-level `milestoneBacklog: 'remaining'`.
+//   'total'     — the release's whole size. Every earlier export, and those files
+//                 exist forever, with nothing in them to say so.
+// ⚠️ DECLARED, NOT PROVEN — exactly like `source`. Only the exact string
+// 'remaining' counts; ANY other value, or none, is 'total', which is today's
+// behaviour. Strict equality on purpose: `["remaining"] == 'remaining'` is true.
+export type MilestoneBacklogBasis = 'remaining' | 'total'
+
+export function declaresRemainingMilestoneBacklog(data: ExportData): boolean {
+  return (data as unknown as Record<string, unknown>).milestoneBacklog === 'remaining'
+}
+
+// Every merge hop takes the basis as a REQUIRED parameter and calls this, so there
+// is no default anywhere below classifyImportData: a caller that forgets it, or
+// passes something else, fails loudly instead of silently keeping (or taking).
+export function assertMilestoneBacklogBasis(basis: unknown): asserts basis is MilestoneBacklogBasis {
+  if (basis !== 'remaining' && basis !== 'total') {
+    throw new Error(`Unknown milestone backlog basis: ${String(basis)}`)
+  }
+}
+
 // --- Discriminated union for ParsedImportData ---
 
 type BaseImportData = { projects: Project[]; sprints: Sprint[] }
@@ -37,7 +60,12 @@ export type ProjectExportImportData =
   BaseImportData & { exportType: 'spert-forecaster-project-export' }
 
 export type StoryMapImportData =
-  BaseImportData & { exportType: 'spert-story-map' }
+  BaseImportData & {
+    exportType: 'spert-story-map'
+    // REQUIRED, and set ONLY by classifyImportData. A payload property, never a
+    // project's: it is not on ExportData, not on Project, and never persisted.
+    milestoneBacklog: MilestoneBacklogBasis
+  }
 
 export type LegacyImportData =
   BaseImportData & {
@@ -166,9 +194,17 @@ export function hasMatchingExistingSprintId(
 export type UpdateDisclosure = {
   projectId: string
   projectName: string
-  // §4.4 cell 2 — added from incoming, disclosed BY NAME. backlogSize is Story
-  // Map's TOTAL scope, not remaining.
+  // The payload's declared basis (classifyImportData). The banner has nothing
+  // else to choose its cell-2 wording from.
+  milestoneBacklog: MilestoneBacklogBasis
+  // §4.4 cell 2 — added from incoming, disclosed BY NAME. Under 'remaining' its
+  // backlogSize is the work left in the release; under 'total' it is the
+  // release's whole size, which this app would read as work remaining.
   milestonesAdded: string[]
+  // §4.4 cell 1 under 'remaining' — matched milestones whose figure the update
+  // REPLACED, old → new. Always empty under 'total', and empty on a re-send that
+  // changed nothing.
+  milestonesChanged: MilestoneFigureChange[]
   // §4.4 cell 4 — preserved, local backlogSize > 0. TWO POPULATIONS share this
   // cell (Story-Map-side ambiguity, and Forecaster-native milestones that can
   // never match) and NOTHING STORED DISTINGUISHES THEM. The banner names both
@@ -181,6 +217,10 @@ export type UpdateDisclosure = {
   sprintsAdded: number
   sprintsMatched: number
 }
+
+// One matched milestone whose backlogSize an update replaced. `name` is the
+// merged (incoming) name.
+export type MilestoneFigureChange = { name: string; from: number; to: number }
 
 // A slot claim that lost to a higher-precedence action, or to array order.
 export type ImportDowngrade = {
@@ -305,6 +345,7 @@ export function classifyImportData(data: ExportData): ParsedImportData {
       exportType: 'spert-story-map',
       projects: data.projects,
       sprints: data.sprints,
+      milestoneBacklog: declaresRemainingMilestoneBacklog(data) ? 'remaining' : 'total',
     }
   }
   // Deep-clone so ParsedImportData.projects and _originalExportData.projects
@@ -315,6 +356,13 @@ export function classifyImportData(data: ExportData): ParsedImportData {
     sprints: structuredClone(data.sprints) as Sprint[],
     _originalExportData: data,
   }
+}
+
+// The basis an update merges under. Only a Story Map payload carries one; any
+// other payload can never be offered `update` (availableActions), and a crafted
+// decision on one is merged as 'total' — today's behaviour.
+export function milestoneBacklogOf(incoming: ParsedImportData): MilestoneBacklogBasis {
+  return incoming.exportType === 'spert-story-map' ? incoming.milestoneBacklog : 'total'
 }
 
 // --- detectImportConflicts ---
@@ -386,6 +434,9 @@ export function conflictsEqual(a: ImportConflict[], b: ImportConflict[]): boolea
 // `pinned-identity` on a project `id` is a no-op under an id conflict and
 // load-bearing under a name conflict, and it is still one row. No row's class
 // depends on the conflict type — which is what lets one table serve both.
+// ⚠️ ONE row depends on the PAYLOAD instead: milestone `backlogSize` is
+// `incoming-when-declared` (SD-5). Its class is still one policy; the effect
+// varies with the declared basis, and the contract test runs both.
 //
 // ⚠️ NOT READ BY THE MERGE FUNCTIONS — but no longer unenforced. Since SD-4,
 // `field-class-contract.test.ts` runs the merges below and asserts each row's
@@ -409,6 +460,9 @@ export function conflictsEqual(a: ImportConflict[], b: ImportConflict[]): boolea
 export type UpdateFieldClass =
   | 'incoming'                // producer authoritative; the spread already does this
   | 'incoming-when-emitted'   // as 'incoming', but CONDITIONALLY emitted; absence leaves local
+  | 'incoming-when-declared'  // as 'incoming' when the PAYLOAD declares the producer means what
+                              // this app means (MilestoneBacklogBasis 'remaining'); otherwise
+                              // as 'local-restore-required'. One policy, two effects — see SD-5.
   | 'local-restore-defensive' // a real export never emits it; the restore defends a CRAFTED payload
   | 'local-restore-required'  // the real producer DOES emit it, so the restore is required
   | 'local-producer-artifact' // the incoming value is an artifact of the producer's own model
@@ -459,7 +513,12 @@ export const SPRINT_UPDATE_FIELD_CLASSES: Record<keyof Sprint, UpdateFieldClass>
 
 export const MILESTONE_UPDATE_FIELD_CLASSES: Record<keyof Milestone, UpdateFieldClass> = {
   name: 'incoming',
-  backlogSize: 'local-restore-required',
+  // ⚠️ CONDITIONAL ON THE PAYLOAD, not on the conflict type. Story Map v0.53.8+
+  // sends the work REMAINING here and says so; this app's field means the same,
+  // so Story Map's figure wins, as its sprint progress already does. Older files
+  // send the release TOTAL, which would reset every milestone's remaining work to
+  // full size on every refresh, so the local figure stays. docs/SPEC_DEVIATIONS.md SD-5.
+  backlogSize: 'incoming-when-declared',
   // ⚠️ Not merely "less preferred": exportForForecaster.ts assigns from a
   // position-dependent palette rotation indexed on the SURVIVING milestone
   // count, so one release dropped below its 0.01 floor recolours every later
@@ -486,7 +545,8 @@ export const MILESTONE_UPDATE_FIELD_CLASSES: Record<keyof Milestone, UpdateField
 // existence partitions ---
 //
 // Narrative and rationale: docs/SPEC_DEVIATIONS.md → SD-2 (tracked and
-// readable from any checkout, unlike the spec it supersedes).
+// readable from any checkout, unlike the spec it supersedes), and SD-5 for the
+// one row that follows the payload's declared basis.
 //
 // ⚠️ READ PROJECT_UPDATE_FIELD_CLASSES, SPRINT_UPDATE_FIELD_CLASSES AND
 // MILESTONE_UPDATE_FIELD_CLASSES ABOVE — AND docs/SPEC_DEVIATIONS.md SD-2 —
@@ -498,8 +558,9 @@ export const MILESTONE_UPDATE_FIELD_CLASSES: Record<keyof Milestone, UpdateField
 //
 // ⚠️ `local-restore-defensive` ("preserved by absence") is restored EXPLICITLY
 // here even though a real
-// Story Map export never emits those keys (exportForForecaster.ts:124-133
-// bounds the emitted set at 8). `source` is DECLARED, not proven, so a
+// Story Map export never emits those keys (the `project` object that
+// spert-story-map's `buildForecasterExport` builds bounds the emitted set at 8).
+// `source` is DECLARED, not proven, so a
 // hand-crafted payload can carry them; explicit restores make the class hold by
 // construction rather than by producer behaviour.
 
@@ -515,14 +576,26 @@ export const MILESTONE_UPDATE_FIELD_CLASSES: Record<keyof Milestone, UpdateField
  * is ill-defined once incoming reorders its own set), and the cost falls on
  * cell 4, where the user's own milestones live permanently: their own
  * threshold moves, and their forecast date with it. §5.4 discloses that.
+ *
+ * ⚠️ `milestoneBacklog` is REQUIRED and unchecked values throw — there is no
+ * default at this layer (SD-5). It decides cell 1's `backlogSize` only.
  */
 export function mergeMilestonesForUpdate(
   existing: Milestone[] | undefined,
   incoming: Milestone[] | undefined,
   ts: string,
-): { milestones: Milestone[]; added: string[]; kept: string[]; keptCompleted: number } {
+  milestoneBacklog: MilestoneBacklogBasis,
+): {
+  milestones: Milestone[]
+  added: string[]
+  kept: string[]
+  keptCompleted: number
+  changed: MilestoneFigureChange[]
+} {
+  assertMilestoneBacklogBasis(milestoneBacklog)
   const existingList = existing ?? []
-  // `milestones` is emitted CONDITIONALLY (exportForForecaster.ts:133), so an
+  // `milestones` is emitted CONDITIONALLY (spert-story-map's `buildForecasterExport`
+  // sets `project.milestones` only when a release survives its floor), so an
   // absent array is not "delete everything" — every existing milestone simply
   // falls to the existing-only cells and is preserved.
   const incomingList = incoming ?? []
@@ -530,24 +603,31 @@ export function mergeMilestonesForUpdate(
   const incomingIds = new Set(incomingList.map((m) => m.id))
 
   const added: string[] = []
+  const changed: MilestoneFigureChange[] = []
   const milestones: Milestone[] = incomingList.map((inc) => {
     const prior = priorById.get(inc.id)
     if (!prior) {
-      // Cell 2 — incoming only. `backlogSize` is Story Map's TOTAL scope, not
-      // remaining: the only value available, and overstated when restructuring
-      // moved completed work in. `createdAt` from incoming (§4.4a) — there is
-      // no local value and `local-restore-required` presupposes one.
-      // Disclosed BY NAME.
+      // Cell 2 — incoming only. `backlogSize` is the only value available: the
+      // work left in the release under 'remaining', the release's whole size
+      // under 'total' (overstated as remaining work, and more so when
+      // restructuring moved completed work in). `createdAt` from incoming
+      // (§4.4a) — there is no local value and `local-restore-required`
+      // presupposes one. Disclosed BY NAME.
       added.push(inc.name)
       return { ...inc, updatedAt: ts }
     }
-    // Cell 1 — matched. Take `name` and position (`incoming`); override-restore
-    // `backlogSize` and `createdAt` (`local-restore-required`), `color` and
-    // `showOnChart` (`local-producer-artifact`).
+    // Cell 1 — matched. Take `name` and position (`incoming`); `backlogSize` is
+    // `incoming-when-declared` — Story Map's figure under 'remaining', the local
+    // one under 'total'; override-restore `createdAt` (`local-restore-required`),
+    // `color` and `showOnChart` (`local-producer-artifact`).
+    const backlogSize = milestoneBacklog === 'remaining' ? inc.backlogSize : prior.backlogSize
+    if (backlogSize !== prior.backlogSize) {
+      changed.push({ name: inc.name, from: prior.backlogSize, to: backlogSize })
+    }
     return {
       ...prior,
       ...inc,
-      backlogSize: prior.backlogSize,
+      backlogSize,
       color: prior.color,
       showOnChart: prior.showOnChart,
       createdAt: prior.createdAt,
@@ -565,7 +645,7 @@ export function mergeMilestonesForUpdate(
     else kept.push(m.name) // cell 4 — two populations, nothing distinguishes them
     milestones.push(m)
   }
-  return { milestones, added, kept, keptCompleted }
+  return { milestones, added, kept, keptCompleted, changed }
 }
 
 /**
@@ -578,7 +658,8 @@ export function mergeMilestonesForUpdate(
  *
  * ⚠️ `sprintNumber` is `incoming` — take it wholesale, NEVER mix numbering
  * across sources. Story Map renumbers positionally over dated sprints
- * (exportForForecaster.ts:111), so the incoming set is internally consistent;
+ * (spert-story-map's `buildForecasterExport` writes `sprintNumber: i + 1`), so
+ * the incoming set is internally consistent;
  * a locally-numbered sprint mixed into it is what moves the forecast anchor a
  * full cadence period.
  */
@@ -623,13 +704,24 @@ export function mergeSprintsForUpdate(
 /**
  * PROJECT_UPDATE_FIELD_CLASSES applied to the project shell. Milestones merge
  * separately. See docs/SPEC_DEVIATIONS.md SD-2 for why `id` is pinned here.
+ *
+ * `milestoneBacklog` is REQUIRED and is only passed through, to the milestone
+ * merge (SD-5). It lives on the classified PAYLOAD, never on a Project, which is
+ * why it has to arrive as a parameter.
  */
 export function mergeProjectForUpdate(
   existing: Project,
   incoming: Project,
   ts: string,
+  milestoneBacklog: MilestoneBacklogBasis,
 ): { project: Project; milestoneReport: ReturnType<typeof mergeMilestonesForUpdate> } {
-  const milestoneReport = mergeMilestonesForUpdate(existing.milestones, incoming.milestones, ts)
+  assertMilestoneBacklogBasis(milestoneBacklog)
+  const milestoneReport = mergeMilestonesForUpdate(
+    existing.milestones,
+    incoming.milestones,
+    ts,
+    milestoneBacklog,
+  )
   return {
     project: {
       ...existing,
@@ -645,7 +737,8 @@ export function mergeProjectForUpdate(
       projectFinishDate: existing.projectFinishDate,
       productivityAdjustments: existing.productivityAdjustments,
       // local-producer-artifact. Story Map hardcodes 'Story Points'
-      // (exportForForecaster.ts:127); a user's "Hours" must survive.
+      // (spert-story-map's `buildForecasterExport` writes
+      // `unitOfMeasure: 'Story Points'`); a user's "Hours" must survive.
       unitOfMeasure: existing.unitOfMeasure,
       // local-restore-required — Story Map emits createdAt on every project.
       createdAt: existing.createdAt,
@@ -814,10 +907,12 @@ export function applyImportDecisions(
       replaced++
     } else if (claim?.action === 'update') {
       const ts = timestamp()
+      const milestoneBacklog = milestoneBacklogOf(incoming)
       const { project, milestoneReport } = mergeProjectForUpdate(
         existingProject,
         claim.project,
         ts,
+        milestoneBacklog,
       )
       const sprintReport = mergeSprintsForUpdate(
         existingSprints,
@@ -832,7 +927,9 @@ export function applyImportDecisions(
       disclosures.push({
         projectId: existingProject.id,
         projectName: project.name,
+        milestoneBacklog,
         milestonesAdded: milestoneReport.added,
+        milestonesChanged: milestoneReport.changed,
         milestonesKept: milestoneReport.kept,
         milestonesKeptCompleted: milestoneReport.keptCompleted,
         milestonesAppended: milestoneReport.kept.length + milestoneReport.keptCompleted,

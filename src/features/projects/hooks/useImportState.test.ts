@@ -194,6 +194,7 @@ describe('useImportState — computeDefaultDecisions', () => {
     exportType: 'spert-story-map',
     projects: [],
     sprints,
+    milestoneBacklog: 'total',
   })
   const smSprint = (id: string, projectId: string): Sprint => ({
     id,

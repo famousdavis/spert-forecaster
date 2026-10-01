@@ -1,6 +1,7 @@
 {
   "version": "1.0",
   "source": "spert-story-map",
+  "milestoneBacklog": "remaining",
   "projects": [
     {
       "id": "prod-fixture",

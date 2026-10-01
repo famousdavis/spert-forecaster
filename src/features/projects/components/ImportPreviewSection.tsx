@@ -84,6 +84,10 @@ export function ImportPreviewSection({
   }, [applying, onCancel])
 
   const isLegacy = imported.exportType === 'legacy'
+  // A Story Map v0.53.8+ file declares that its milestone figures are remaining
+  // work, and Update then takes them (SD-5). Said here, before the user decides.
+  const takesMilestoneFigures =
+    imported.exportType === 'spert-story-map' && imported.milestoneBacklog === 'remaining'
   const showReplaceAllControls = isLegacy && mode === 'replace-all'
   const conflictIncomingIds = new Set(conflicts.map((c) => c.incomingProject.id))
   const nonConflictingCount = imported.projects.filter((p) => !conflictIncomingIds.has(p.id)).length
@@ -268,6 +272,12 @@ export function ImportPreviewSection({
             re-entered. Updating merges the incoming sprints into the existing project and keeps
             your burn-up configurations, project dates, productivity adjustments and
             sprint-exclusion choices &mdash; the forecast is re-run.
+            {takesMilestoneFigures && (
+              <>
+                {' '}This file comes from Story Map v0.53.8 or later, so Updating also replaces
+                each matched milestone&rsquo;s remaining work with Story Map&rsquo;s figure.
+              </>
+            )}
           </p>
         </>
       )}

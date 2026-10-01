@@ -43,10 +43,17 @@
  * `import-validation.ts`, and NO check reads it.
  */
 
-/** The Story Map commit this table and the vendored fixture set came from. */
+/**
+ * The Story Map commit this table and the vendored fixture set came from.
+ *
+ * Moved from `f172be0` (v0.52.14) at the v0.53.8 re-vendor. The table below was
+ * re-checked against `6c874ed` rather than assumed: the F-rows are unchanged, the
+ * P-rows match message for message, and `forecasterLimits.ts` changed in comments
+ * only — its three limits are the values in FORECASTER_LIMITS here.
+ */
 export const PINNED_STORY_MAP = {
-  commit: 'f172be0',
-  version: '0.52.14',
+  commit: '6c874ed',
+  version: '0.53.8',
   registerFile: 'src/lib/forecasterReachability.ts',
   limitsFile: 'src/lib/forecasterLimits.ts',
   fixtureDir: 'src/__tests__/fixtures/',
@@ -56,20 +63,24 @@ export const PINNED_STORY_MAP = {
  * SHA-256 of `fixtures/canonical-export.json` as committed in BOTH repos.
  *
  * Pinned rather than recomputed on purpose: a hash derived from the file it is
- * checking proves nothing. Byte-unchanged across Story Map v0.52.12 → v0.52.13,
- * verified on both sides — the twelve boundary payloads added in v0.52.13 did
- * not disturb it.
+ * checking proves nothing.
+ *
+ * ⚠️ It CHANGED at Story Map v0.53.8, deliberately. That release made each
+ * milestone's `backlogSize` the work remaining in its release rather than the
+ * release total (this payload's 30/40 became 11/28) and added the top-level
+ * `milestoneBacklog: 'remaining'` declaration. Before that it was byte-unchanged
+ * from v0.52.12 through v0.53.7.
  */
 export const CANONICAL_EXPORT_SHA256 =
-  'e9c903c0db7c27a2b4a559de2501ae4d0b8177bbb928e7116216cb9c36ae12a3'
+  'd05aec962bb43f111d546ee4233874fa4ebfb5e9085833c5fc0cc9f29371c521'
 
 /**
  * SHA-256 of `fixtures/vendored-manifest.json`.
  *
  * ⚠️ ONE pin covers the whole set, by design. The manifest carries a `sha256`
- * for every payload, so pinning the manifest's own bytes makes those thirteen
- * hashes trustworthy in turn, and the payloads are then checked against them.
- * Thirteen separately-pinned constants here would be thirteen things to
+ * for every payload, so pinning the manifest's own bytes makes those hashes
+ * trustworthy in turn, and the payloads are then checked against them. One
+ * separately-pinned constant per payload would be that many things to
  * re-transcribe by hand at each re-vendor, and a hand-transcribed hash is the
  * failure this pin exists to prevent.
  *
@@ -80,7 +91,7 @@ export const CANONICAL_EXPORT_SHA256 =
  * else in this folder.
  */
 export const VENDORED_MANIFEST_SHA256 =
-  '5d27d8dd1ed8e0aeead7f36bc72a9f0cbfa8f393e94a742e8659eed2a5ac7cd5'
+  '824d831abef919e88cab4814ca889020e074057fbe27f76e6af1b543841ca7a9'
 
 /** One row of `vendored-manifest.json`. */
 export interface ManifestEntry {

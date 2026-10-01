@@ -179,8 +179,9 @@ describe('buildSummaryText', () => {
 
 describe('buildCompletedMilestoneText', () => {
   it('returns "{name}: completed" — terse past-tense with no sprint or date', () => {
-    // The system does not know *when* a milestone was completed; the user marks
-    // completion by setting backlogSize to 0. Release-history lives in GanttApp.
+    // The system does not know *when* a milestone was completed; completion is a
+    // backlogSize of 0, set by the user or sent by Story Map. Release-history lives
+    // in GanttApp.
     expect(buildCompletedMilestoneText('MVP Release')).toBe('MVP Release: completed')
   })
 

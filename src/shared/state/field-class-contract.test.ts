@@ -65,6 +65,7 @@ import {
   mergeProjectForUpdate,
   mergeSprintsForUpdate,
   mergeMilestonesForUpdate,
+  type MilestoneBacklogBasis,
   type UpdateFieldClass,
 } from './import-utils'
 
@@ -73,7 +74,7 @@ const EXISTING_PROJECT_ID = 'EXISTING-PROJECT'
 const INCOMING_PROJECT_ID = 'INCOMING-PROJECT'
 
 /**
- * The six OUTCOME GROUPS. Nine classes collapse to six because some classes
+ * The six OUTCOME GROUPS. Ten classes collapse to six because some classes
  * differ only in PRODUCER behaviour, which a consumer-side check cannot see.
  * ⚠️ This maps CLASS -> WHAT IT PREDICTS. It is not a second copy of the
  * tables, which map FIELD -> CLASS. Corrupting a table is what this file
@@ -87,9 +88,22 @@ type OutcomeGroup =
   | 'match-key'
   | 'pinned-identity'
 
-const OUTCOME_GROUP_OF: Record<UpdateFieldClass, OutcomeGroup> = {
+/**
+ * ⚠️ ONE CLASS PREDICTS A DIFFERENT GROUP PER PAYLOAD BASIS (SD-5). Its spec is a
+ * pair, and `groupFor` picks the half for the basis the merge ran under. That is
+ * why the project and milestone merges below run TWICE, once per basis: a single
+ * run could only ever see one half, so a corruption towards the other half would
+ * stay green.
+ */
+type PerBasisGroup = { readonly perBasis: Readonly<Record<MilestoneBacklogBasis, OutcomeGroup>> }
+type OutcomeGroupSpec = OutcomeGroup | PerBasisGroup
+
+const BASES: readonly MilestoneBacklogBasis[] = ['remaining', 'total']
+
+const OUTCOME_GROUP_OF: Record<UpdateFieldClass, OutcomeGroupSpec> = {
   'incoming': 'takes-incoming',
   'incoming-when-emitted': 'takes-incoming',
+  'incoming-when-declared': { perBasis: { remaining: 'takes-incoming', total: 'keeps-existing' } },
   'local-restore-defensive': 'keeps-existing',
   'local-restore-required': 'keeps-existing',
   'local-producer-artifact': 'keeps-existing',
@@ -119,6 +133,18 @@ const OUTCOME_GROUP_OF: Record<UpdateFieldClass, OutcomeGroup> = {
  * ⚠️ A later reader who rebuilds this map from the tables converts a sound
  * check into a tautology. Rebuild it from the signatures.
  */
+/**
+ * The group a class predicts under `basis`, or null when the class is per-basis
+ * and the merge under test takes NO basis — derived from the signature, like
+ * NEVER-HOLDS: `mergeSprintsForUpdate` has no basis parameter, so a per-basis
+ * class on a sprint field has no defined prediction at all.
+ */
+function groupFor(cls: UpdateFieldClass, basis: MilestoneBacklogBasis | null): OutcomeGroup | null {
+  const spec = OUTCOME_GROUP_OF[cls]
+  if (typeof spec === 'string') return spec
+  return basis === null ? null : spec.perBasis[basis]
+}
+
 function groupIsDefined(table: TableName, key: string, group: OutcomeGroup): boolean {
   switch (group) {
     case 'takes-incoming':
@@ -239,20 +265,28 @@ function assertTableAgainstMerge(
   table: TableName,
   classes: Record<string, UpdateFieldClass>,
   instances: Instance[],
+  // The basis the merge ran under, or null for a merge that takes none.
+  basis: MilestoneBacklogBasis | null,
 ): void {
   for (const instance of instances) {
     for (const [key, cls] of Object.entries(classes)) {
-      const group = OUTCOME_GROUP_OF[cls]
+      const resolved = groupFor(cls, basis)
+      const group = resolved ?? 'match-key' // placeholder; a null resolution fails below
       const isAdded = instance.prior === undefined
       // CASE C is BRANCH scope and is evaluated LAST: it wins on an added
       // instance even where NEVER-HOLDS would otherwise have something to say.
       const runsHere = !isAdded || (group !== 'keeps-existing' && group !== 'match-key')
-      const name = `${table}/${instance.label}: ${key} [${cls} -> ${group}]`
+      const at = basis === null ? '' : `@${basis}`
+      const name = `${table}/${instance.label}${at}: ${key} [${cls} -> ${resolved ?? 'UNDEFINED'}]`
 
       it(runsHere ? name : `${name} (added branch: not asserted)`, () => {
         // CASE D vacuity mode (b): a merge that produced no rows would make
         // every per-row assertion pass by never running.
         expect(instance.merged, 'merge produced no instance to assert on').toBeTruthy()
+        expect(
+          resolved,
+          `${cls} is per-basis but the ${table} merge takes no basis — NEVER-HOLDS`,
+        ).not.toBeNull()
         if (!runsHere) return
 
         expect(
@@ -315,20 +349,26 @@ describe('field-class contract: fixtures are plain data', () => {
 })
 
 describe('PROJECT_UPDATE_FIELD_CLASSES vs mergeProjectForUpdate', () => {
-  const out = mergeProjectForUpdate(EXISTING_PROJECT, INCOMING_PROJECT, TS)
-  it('the merge ran and every key is classed', () => {
-    expect(out.project).toBeTruthy()
+  it('every key is classed', () => {
     expect(Object.keys(PROJECT_UPDATE_FIELD_CLASSES).sort())
       .toEqual(Object.keys(EXISTING_PROJECT).sort())
   })
-  assertTableAgainstMerge('project', PROJECT_UPDATE_FIELD_CLASSES, [{
-    label: 'name-conflict',
-    merged: out.project as unknown as Bag,
-    incoming: INCOMING_PROJECT as unknown as Bag,
-    prior: EXISTING_PROJECT as unknown as Bag,
-    containerIdentity: EXISTING_PROJECT.id,
-    nestedOutput: out.milestoneReport.milestones,
-  }])
+  // Under BOTH bases. The project merge only forwards the basis, so every
+  // project row predicts the same group twice — which is itself checked.
+  for (const basis of BASES) {
+    const out = mergeProjectForUpdate(EXISTING_PROJECT, INCOMING_PROJECT, TS, basis)
+    it(`the merge ran @${basis}`, () => {
+      expect(out.project).toBeTruthy()
+    })
+    assertTableAgainstMerge('project', PROJECT_UPDATE_FIELD_CLASSES, [{
+      label: 'name-conflict',
+      merged: out.project as unknown as Bag,
+      incoming: INCOMING_PROJECT as unknown as Bag,
+      prior: EXISTING_PROJECT as unknown as Bag,
+      containerIdentity: EXISTING_PROJECT.id,
+      nestedOutput: out.milestoneReport.milestones,
+    }], basis)
+  }
 })
 
 describe('SPRINT_UPDATE_FIELD_CLASSES vs mergeSprintsForUpdate', () => {
@@ -358,31 +398,42 @@ describe('SPRINT_UPDATE_FIELD_CLASSES vs mergeSprintsForUpdate', () => {
       prior: undefined,
       containerIdentity: EXISTING_PROJECT_ID,
     },
-  ])
+  ], null)
 })
 
 describe('MILESTONE_UPDATE_FIELD_CLASSES vs mergeMilestonesForUpdate', () => {
-  const out = mergeMilestonesForUpdate(
-    [EXISTING_MILESTONE], [INCOMING_MILESTONE, NEW_MILESTONE], TS,
-  )
-  it('both branches are exercised', () => {
-    expect(out.milestones).toHaveLength(2)
-    expect(out.added).toHaveLength(1)
+  // ⚠️ RUN UNDER BOTH BASES. `backlogSize` is the one per-basis row: corrupting
+  // it to an unconditional `incoming` goes red only on the 'total' run, and to
+  // `local-restore-required` only on the 'remaining' run. The varies-guard
+  // applies to each run separately.
+  for (const basis of BASES) {
+    const out = mergeMilestonesForUpdate(
+      [EXISTING_MILESTONE], [INCOMING_MILESTONE, NEW_MILESTONE], TS, basis,
+    )
+    it(`both branches are exercised @${basis}`, () => {
+      expect(out.milestones).toHaveLength(2)
+      expect(out.added).toHaveLength(1)
+    })
+    assertTableAgainstMerge('milestone', MILESTONE_UPDATE_FIELD_CLASSES, [
+      {
+        label: 'matched',
+        merged: out.milestones[0] as unknown as Bag,
+        incoming: INCOMING_MILESTONE as unknown as Bag,
+        prior: EXISTING_MILESTONE as unknown as Bag,
+      },
+      {
+        label: 'added',
+        merged: out.milestones[1] as unknown as Bag,
+        incoming: NEW_MILESTONE as unknown as Bag,
+        prior: undefined,
+      },
+    ], basis)
+  }
+
+  it('the per-basis row really predicts different groups — or one run is redundant', () => {
+    const groups = BASES.map((b) => groupFor(MILESTONE_UPDATE_FIELD_CLASSES.backlogSize, b))
+    expect(new Set(groups).size).toBe(BASES.length)
   })
-  assertTableAgainstMerge('milestone', MILESTONE_UPDATE_FIELD_CLASSES, [
-    {
-      label: 'matched',
-      merged: out.milestones[0] as unknown as Bag,
-      incoming: INCOMING_MILESTONE as unknown as Bag,
-      prior: EXISTING_MILESTONE as unknown as Bag,
-    },
-    {
-      label: 'added',
-      merged: out.milestones[1] as unknown as Bag,
-      incoming: NEW_MILESTONE as unknown as Bag,
-      prior: undefined,
-    },
-  ])
 })
 
 describe('vacuity controls — the modes that would silently disarm this file', () => {
@@ -433,7 +484,7 @@ describe('the enumerated exceptions are structural, not fixture accidents', () =
   })
 
   it('project.id: the container identity IS existing.id, so the two predictions are one expression', () => {
-    const out = mergeProjectForUpdate(EXISTING_PROJECT, INCOMING_PROJECT, TS)
+    const out = mergeProjectForUpdate(EXISTING_PROJECT, INCOMING_PROJECT, TS, 'total')
     expect(out.project.id).toBe(EXISTING_PROJECT.id)
     expect(out.project.id).not.toBe(INCOMING_PROJECT.id)
   })

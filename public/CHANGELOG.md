@@ -1,5 +1,27 @@
 # Changelog
 
+## v0.44.0 - 2026-10-01
+
+Sending a project from SPERT® Story Map a second time now brings its milestone figures up to date. Until now a repeat send kept the milestone figures Forecaster already had, so they went stale as soon as the next sprint's progress arrived.
+
+In Forecaster a milestone's figure is the work still to do before that release. SPERT Story Map v0.53.8 started sending exactly that — each release's remaining work — and marks its exports to say so. Earlier Story Map exports put each release's whole size in the same field, and those files still exist, so Forecaster tells the two kinds apart by the mark, never by the numbers.
+
+### Changed
+- **Update takes Story Map's milestone figures from a Story Map v0.53.8 or later export.** When a project you already have arrives from Story Map again and you choose Update (the default), each milestone that matches a Story Map release takes Story Map's remaining work. Before this release Update kept the figure already here, so a send after the next sprint left every milestone describing the old position: on a three-release project, 30/50/20 stayed 30/50/20 while Story Map sent 10/30/20, and the later milestones ended up beyond the remaining backlog. A figure you changed by hand on a Story Map milestone is now replaced by Story Map's, as hand-edited sprint progress already was. Milestones you created here never match a Story Map release and are never touched.
+- **Files from Story Map before v0.53.8 behave exactly as before.** They carry no mark, so Update keeps your milestone figures, and a milestone they add still arrives with the warning that its figure is the release's total size, to check.
+- **The summary after an Update names every milestone figure it replaced**, old → new, and says when that completed a milestone (its figure went to 0) or reopened one (it went from 0 to more). Sending the same file twice names nothing the second time.
+- **The import preview says this before you choose.** For a v0.53.8 or later file, the note under the choices adds that Updating replaces each matched milestone's remaining work with Story Map's figure. The Milestones panel's description says the same.
+
+### Fixed
+- **The summary after an Update no longer says your forecast deadline and scope-growth settings were reset.** They never were: Update keeps them, and clears only the previous forecast run because the sprints changed. This was checked in the browser before the wording changed, and a test now ties the wording to that behaviour.
+- **The summary no longer says a kept milestone "moves later than where you had it".** That was wrong whenever the milestone already sat last, when it did not move at all, and with Story Map's new figures it is often wrong the other way, because smaller figures ahead of it move it earlier. The line now says only what is true: kept milestones are placed after the imported ones, and each one's target includes the imported milestones' figures ahead of it.
+
+### Notes
+- **The Quick Reference Guide is out of date until a separate documentation pass.** It still says Update keeps your milestone figures and that a milestone arriving from Story Map carries its release's total. Both are now true only of files from Story Map before v0.53.8.
+- **The Story Map sample files this app checks itself against were refreshed to v0.53.8.** All 17 sample payloads and their manifest were copied again from Story Map's release, and two new checks run on each: it must declare remaining work, and its milestones must add up to no more than its last sprint's remaining backlog. Run against the previous copies first, the declaration check failed on all 17 and the sum on five; both pass on the new ones.
+- **The mark is read, never stored.** It describes a file, not a project, so it is not saved with the project, sent to cloud storage or written into any export.
+- **Each behaviour above was broken on purpose, and named checks failed each time.** Taking Story Map's figure from every file, keeping the local one for every file, taking only the smaller of the two, matching the mark loosely, and dropping the mark before the merge each turn checks red, and so does putting back either of the two corrected summary lines.
+
 ## v0.43.8 - 2026-09-30
 
 Nothing about the app changed. The script that runs deliberate breakages, and its checks, only: no application code, no behaviour, no appearance, no data.
