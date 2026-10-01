@@ -6,7 +6,7 @@ import { describe, it, expect } from 'vitest'
 import { buildSnapshot, type SnapshotInput } from './build-snapshot'
 import { sanitizeForFirestore } from '@/shared/firebase/firestore-sanitize'
 import type { Project, Sprint } from '@/shared/types'
-import type { ForecastRunRecord, ForecastViewState } from '@/shared/state/forecast-results-store'
+import type { ForecastRunRecord, ForecastScope, ForecastViewState } from '@/shared/state/forecast-results-store'
 import type { RunConfig } from '@/shared/lib/forecast-staleness'
 import { buildForecastInputSnapshot } from '@/shared/lib/forecast-staleness'
 
@@ -970,5 +970,151 @@ describe('truncation keeps the newest sprints, not the oldest', () => {
     expect(carried[0].sprintNumber).toBe(11)
     expect(carried[carried.length - 1].sprintNumber).toBe(70)
     expect(history.totalSprintCount).toBe(70)
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+// v0.44.1 — "Entire Project" reads the overall scope, and the divergence
+// fields are facts about the MILESTONES.
+// ═══════════════════════════════════════════════════════════════════════════
+
+type ScopeSpec = { threshold: number; kind?: ForecastScope['kind'] }
+
+/** A record whose scopes are given explicitly; the last may be a project scope. */
+function scopedRecord(specs: ScopeSpec[], backlog: number): ForecastRunRecord {
+  const base = record()
+  const scopes: ForecastScope[] = specs.map((sp, i) => sp.kind === 'project'
+    ? { kind: 'project', milestoneIndex: null, label: 'Mobile App Launch', cumulativeThreshold: sp.threshold, thresholdUnreachable: false }
+    : { kind: sp.kind ?? 'milestone', milestoneIndex: i, label: `M${i}`, cumulativeThreshold: sp.threshold, thresholdUnreachable: false })
+  return {
+    ...base,
+    runConfig: runConfig({ remainingBacklog: backlog }),
+    simData: scopes.map(() => base.simData[0]),
+    quadResults: scopes.map(() => base.quadResults[0]),
+    scopes,
+  }
+}
+
+function withMilestones(sizes: number[], hidden: number[] = []): Project {
+  return {
+    ...PROJECT,
+    milestones: sizes.map((backlogSize, i) => ({
+      id: `m${i}`, name: `M${i}`, backlogSize, color: '#10b981',
+      showOnChart: !hidden.includes(i), createdAt: '', updatedAt: '',
+    })),
+  }
+}
+
+const resultsOf = (b: Record<string, unknown>) => b.results as Record<string, unknown>
+const scopesOf = (b: Record<string, unknown>) => resultsOf(b).scopes as Array<Record<string, unknown>>
+const disclosuresOf = (b: Record<string, unknown>) => (b.notVisibleToYou as string[]).join(' ')
+
+describe('the divergence fields are facts about the milestones, through the shared allowance', () => {
+  it('reads the MILESTONE scopes, never the last scope', () => {
+    // When milestones fall short of the backlog, the last scope can be the
+    // project's own, whose threshold IS the backlog. Reading the last scope
+    // would then always report "covers" — and hide exactly the shortfall
+    // these fields exist to report.
+    const b = buildSnapshot(input({
+      project: withMilestones([40, 20]),
+      record: scopedRecord([{ threshold: 40 }, { threshold: 60 }, { threshold: 100, kind: 'project' }], 100),
+    }))
+    expect(resultsOf(b).finalScopeCoversBacklog).toBe(false)
+    expect(resultsOf(b).backlogDivergence).toEqual({ finalMilestoneThreshold: 60, remainingBacklog: 100 })
+  })
+
+  it('Story Map rounding is not a divergence: 0.13 + 0.13 against 0.25', () => {
+    const b = buildSnapshot(input({
+      project: withMilestones([0.13, 0.13]),
+      record: scopedRecord([{ threshold: 0.13 }, { threshold: 0.26, kind: 'cumulative-final' }], 0.25),
+    }))
+    expect(resultsOf(b).finalScopeCoversBacklog).toBe(true)
+    expect(resultsOf(b).backlogDivergence).toBeNull()
+  })
+
+  it('float noise is not a divergence: 0.1 + 0.2 against 0.3', () => {
+    const b = buildSnapshot(input({
+      project: withMilestones([0.1, 0.2]),
+      record: scopedRecord([{ threshold: 0.1 }, { threshold: 0.1 + 0.2, kind: 'cumulative-final' }], 0.3),
+    }))
+    expect(resultsOf(b).backlogDivergence).toBeNull()
+  })
+
+  it('milestones past the backlog still cover it, and still diverge from it', () => {
+    const b = buildSnapshot(input({
+      project: withMilestones([60, 80]),
+      record: scopedRecord([{ threshold: 60 }, { threshold: 140, kind: 'cumulative-final' }], 100),
+    }))
+    expect(resultsOf(b).finalScopeCoversBacklog).toBe(true)
+    expect(resultsOf(b).backlogDivergence).toEqual({ finalMilestoneThreshold: 140, remainingBacklog: 100 })
+  })
+
+  it('a run with no milestones covers its own backlog', () => {
+    const b = buildSnapshot(input())
+    expect(resultsOf(b).finalScopeCoversBacklog).toBe(true)
+    expect(resultsOf(b).backlogDivergence).toBeNull()
+  })
+})
+
+describe('renderedOnScreen follows what the screen reads', () => {
+  const D20 = [{ threshold: 40 }, { threshold: 70 }, { threshold: 100, kind: 'cumulative-final' as const }]
+
+  it('the overall scope is rendered whenever the summary shows Entire Project', () => {
+    // Last milestone hidden from charts and not selected: before v0.44.1 that
+    // marked the scope the forecast summary shows as not on screen.
+    const b = buildSnapshot(input({
+      project: withMilestones([40, 30, 30], [2]),
+      record: scopedRecord(D20, 100),
+      view: { ...VIEW, selectedMilestoneIndex: 0, summaryScope: '__project__' },
+    }))
+    expect(scopesOf(b)[2].renderedOnScreen).toBe(true)
+  })
+
+  it('a hidden milestone the summary is set to is rendered', () => {
+    const b = buildSnapshot(input({
+      project: withMilestones([40, 30, 30], [1]),
+      record: scopedRecord(D20, 100),
+      view: { ...VIEW, selectedMilestoneIndex: 0, summaryScope: 'm1' },
+    }))
+    expect(scopesOf(b)[1].renderedOnScreen).toBe(true)
+  })
+
+  it('with every milestone hidden, the results table shows the overall scope', () => {
+    const b = buildSnapshot(input({
+      project: withMilestones([40, 30, 30], [0, 1, 2]),
+      record: scopedRecord(D20, 100),
+      view: { ...VIEW, selectedMilestoneIndex: 1, summaryScope: 'm0' },
+    }))
+    expect(scopesOf(b).map((sc) => sc.renderedOnScreen)).toEqual([true, true, true])
+  })
+
+  it('a scope nothing shows is still marked off screen', () => {
+    const b = buildSnapshot(input({
+      project: withMilestones([40, 30, 30], [1]),
+      record: scopedRecord(D20, 100),
+      view: { ...VIEW, selectedMilestoneIndex: 0, summaryScope: '__project__' },
+    }))
+    expect(scopesOf(b)[1].renderedOnScreen).toBe(false)
+  })
+})
+
+describe('notVisibleToYou says nothing the v0.44.1 screen makes false', () => {
+  it('the deadline note no longer claims the panel receives a swapped series', () => {
+    const b = buildSnapshot(input({ view: { ...VIEW, targetDate: '2027-01-31' } }))
+    expect(disclosuresOf(b)).not.toMatch(/swapped/)
+    // Still names the scope the block describes.
+    expect(disclosuresOf(b)).toContain('Entire Project')
+  })
+
+  it('the all-complete note does not promise sprint 1', () => {
+    // A zero threshold is reached once delivered work has kept pace with any
+    // modelled scope growth — sprint 1 only when growth is not modelled.
+    const b = buildSnapshot(input({
+      project: withMilestones([0, 0]),
+      record: scopedRecord([{ threshold: 0 }, { threshold: 0, kind: 'cumulative-final' }], 100),
+    }))
+    expect(scopesOf(b)).toHaveLength(1)
+    expect(disclosuresOf(b)).not.toMatch(/resolve at the first sprint/)
+    expect(disclosuresOf(b)).toMatch(/scope growth/)
   })
 })

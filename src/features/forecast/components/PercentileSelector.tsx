@@ -12,6 +12,11 @@ import { CopyImageButton } from '@/shared/components/CopyImageButton'
 import { formatDate } from '@/shared/lib/dates'
 import { getVisibleDistributions, DISTRIBUTION_LABELS, type DistributionType } from '../types'
 import { useSettingsStore } from '@/shared/state/settings-store'
+import {
+  type MilestoneCompletionInfo,
+  buildMilestonePickerOptions,
+  pickerFallback,
+} from '../lib/milestones'
 
 interface PercentileSelectorProps {
   percentile: number
@@ -26,6 +31,8 @@ interface PercentileSelectorProps {
   onPercentileChange: (percentile: number) => void
   selectorRef?: RefObject<HTMLDivElement | null>
   milestones?: Milestone[]
+  /** 1:1 with `milestones`. Completed milestones are not offered — the same rule as the chart pickers. */
+  milestoneCompletionInfo?: MilestoneCompletionInfo[]
   selectedMilestoneIndex?: number
   onMilestoneIndexChange?: (index: number) => void
   // Second slider props
@@ -164,6 +171,7 @@ export function PercentileSelector(props: PercentileSelectorProps) {
     onPercentileChange,
     selectorRef,
     milestones = [],
+    milestoneCompletionInfo = [],
     selectedMilestoneIndex = 0,
     onMilestoneIndexChange,
     percentile2,
@@ -177,26 +185,22 @@ export function PercentileSelector(props: PercentileSelectorProps) {
   const hasResults = cards1.every((c) => c.result !== null)
   const hasSecondSlider = percentile2 !== undefined && onPercentile2Change !== undefined
 
-  // Compute visible milestones (chart-checked only) with their original indices
-  const visibleMilestones = useMemo(
-    () => milestones
-      .map((m, idx) => ({ milestone: m, originalIndex: idx }))
-      .filter(({ milestone: m }) => m.showOnChart !== false),
-    [milestones]
+  // The same options as the chart pickers, from the same builder. This picker
+  // kept its own filter until v0.44.1 and never learned to hide completed
+  // milestones — see buildMilestonePickerOptions in ../lib/milestones.
+  const options = useMemo(
+    () => buildMilestonePickerOptions(milestones, milestoneCompletionInfo),
+    [milestones, milestoneCompletionInfo]
   )
 
-  // Auto-correct selected index when it's not among the visible milestones
+  // Move a selection the picker no longer offers to its LAST option — see
+  // pickerFallback for why not the first.
   useEffect(() => {
-    if (visibleMilestones.length === 0 || !onMilestoneIndexChange) return
-    const isValid = visibleMilestones.some((v) => v.originalIndex === selectedMilestoneIndex)
-    if (!isValid) {
-      onMilestoneIndexChange(visibleMilestones[0].originalIndex)
-    }
-  }, [visibleMilestones, selectedMilestoneIndex, onMilestoneIndexChange])
-
-  const lastVisibleIdx = visibleMilestones.length > 0
-    ? visibleMilestones[visibleMilestones.length - 1].originalIndex
-    : -1
+    if (!onMilestoneIndexChange) return
+    if (options.some((o) => o.value === selectedMilestoneIndex)) return
+    const fallback = pickerFallback(options)
+    if (fallback !== null) onMilestoneIndexChange(fallback)
+  }, [options, selectedMilestoneIndex, onMilestoneIndexChange])
 
   return (
     <div className="relative">
@@ -205,7 +209,7 @@ export function PercentileSelector(props: PercentileSelectorProps) {
           <h3 className="font-medium dark:text-gray-100">
             Custom Percentile{hasSecondSlider ? 's' : ''}
           </h3>
-          {visibleMilestones.length > 0 && onMilestoneIndexChange && (
+          {options.length > 0 && onMilestoneIndexChange && (
             <select
               name="customPercentileMilestone"
               value={selectedMilestoneIndex}
@@ -213,9 +217,9 @@ export function PercentileSelector(props: PercentileSelectorProps) {
               className="text-sm border border-spert-border dark:border-gray-600 rounded px-2 py-1 bg-white dark:bg-gray-700 dark:text-gray-100"
               aria-label="Select milestone for custom percentile"
             >
-              {visibleMilestones.map(({ milestone: m, originalIndex }) => (
-                <option key={m.id} value={originalIndex}>
-                  {m.name}{originalIndex === lastVisibleIdx && visibleMilestones.length > 1 ? ' (Total)' : ''}
+              {options.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
                 </option>
               ))}
             </select>

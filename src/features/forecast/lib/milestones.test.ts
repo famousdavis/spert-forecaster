@@ -7,6 +7,8 @@ import {
   computeCumulativeScope,
   computeMilestoneCompletionInfo,
   computeVisibleForecastMilestones,
+  buildMilestonePickerOptions,
+  pickerFallback,
 } from './milestones'
 import type { Milestone } from '@/shared/types'
 
@@ -165,5 +167,37 @@ describe('computeVisibleForecastMilestones', () => {
     const milestones = [m('A', 50), m('B', 30)]
     const visible = computeVisibleForecastMilestones(milestones)
     expect(visible).toHaveLength(2)
+  })
+})
+
+describe('buildMilestonePickerOptions', () => {
+  it('offers charted, not-completed milestones by their index into the scopes', () => {
+    const ms = [m('MVP', 0), m('Beta', 30), m('GA', 50, { showOnChart: false }), m('v2', 20)]
+    const opts = buildMilestonePickerOptions(ms, computeMilestoneCompletionInfo(ms))
+    expect(opts.map((o) => o.value)).toEqual([1, 3])
+  })
+
+  it('puts "(Total)" on the last option only, and only when there are several', () => {
+    const two = [m('Beta', 30), m('GA', 50)]
+    expect(buildMilestonePickerOptions(two, computeMilestoneCompletionInfo(two)).map((o) => o.label))
+      .toEqual(['Beta', 'GA (Total)'])
+    const one = [m('Beta', 30)]
+    expect(buildMilestonePickerOptions(one, computeMilestoneCompletionInfo(one)).map((o) => o.label))
+      .toEqual(['Beta'])
+  })
+
+  it('offers nothing when every milestone is complete', () => {
+    const ms = [m('MVP', 0), m('Beta', 0)]
+    expect(buildMilestonePickerOptions(ms, computeMilestoneCompletionInfo(ms))).toEqual([])
+  })
+})
+
+describe('pickerFallback', () => {
+  it('is the LAST option, never the first', () => {
+    expect(pickerFallback([{ value: 0, label: 'MVP' }, { value: 1, label: 'Beta (Total)' }])).toBe(1)
+  })
+
+  it('is null when nothing is offered', () => {
+    expect(pickerFallback([])).toBeNull()
   })
 })

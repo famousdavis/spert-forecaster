@@ -73,8 +73,8 @@ export function ForecastTab({ onTabChange }: ForecastTabProps = {}) {
     setCustomScopeGrowth,
     scopeGrowthPerSprint,
     isSimulating,
-    results,
     simulationData,
+    overallResults,
     overallSimulationData,
     milestoneResultsState,
     customPercentile,
@@ -160,7 +160,12 @@ export function ForecastTab({ onTabChange }: ForecastTabProps = {}) {
     )
   }
 
-  const hasResults = selectedProject?.sprintCadenceWeeks && results && simulationData
+  // ⚠️ "Entire Project" — the summary, the deadline panel, the results table —
+  // reads the OVERALL scope. `simulationData` is the dropdown's selection and
+  // feeds the CDF, Histogram and Custom Percentile only. Swapping one for the
+  // other is the v0.44.1 defect: the whole project re-dated to whichever
+  // milestone a chart pointed at. (ForecastTab.entire-project.test.tsx)
+  const hasResults = selectedProject?.sprintCadenceWeeks && overallResults && overallSimulationData && simulationData
 
   return (
     <div className="space-y-6">
@@ -235,8 +240,8 @@ export function ForecastTab({ onTabChange }: ForecastTabProps = {}) {
             {hasResults && (
               <div className={cn('mt-6 transition-opacity duration-300', isSimulating && 'opacity-50')}>
                 <ForecastSummary
-                  results={results}
-                  simulationData={simulationData}
+                  results={overallResults}
+                  simulationData={overallSimulationData}
                   completedSprintCount={completedSprintCount}
                   remainingBacklog={Number(remainingBacklog) || 0}
                   unitOfMeasure={selectedProject.unitOfMeasure}
@@ -246,7 +251,7 @@ export function ForecastTab({ onTabChange }: ForecastTabProps = {}) {
                   milestones={milestones}
                   milestoneResultsState={milestoneResultsState}
                   milestoneCompletionInfo={milestoneCompletionInfo}
-                  hasBootstrap={results.bootstrap !== null}
+                  hasBootstrap={overallResults.bootstrap !== null}
                   forecastMode={forecastMode}
                   modelScopeGrowth={modelScopeGrowth}
                   scopeGrowthMode={scopeGrowthMode}
@@ -258,7 +263,7 @@ export function ForecastTab({ onTabChange }: ForecastTabProps = {}) {
                 <div className="mt-8">
                   <div ref={forecastResultsRef} className="bg-white dark:bg-gray-900">
                     <ForecastResults
-                      results={results}
+                      results={overallResults}
                       forecastMode={forecastMode}
                       completedSprintCount={completedSprintCount}
                       includedSprintCount={includedSprintCount}
@@ -274,7 +279,7 @@ export function ForecastTab({ onTabChange }: ForecastTabProps = {}) {
                       velocityStdDev={velocityStdDev}
                       selectedCV={selectedCV}
                       volatilityMultiplier={volatilityMultiplier}
-                      simulationData={simulationData}
+                      simulationData={overallSimulationData}
                       selectedPercentiles={selectedResultsPercentiles}
                       onSelectedPercentilesChange={setSelectedResultsPercentiles}
                       startDate={forecastStartDate}
@@ -308,7 +313,7 @@ export function ForecastTab({ onTabChange }: ForecastTabProps = {}) {
           <DeadlineProbabilityPanel
             targetDate={targetDate}
             onTargetDateChange={setTargetDate}
-            simulationData={simulationData}
+            simulationData={overallSimulationData}
             milestoneResultsState={milestoneResultsState}
             milestones={milestones}
             milestoneCompletionInfo={milestoneCompletionInfo}
@@ -366,6 +371,7 @@ export function ForecastTab({ onTabChange }: ForecastTabProps = {}) {
                   onPercentileChange={handleCustomPercentileChange}
                   selectorRef={percentileSelectorRef}
                   milestones={milestones}
+                  milestoneCompletionInfo={milestoneCompletionInfo}
                   selectedMilestoneIndex={selectedMilestoneIndex}
                   onMilestoneIndexChange={handleMilestoneIndexChange}
                 />
@@ -377,7 +383,7 @@ export function ForecastTab({ onTabChange }: ForecastTabProps = {}) {
           <BurnUpChart
             sprints={projectSprints}
             forecastBacklog={Number(remainingBacklog) || 0}
-            simulationData={overallSimulationData ?? simulationData}
+            simulationData={overallSimulationData}
             sprintCadenceWeeks={selectedProject!.sprintCadenceWeeks!}
             firstSprintStartDate={selectedProject!.firstSprintStartDate!}
             completedSprintCount={completedSprintCount}

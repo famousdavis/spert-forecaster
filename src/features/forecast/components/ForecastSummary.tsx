@@ -23,7 +23,11 @@ import {
 import { useProjectStore, selectViewingProject } from '@/shared/state/project-store'
 
 interface ForecastSummaryProps {
+  /** The OVERALL scope — what "Entire Project" shows. Never the chart
+   *  dropdowns' selection: until v0.44.1 it was, and picking a milestone in a
+   *  chart re-dated the whole project. */
   results: QuadResults
+  /** The overall scope's trials, as `results`. */
   simulationData: QuadSimulationData
   completedSprintCount: number
   remainingBacklog: number
@@ -233,7 +237,7 @@ export function ForecastSummary({
   }, [effectiveScope, milestones])
 
   // Pull the right results + sim data for the effective scope. For project scope, the
-  // top-level results; for milestone scope, the per-milestone slice from milestoneResultsState.
+  // overall-scope props; for milestone scope, the per-milestone slice from milestoneResultsState.
   const activeResults = useMemo<PercentileResults | null>(() => {
     if (effectiveMilestoneIndex === null) {
       return results[effectiveDistribution] ?? null
