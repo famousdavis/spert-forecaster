@@ -144,9 +144,9 @@ export function getLastSprintBacklog(sprints: Sprint[]): number | undefined {
 
 /**
  * Cumulative "remaining work to reach milestone i" — the running sum of
- * user-maintained backlogSize values. milestone.backlogSize is the work the
- * user knows remains for that release; the user updates it as work progresses,
- * as scope is added, or as scope is descoped. The simulation reads
+ * backlogSize values. milestone.backlogSize is the work that remains for that
+ * release, kept current by the user — or, for a milestone matched to a Story
+ * Map release, by an Update from a Story Map v0.53.8+ export (SD-5). The simulation reads
  * cumulativeThresholds[i] as "delivered-in-trial >= threshold". Shipped
  * milestones (backlogSize = 0) contribute no increment, so their cumulative
  * equals the preceding milestone's.

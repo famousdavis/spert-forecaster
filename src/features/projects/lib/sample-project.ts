@@ -135,11 +135,11 @@ export function loadSampleProject(): void {
     })
   }
 
-  // Four ordered milestones. Under SPERT Forecaster's user-maintained dynamic-remaining
-  // model, milestone.backlogSize is "work the user knows remains to deliver this
-  // milestone's release." The user updates these values as work is completed and as
-  // scope is added or removed. A milestone is "completed" when the user has set its
-  // backlogSize to 0.
+  // Four ordered milestones. Under SPERT Forecaster's dynamic-remaining model,
+  // milestone.backlogSize is "work that remains to deliver this milestone's release."
+  // These are created here, never from Story Map, so the user is their source of
+  // truth: the user updates them as work is completed and as scope is added or
+  // removed. A milestone is "completed" when its backlogSize is 0.
   //
   // Seeded shape (sum of remaining = 460, matching the final backlogAtSprintEnd):
   //  - MVP Release: 0   — already completed (the trainee sees a zero value as the cue)

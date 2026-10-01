@@ -99,7 +99,7 @@ describe('loadSampleProject', () => {
 
     expect(sample.milestones).toHaveLength(4)
     // Order matters: milestones[0] ships first. MVP is seeded at backlogSize=0 to
-    // demonstrate the "completed milestone" state (user-maintained model). The other
+    // demonstrate the "completed milestone" state (backlogSize 0). The other
     // three sum to 460 (the seed's final remaining backlog).
     expect(sample.milestones?.[0]).toMatchObject({ name: 'MVP Release', backlogSize: 0, color: '#10b981' })
     expect(sample.milestones?.[1]).toMatchObject({ name: 'Beta Release', backlogSize: 100, color: '#3b82f6' })
@@ -194,8 +194,8 @@ describe('loadSampleProject', () => {
 describe('sample project export → import round-trip', () => {
   it('passes validateImportData after a full subset export (regression: v0.33.4 completed-milestone)', () => {
     // The seeded "MVP Release" milestone has backlogSize: 0 as the
-    // "completed milestone" sentinel under the v0.31.2 user-maintained
-    // milestone model. Before v0.33.4, the import validator rejected
+    // "completed milestone" sentinel under the v0.31.2 milestone model.
+    // Before v0.33.4, the import validator rejected
     // backlogSize < 0.01, which made the exported sample project (and any
     // user project containing a completed milestone) unimportable. This
     // round-trip test guards the user-reported reproduction: load → export

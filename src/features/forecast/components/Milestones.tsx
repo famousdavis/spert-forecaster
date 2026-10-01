@@ -55,7 +55,7 @@ export function Milestones({ projectId, unitOfMeasure }: MilestonesProps) {
   return (
     <CollapsibleCrudPanel<Milestone>
       title="Milestones"
-      description="Define ordered release milestones to forecast individual delivery dates. Enter the remaining work for each milestone — update these values as work is completed."
+      description="Define ordered release milestones to forecast individual delivery dates. Enter the remaining work for each milestone — update these values as work is completed. For milestones that came from Story Map, an Update from a Story Map v0.53.8 or later export replaces these values with Story Map's figures."
       items={milestones}
       onDelete={handleDelete}
       renderForm={({ editingItem, onSubmitDone, onCancel }) => (

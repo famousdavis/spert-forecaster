@@ -32,7 +32,8 @@ interface ForecastResultsProps {
   /** Cumulative remaining work to reach each milestone (1:1 with `milestones`). Used
    *  for the "X cumulative" display next to the milestone name. */
   cumulativeThresholds?: number[]
-  /** Per-milestone completion status (user has zeroed backlogSize). Completed
+  /** Per-milestone completion status (backlogSize is 0, zeroed here or sent as 0
+   *  by Story Map). Completed
    *  milestones are filtered out of the per-milestone forecast tables — they
    *  appear in the ForecastSummary breakdown past-tense instead. */
   milestoneCompletionInfo?: MilestoneCompletionInfo[]

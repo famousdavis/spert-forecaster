@@ -47,6 +47,8 @@ import { join } from 'node:path'
 import { validateImportData } from '../import-validation'
 import { classifyImportData, isStoryMapExport, MAX_STRING_LENGTH as UTILS_MAX_STRING_LENGTH } from '../import-utils'
 import { MAX_MILESTONES } from '@/features/forecast/constants'
+import { getLastSprintBacklog } from '@/shared/lib/forecast-derivations'
+import type { Sprint } from '@/shared/types'
 import {
   REGISTER,
   PRE_VALIDATOR_REGISTER,
@@ -314,9 +316,15 @@ interface BoundaryPair {
  * The surviving reason is the structural one, and it cannot be closed:
  *
  *   - These pairs cover axes Story Map's exporter CANNOT emit — F10
- *     unitOfMeasure, F12/F31/F33 dates, and the exact-zero floors. Those rows
- *     are UNREACHABLE or PRECLUDED in the register, which is precisely why no
- *     fixture for them can exist to be published.
+ *     unitOfMeasure and F12/F31/F33 dates, whose rows are UNREACHABLE or
+ *     PRECLUDED in the register — and the BELOW-floor halves of the numeric
+ *     pairs (-1). That is precisely why no fixture for them can exist to be
+ *     published.
+ *   - ⚠️ The floors THEMSELVES are reachable, and this used to say otherwise.
+ *     The exporter emits 0 for doneValue and backlogAtSprintEnd, and since
+ *     Story Map v0.53.8 it emits `backlogSize: 0` for a release whose work is
+ *     all done. No vendored payload carries a zero milestone yet, so the F20
+ *     floor's at-half is still covered only here.
  *
  * Everything else here is now a SECOND, independent path to something the
  * vendored set also covers. That is worth keeping — two constructions that
@@ -362,8 +370,9 @@ const BOUNDARY_PAIRS: readonly BoundaryPair[] = [
     message: 'Project 0, milestone at index 0 has invalid backlogSize (must be >= 0 and <= 999999).',
   },
   {
-    // Floor 0, not 0.01: `backlogSize === 0` is the user-maintained
-    // "milestone completed" sentinel. Accepting 0 is a product rule, not slack.
+    // Floor 0, not 0.01: `backlogSize === 0` is the "milestone completed"
+    // sentinel — set by the user, or, since Story Map v0.53.8, sent by Story Map
+    // for a release whose work is all done. Accepting 0 is a product rule, not slack.
     row: 'F20', limit: 'NUMERIC_FLOOR', label: 'milestone backlogSize floor',
     at: () => withMilestone((m) => { m.backlogSize = 0 }),
     over: () => withMilestone((m) => { m.backlogSize = -1 }),
@@ -471,8 +480,11 @@ describe('C3 — boundary pairs', () => {
 // ── The vendored boundary set ───────────────────────────────────────────────
 
 /**
- * Story Map v0.52.13 ships twelve boundary payloads plus the canonical one, all
- * REAL `buildForecasterExport` output. The `-over` halves are what the exporter
+ * Story Map publishes boundary payloads (since v0.52.13) plus the canonical one,
+ * all REAL `buildForecasterExport` output; the set vendored here is exactly what
+ * the manifest lists, checked in both directions below. Since v0.53.8 every
+ * payload also declares `milestoneBacklog: 'remaining'`, and the milestone
+ * figures in five of them changed with it. The `-over` halves are what the exporter
  * produces BEFORE `downloadForecasterExport` refuses them, which is what makes
  * them legitimate reject-side inputs here rather than hand-drawn approximations.
  *
@@ -483,8 +495,8 @@ describe('C3 — boundary pairs', () => {
  * never the other way round. Two further guards make that non-circular:
  *   - a reject must carry the message registered for the row the manifest NAMES,
  *     so a payload rejecting for an unrelated reason cannot pass as its row;
- *   - every row must have exactly one accept and one reject, so a manifest that
- *     relabelled a half to agree with itself breaks the pairing.
+ *   - every row must have as many accepts as rejects (F32 carries two pairs), so a
+ *     manifest that relabelled a half to agree with itself breaks the pairing.
  */
 const MANIFEST = JSON.parse(readFileSync(MANIFEST_PATH, 'utf8')) as VendoredManifest
 
@@ -517,10 +529,13 @@ describe('C6 — the vendored fixture set is the one Story Map committed', () =>
     expect(MANIFEST.entries.map((e) => e.file).sort()).toEqual(onDisk)
   })
 
-  it('still carries the canonical payload unchanged', () => {
-    // Byte-identical across Story Map v0.52.12 → v0.52.13. Asserted against the
-    // constant pinned BEFORE the set grew, so a regeneration that quietly
-    // rewrote it would fail here rather than being absorbed by the new manifest.
+  it('records the canonical payload under the separately pinned hash', () => {
+    // ⚠️ This used to be called "still carries the canonical payload unchanged",
+    // and it no longer means that. The canonical was byte-identical from
+    // v0.52.12 through v0.53.7, then CHANGED at v0.53.8 on purpose (remaining
+    // work, and the milestoneBacklog declaration), and the re-vendor moved this
+    // pin and the manifest pin together. What it still catches: a regeneration
+    // that rewrites the canonical while only the manifest pin is moved.
     const canonical = MANIFEST.entries.find((e) => e.file === 'canonical-export.json')
     expect(canonical?.sha256).toBe(CANONICAL_EXPORT_SHA256)
   })
@@ -795,6 +810,65 @@ describe('vendored-set coverage, derived rather than described', () => {
     const doneValues = sprintsOf(loadEntry(f29At!) as Obj).map((s) => s.doneValue as number)
     expect(Math.min(...doneValues)).toBe(0)
   })
+})
+
+// ── The vendored set carries REMAINING work, and says so (Story Map v0.53.8) ─
+
+/**
+ * Story Map v0.53.8 changed what its export puts in `milestone.backlogSize`: the
+ * work REMAINING in each release, where every earlier export sent the release's
+ * TOTAL. The payload declares which with a top-level `milestoneBacklog`, and
+ * `classifyImportData` reads it. Files exported before v0.53.8 still exist and
+ * carry totals with no declaration.
+ *
+ * ⚠️ THESE ARE THE ONLY CHECKS HERE THAT CAN TELL THE TWO SETS APART.
+ * Re-vendoring the v0.53.8 payloads with both pins updated leaves every other
+ * check in this file green, with no reading code at all — measured before the
+ * re-vendor. So the declaration and the sum were run against the PREVIOUS set
+ * first, and both went red:
+ *   - the declaration, on all 17 payloads;
+ *   - the sum, on exactly five — canonical-export, boundary-F08-at,
+ *     boundary-F08-over, boundary-F29-at and boundary-F29-over — whose totals
+ *     add up past the backlog that their own last sprint reports.
+ * The classification check joins them: the declaration, read by the real
+ * classifier, end to end.
+ *
+ * ⚠️ The sum uses this repo's own `getLastSprintBacklog`, which is where the
+ * forecast's default remaining backlog comes from, and allows 0.005 for
+ * per-release rounding. It holds for these payloads because they carry no
+ * anomalies; it is NOT a property of every real export (Story Map can exceed it
+ * when progress sits outside a rib's current allocation).
+ */
+describe('the vendored set — milestone figures are REMAINING work', () => {
+  const ROUNDING_ALLOWANCE = 0.005
+
+  it.each(MANIFEST.entries.map((e) => [e.file, e] as const))(
+    '%s declares milestoneBacklog: \'remaining\'',
+    (_file, entry) => {
+      expect((loadEntry(entry) as Obj).milestoneBacklog).toBe('remaining')
+    },
+  )
+
+  it.each(MANIFEST.entries.map((e) => [e.file, e] as const))(
+    '%s classifies as a remaining-work Story Map payload',
+    (_file, entry) => {
+      // The wire contract end to end: the key above, read by the real classifier.
+      const parsed = classifyImportData(loadEntry(entry) as never)
+      expect(parsed.exportType === 'spert-story-map' && parsed.milestoneBacklog).toBe('remaining')
+    },
+  )
+
+  it.each(MANIFEST.entries.map((e) => [e.file, e] as const))(
+    '%s — its milestones add up to no more than its last sprint\'s backlog',
+    (_file, entry) => {
+      const payload = loadEntry(entry) as Obj
+      const milestones = (projectsOf(payload)[0].milestones as { backlogSize: number }[] | undefined) ?? []
+      const sum = milestones.reduce((acc, m) => acc + m.backlogSize, 0)
+      const lastBacklog = getLastSprintBacklog(sprintsOf(payload) as unknown as Sprint[])
+      expect(lastBacklog, 'payload has no backlogAtSprintEnd to compare against').toBeDefined()
+      expect(sum).toBeLessThanOrEqual(lastBacklog! + ROUNDING_ALLOWANCE)
+    },
+  )
 })
 
 // ── Same-repo copies of the same limits ─────────────────────────────────────

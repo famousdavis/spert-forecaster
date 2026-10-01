@@ -341,11 +341,15 @@ describe('focus management and Escape key', () => {
 describe('ImportPreviewSection — the update option', () => {
   const P_ID = 'prod-1'
 
-  function storyMapImport(sprints: Sprint[] = []): ParsedImportData {
+  function storyMapImport(
+    sprints: Sprint[] = [],
+    milestoneBacklog: 'remaining' | 'total' = 'total',
+  ): ParsedImportData {
     return {
       exportType: 'spert-story-map',
       projects: [makeProject({ id: P_ID, name: 'Incoming' })],
       sprints,
+      milestoneBacklog,
     }
   }
 
@@ -376,6 +380,24 @@ describe('ImportPreviewSection — the update option', () => {
       existingSprints: [sprintFor('sp-1')],
     })
     expect(screen.getByLabelText(/Update with new progress/i)).toBeTruthy()
+  })
+
+  it('says, before the user decides, that a v0.53.8+ file replaces matched milestone figures', () => {
+    renderSection({
+      imported: storyMapImport([sprintFor('sp-1')], 'remaining'),
+      conflicts: [idConflict],
+      existingSprints: [sprintFor('sp-1')],
+    })
+    expect(screen.getByText(/replaces each matched milestone.s remaining work/i)).toBeTruthy()
+  })
+
+  it('says nothing of the kind for an older file, whose figures Update keeps', () => {
+    renderSection({
+      imported: storyMapImport([sprintFor('sp-1')]),
+      conflicts: [idConflict],
+      existingSprints: [sprintFor('sp-1')],
+    })
+    expect(screen.queryByText(/replaces each matched milestone.s remaining work/i)).toBeNull()
   })
 
   it('withholds Update when the project holds a sprint the file lacks, and explains why ACCESSIBLY', () => {

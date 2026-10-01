@@ -300,8 +300,9 @@ describe('validateImportData – milestone validation', () => {
   })
 
   it('accepts backlogSize of 0 (the "completed milestone" sentinel)', () => {
-    // backlogSize === 0 means the user has marked the milestone completed
-    // under the v0.31.2 user-maintained milestone model. The sample project
+    // backlogSize === 0 marks the milestone completed under the v0.31.2
+    // milestone model — set by the user, or sent by Story Map v0.53.8+ for a
+    // finished release. The sample project
     // seeds MVP Release with backlogSize: 0 for exactly this reason, and
     // export → import round-trip must preserve that state.
     expect(

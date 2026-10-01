@@ -24,6 +24,7 @@ import {
   detectImportConflicts,
   conflictsEqual,
   type ConflictAction,
+  type MilestoneBacklogBasis,
   type ParsedImportData,
 } from './import-utils'
 import { useProjectStore } from './project-store'
@@ -96,9 +97,13 @@ function existingProject(o: Partial<Project> = {}): Project {
 function storyMapPayload(o: {
   projects?: Project[]
   sprints?: Sprint[]
+  // Every file before Story Map v0.53.8 is 'total', and the checks in this file
+  // that predate v0.44.0 were all written against that.
+  milestoneBacklog?: MilestoneBacklogBasis
 } = {}): ParsedImportData {
   return {
     exportType: 'spert-story-map',
+    milestoneBacklog: o.milestoneBacklog ?? 'total',
     projects: o.projects ?? [
       {
         id: EXISTING_PROJECT_ID,
@@ -227,8 +232,9 @@ describe('C4 — `incoming` fields DO change', () => {
   // while `update` did nothing at all.
   it('takes name, cadence, doneValue, milestone name and a new sprint from incoming', () => {
     const existing = existingProject({
-      // ⚠️ NON-COMPLETED milestone: a backlogSize-0 milestone is a cell-3
-      // preserve and would never show the name change this asserts.
+      // ⚠️ NON-COMPLETED milestone, kept from before v0.44.0, when its stated
+      // reason was imprecise: a MATCHED milestone is cell 1 whatever its figure,
+      // and cell 3 is existing-only. The name change shows either way.
       milestones: [milestone({ id: 'rel-1', name: 'Local MVP', backlogSize: 40 })],
     })
     const existingSprints = [
@@ -250,9 +256,11 @@ describe('C4 — `incoming` fields DO change', () => {
     expect(p.sprintCadenceWeeks).toBe(3)
     expect(p.firstSprintStartDate).toBe('2026-02-01')
     expect(p.milestones?.[0].name).toBe('Producer MVP')
-    // ⚠️ Deliberately NOT asserting backlogSize changed — it is
-    // local-restore-required, and an
-    // earlier draft of this check mandated the very defect §4.4 exists to stop.
+    // ⚠️ Deliberately asserting backlogSize did NOT change: this is a LEGACY file
+    // (storyMapPayload defaults to 'total'), whose figure is a release total, so
+    // the local figure must stand. An earlier draft of this check mandated taking
+    // it — the very defect §4.4 exists to stop. A 'remaining' file DOES take it:
+    // import-remaining-backlog.test.ts (P2).
     expect(p.milestones?.[0].backlogSize).toBe(40)
     expect(mergedSprints.find((s) => s.id === 'sp-1')?.doneValue).toBe(22)
     expect(mergedSprints.find((s) => s.id === 'sp-2')).toBeDefined()
@@ -288,6 +296,9 @@ describe('C4 — `incoming` fields DO change', () => {
 describe('C15 — preserved unmatched-existing milestones are APPENDED', () => {
   it('appends after the incoming-ordered set, keeps local relative order, and moves the kept milestone’s own threshold', () => {
     // incoming [A:100, B:100] + preserved X:50 — the brief's worked example.
+    // ⚠️ A LEGACY file (storyMapPayload defaults to 'total'): the fixture sends
+    // 999 for A and B, and the thresholds below hold only because the local 100s
+    // stand. That makes this a P1 check too.
     const existing = existingProject({
       milestones: [
         milestone({ id: 'x', name: 'X', backlogSize: 50 }), // local FIRST
@@ -330,6 +341,7 @@ describe('C15 — preserved unmatched-existing milestones are APPENDED', () => {
       ],
       [milestone({ id: 'inc', backlogSize: 1 })],
       'ts',
+      'total',
     )
     expect(kept.milestones.map((m) => m.id)).toEqual(['inc', 'k1', 'k2'])
   })
@@ -339,6 +351,7 @@ describe('C15 — preserved unmatched-existing milestones are APPENDED', () => {
       [milestone({ id: 'done', backlogSize: 0 }), milestone({ id: 'a', backlogSize: 100 })],
       [milestone({ id: 'a', backlogSize: 100 })],
       'ts',
+      'total',
     )
     // Appended last, contributes no increment: earlier thresholds unmoved.
     expect(computeCumulativeThresholds(r.milestones)).toEqual([100, 100])
@@ -531,6 +544,7 @@ describe('C16 — precedence by ACTION, with eviction', () => {
       exportType: 'spert-story-map',
       projects: order === 'B,C,A' ? [B, C, A] : [A, B],
       sprints: [],
+      milestoneBacklog: 'total',
     }
   }
 
@@ -680,7 +694,9 @@ describe('C9 — the banner names every §5.4 item, from write-time values', () 
     return buildImportBannerDetails(result).join(' • ')
   }
 
-  it('names cell-2 additions BY NAME and says the figure is total scope', () => {
+  // detailsFor() sends a LEGACY file (no milestoneBacklog declaration). The
+  // 'remaining' wording is asserted in import-remaining-backlog.test.ts (P5).
+  it('names cell-2 additions BY NAME and, for a legacy file, says the figure is total scope', () => {
     const text = detailsFor()
     expect(text).toContain('Brand New Release')
     expect(text).toMatch(/TOTAL scope/i)
@@ -694,20 +710,34 @@ describe('C9 — the banner names every §5.4 item, from write-time values', () 
     expect(text).toMatch(/Nothing recorded tells the two apart/i)
   })
 
-  it('names the placement rule AND its cost', () => {
-    expect(detailsFor()).toMatch(/accumulate in order/i)
-    expect(detailsFor()).toMatch(/moves later/i)
+  it('names the placement rule and its effect, without claiming a direction', () => {
+    // It used to say a kept milestone "moves later than where you had it". That
+    // was false when the milestone already sat last (its target did not move),
+    // and false the other way under a 'remaining' file (Story Map's smaller
+    // figures ahead of it move it EARLIER).
+    const text = detailsFor()
+    expect(text).toMatch(/placed after the imported ones/i)
+    expect(text).toMatch(/add up in order/i)
+    expect(text).not.toMatch(/moves later/i)
   })
 
-  it('names preservations, non-idempotence and the viewState asymmetry', () => {
+  it('names preservations, non-idempotence and what survives of the forecast setup', () => {
     const text = detailsFor()
     expect(text).toMatch(/productivity adjustments/i)
     expect(text).toMatch(/stay excluded/i)
-    expect(text).toMatch(/scope-growth settings are reset/i)
+    // Was /scope-growth settings are reset/ — the claim C5 disproves. See the
+    // banner test beside C5, which binds the wording to the surviving values.
+    expect(text).toMatch(/forecast deadline and scope-growth settings were kept/i)
+    expect(text).not.toMatch(/reset/i)
   })
 
-  it('has NO "reopened" language — no cell in §4.4 reopens anything', () => {
-    expect(detailsFor()).not.toMatch(/reopen(ed)?\b/i)
+  it('a legacy file replaces no matched figure, so it names none and reopens nothing', () => {
+    // Under 'total' cell 1 keeps the local figure, so nothing can reopen. Under
+    // 'remaining' it CAN — a local 0 taking Story Map's figure above 0 — and that
+    // case is named, in import-remaining-backlog.test.ts (P5).
+    const text = detailsFor()
+    expect(text).not.toMatch(/reopen(ed)?\b/i)
+    expect(text).not.toMatch(/took Story Map's remaining work/i)
   })
 
   it('names a downgraded action', () => {
@@ -725,6 +755,7 @@ describe('C9 — the banner names every §5.4 item, from write-time values', () 
       exportType: 'spert-story-map',
       projects: [B, A],
       sprints: [],
+      milestoneBacklog: 'total',
     }
     const conflicts = detectImportConflicts(incoming, [e1])
     const { result } = applyImportDecisions(
@@ -839,6 +870,37 @@ describe('C5, C12, C18 — store integration', () => {
     expect(view.customScopeGrowth).toBe('7.5')
     // The run itself is stale — the sprint set moved — so it goes.
     expect(useForecastResultsStore.getState().record).toBeNull()
+  })
+
+  it('NIT-2 — the banner says what C5 proves: deadline and scope growth are KEPT', () => {
+    // Until v0.44.0 the banner told the user these "are reset — visit the Forecast
+    // tab to set them again", the opposite of what this store does (C5) and what
+    // the guide says. One run, both facts, so the words cannot drift from the
+    // behaviour again.
+    seed()
+    useForecastResultsStore.setState({
+      viewState: {
+        [EXISTING_PROJECT_ID]: { targetDate: '2026-11-30', modelScopeGrowth: true } as never,
+      },
+    })
+    const incoming = storyMapPayload()
+    const conflicts = detectImportConflicts(incoming, useProjectStore.getState().projects)
+    const outcome = useProjectStore.getState().applySmartImport({
+      incoming,
+      decisions: new Map<string, ConflictAction>([[EXISTING_PROJECT_ID, 'update']]),
+      freshConflicts: conflicts,
+      source: 'spert-story-map',
+    })
+    expect(outcome.ok).toBe(true)
+    const view = useForecastResultsStore.getState().viewState[EXISTING_PROJECT_ID] as unknown as {
+      targetDate: string
+      modelScopeGrowth: boolean
+    }
+    expect(view.targetDate).toBe('2026-11-30')
+    expect(view.modelScopeGrowth).toBe(true)
+    const text = buildImportBannerDetails(outcome.ok ? outcome.result : (null as never)).join(' • ')
+    expect(text).toMatch(/forecast deadline and scope-growth settings were kept/i)
+    expect(text).not.toMatch(/are reset/i)
   })
 
   it('C12 — write-time race: the §4.1 predicate is re-evaluated inside set()', () => {
@@ -1050,6 +1112,7 @@ describe('C24 — mergeProjectForUpdate pins the container id', () => {
       existingProject({ id: EXISTING_PROJECT_ID }),
       existingProject({ id: MIGRATED_ID, name: 'Story Map Name' }),
       '2026-08-30T00:00:00.000Z',
+      'total',
     )
     expect(merged.project.id).toBe(EXISTING_PROJECT_ID)
   })
@@ -1062,6 +1125,7 @@ describe('C24 — mergeProjectForUpdate pins the container id', () => {
       existingProject({ id: EXISTING_PROJECT_ID }),
       existingProject({ id: MIGRATED_ID }),
       '2026-08-30T00:00:00.000Z',
+      'total',
     )
     const { sprints } = mergeSprintsForUpdate(
       [sprint({ id: 'sp-1', projectId: EXISTING_PROJECT_ID })],
@@ -1078,6 +1142,7 @@ describe('C24 — mergeProjectForUpdate pins the container id', () => {
       existingProject(),
       existingProject({ name: 'Story Map Name' }),
       '2026-08-30T00:00:00.000Z',
+      'total',
     )
     expect(merged.project.id).toBe(EXISTING_PROJECT_ID)
   })

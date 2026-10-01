@@ -175,9 +175,22 @@ function emitProjectSave(projectId: string, isCloudUpdate: boolean): void {
  * available actions — but defence-in-depth of the same kind as the
  * `local-restore-defensive` claw-backs.
  *
- * ⚠️ Milestones are safe from this race ONLY because every milestone cell
- * preserves. That is a dependency, not a coincidence: if any cell ever becomes
- * "take" or "delete", milestones become a second race and this under-covers.
+ * ⚠️ MILESTONES, AND WHY THIS GUARD STILL DOES NOT NEED THEM. This used to say
+ * milestones were safe "ONLY because every milestone cell preserves", and that a
+ * "take" cell would make them a second race. Since v0.44.0 one cell DOES take:
+ * a matched milestone's backlogSize, from a Story Map v0.53.8+ file (SD-5). It
+ * is still not a race this guard must cover, decided deliberately:
+ *   - The sprint race matters because a mid-preview change can flip whether
+ *     `update` is ALLOWED. No availability predicate reads a milestone, so no
+ *     milestone change can flip that answer.
+ *   - The preview never shows milestone figures, so a collaborator's edit that
+ *     lands mid-preview is overwritten exactly as one made a minute before the
+ *     preview opened would be: the user decided on the same information.
+ *   - What the user is owed is a true account of what was overwritten, and the
+ *     write-time disclosure gives it: every replaced figure, old → new, computed
+ *     inside this same atomic set().
+ * ⚠️ Re-open this if a milestone ever feeds `availableActions`, or if the preview
+ * starts showing milestone figures — either makes the mid-preview timing matter.
  */
 function anyUpdateNowRefused(
   conflicts: ImportConflict[],

@@ -198,7 +198,8 @@ export function useForecastState() {
     [selectedProject?.productivityAdjustments]
   )
 
-  // Per-milestone completion status (user has zeroed backlogSize), derived once at
+  // Per-milestone completion status (backlogSize is 0 — zeroed here or sent as 0 by
+  // Story Map), derived once at
   // this level so both ForecastSummary (breakdown past-tense rendering, Scope-picker
   // filter) and ForecastResults (per-milestone forecast-table filter) share the same
   // source of truth without duplication.

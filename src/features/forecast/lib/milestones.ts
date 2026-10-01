@@ -4,21 +4,28 @@
 
 // Milestone derivations.
 //
-// SPERT Forecaster's milestone model is **user-maintained dynamic remaining work**:
+// SPERT Forecaster's milestone model is **dynamic remaining work**:
 //
 //  • milestone.backlogSize is "remaining work to deliver this milestone's release,"
-//    set and updated by the user as work progresses (and as scope is added or removed).
-//    The system does not auto-derive this from sprint history — milestone scope can
-//    change independently of sprint delivery (descopes, additions) and the user is
-//    the source of truth.
+//    kept current as work progresses (and as scope is added or removed). The system
+//    does not auto-derive this from sprint history — milestone scope can change
+//    independently of sprint delivery (descopes, additions).
+//
+//  • WHO keeps it current depends on where the milestone came from. For a milestone
+//    created here, the user is the source of truth. For one matched to a SPERT Story
+//    Map release, an Update from a Story Map v0.53.8+ export writes Story Map's
+//    remaining work over it — Story Map is then the source of truth, as it already is
+//    for sprint progress. An older export carries release TOTALS and never overwrites
+//    it (docs/SPEC_DEVIATIONS.md SD-5).
 //
 //  • cumulativeThresholds[i] = sum of remaining work to reach milestone i from current
 //    state = sum(milestone[0..i].backlogSize). This is what the Monte Carlo simulation
 //    needs: the per-trial check "delivered-this-trial ≥ threshold" reads correctly
 //    as "have we delivered enough to cross this milestone?"
 //
-//  • A milestone is "completed" when the user has set backlogSize to 0. No work
-//    remains for that release window. "Completed" is the term used throughout
+//  • A milestone is "completed" when its backlogSize is 0 — set by the user, or sent
+//    by Story Map v0.53.8+ for a release whose work is all done. No work remains for
+//    that release window. "Completed" is the term used throughout
 //    because not every milestone represents a release event — some are internal
 //    markers ("Feature Complete," "Code Freeze") — but every milestone can be in
 //    a state of "all its remaining work is done." The system surfaces this state
@@ -29,7 +36,7 @@
 import type { Milestone } from '@/shared/types'
 
 export interface MilestoneCompletionInfo {
-  /** True iff the user has zeroed out backlogSize for this milestone. */
+  /** True iff this milestone's backlogSize is 0 (zeroed here, or sent as 0 by Story Map). */
   completed: boolean
 }
 
@@ -43,9 +50,9 @@ export function computeCumulativeScope(milestones: Milestone[]): number[] {
 }
 
 /**
- * Per-milestone completion status. A milestone is completed when the user has set
- * its backlogSize to 0 — i.e., they've declared that no work remains for that
- * release. Returns an array aligned 1:1 with `milestones` by index.
+ * Per-milestone completion status. A milestone is completed when its backlogSize is
+ * 0 — no work remains for that release, whether the user zeroed it or Story Map sent
+ * it that way. Returns an array aligned 1:1 with `milestones` by index.
  */
 export function computeMilestoneCompletionInfo(milestones: Milestone[]): MilestoneCompletionInfo[] {
   return milestones.map((m) => ({ completed: m.backlogSize === 0 }))

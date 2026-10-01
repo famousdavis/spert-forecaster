@@ -7,119 +7,119 @@
       "label": "canonical export",
       "file": "canonical-export.json",
       "forecasterShould": "accept",
-      "sha256": "e9c903c0db7c27a2b4a559de2501ae4d0b8177bbb928e7116216cb9c36ae12a3"
+      "sha256": "d05aec962bb43f111d546ee4233874fa4ebfb5e9085833c5fc0cc9f29371c521"
     },
     {
       "row": "F14",
       "label": "milestone count — at the limit",
       "file": "boundary-F14-at.json",
       "forecasterShould": "accept",
-      "sha256": "4eb3fc506627c28af65070ead9fe7ba814c3f16efd3ab657545bf5f8430d5095"
+      "sha256": "f2d357017bebcfac3bcd71c34e29ea325da0473d60d092da1de95b5b38ab152e"
     },
     {
       "row": "F14",
       "label": "milestone count — one past the limit",
       "file": "boundary-F14-over.json",
       "forecasterShould": "reject",
-      "sha256": "04c6bce94f0dbbebbfcdd3171c150f8eb34a862335444724478f735e7dae283d"
+      "sha256": "b2f3b9bf1f0a1a1ddfa931d40e6135e94787e8c50cbf9bab68e6dc60e50adc0f"
     },
     {
       "row": "F08",
       "label": "project name length — at the limit",
       "file": "boundary-F08-at.json",
       "forecasterShould": "accept",
-      "sha256": "9bb62d5e0b727a705053195d88181282074cb4278eeac198a7bf713dcc426ffb"
+      "sha256": "d427727043982414b0edbd8df7846968381f0a0702c4ec1ff26979e0df839bb2"
     },
     {
       "row": "F08",
       "label": "project name length — one past the limit",
       "file": "boundary-F08-over.json",
       "forecasterShould": "reject",
-      "sha256": "1157298c55ed51d41a8a425fafb33e87acd026924826f6feb9fe99a013722300"
+      "sha256": "bdb6ddc803615074f00be65a4ece7bf3ba21013ae4fc75bf513c2424b4609150"
     },
     {
       "row": "F19",
       "label": "release name length — at the limit",
       "file": "boundary-F19-at.json",
       "forecasterShould": "accept",
-      "sha256": "42289701602bb83f3c97b889db224ab640ee072072c08e1140f5f2bbc314c3ad"
+      "sha256": "81b4d65bfe375e483cfafd191d3e2a423a4da0d8a86a0021edfa004cf1ef6c4a"
     },
     {
       "row": "F19",
       "label": "release name length — one past the limit",
       "file": "boundary-F19-over.json",
       "forecasterShould": "reject",
-      "sha256": "c622b14258b5bedbbb4dfbad9e1a476f2e2b19b23171ad88a217ae6a84ceef27"
+      "sha256": "d95598f0fdc3e241b5d16cd997c00fed7ecdb2a444f0a7b18623aed6af173851"
     },
     {
       "row": "F20",
       "label": "milestone backlogSize ceiling — at the limit",
       "file": "boundary-F20-at.json",
       "forecasterShould": "accept",
-      "sha256": "0eddf0c95aca6a6e5b643992ff0721159b7449fdb85e9167ac86d71b6632d016"
+      "sha256": "056fca3107425be615ec3f44f56cbe56e36eb4126a83876d7781335137c5ac5f"
     },
     {
       "row": "F20",
       "label": "milestone backlogSize ceiling — one past the limit",
       "file": "boundary-F20-over.json",
       "forecasterShould": "reject",
-      "sha256": "dec8fcb8106e1b6b29c0982693fb0da322488fff2bf3f78b3ae24974671facb1"
+      "sha256": "653027435fe840d562acbb4827f3f70a9be67197b507151d9a3068c1271c281c"
     },
     {
       "row": "F30",
       "label": "remaining backlog ceiling (no milestones) — at the limit",
       "file": "boundary-F30-at.json",
       "forecasterShould": "accept",
-      "sha256": "95a4e426efcc40cc4ffcc80e6fbea8339e632cc8e5faa527be25a2ecef85f07a"
+      "sha256": "b6e53c36f376ef8cf884d59e042df1a5520956239123c9b9e2f092986190e406"
     },
     {
       "row": "F30",
       "label": "remaining backlog ceiling (no milestones) — one past the limit",
       "file": "boundary-F30-over.json",
       "forecasterShould": "reject",
-      "sha256": "e82e56e793a98fc57d72c814fee87d271c2d4a80cecd3b76552bbbfb3f39fde7"
+      "sha256": "d38e18050e15e2bbf275e76d67310b7bd21526606e4dff535d79cedec69f488d"
     },
     {
       "row": "F32",
       "label": "sprint end date shape — at the limit",
       "file": "boundary-F32-at.json",
       "forecasterShould": "accept",
-      "sha256": "a7d54660263827bd671ecf94a773fa41efc368f84b773cae7fd2fade8a424d1a"
+      "sha256": "3feceabbcdf0f0620f4fa4369bd3051d1afbfb376815b18c8daa2efa90049a79"
     },
     {
       "row": "F32",
       "label": "sprint end date shape — one past the limit",
       "file": "boundary-F32-over.json",
       "forecasterShould": "reject",
-      "sha256": "d5b9c2f75c1a782fd329967c1eb384ff23ac5e32539a5c27caaab9b46acd90db"
+      "sha256": "7962da0b84b2a0778b1fd622447169f5a3f43c6b94ebc10648ef3b4a2cca143b"
     },
     {
       "row": "F32",
       "label": "sprint end date calendar validity — at the limit",
       "file": "boundary-F32-leap-at.json",
       "forecasterShould": "accept",
-      "sha256": "980adead3bd242ddb4173ea961dbd8b3958cf66120802737dd381877aa9363a0"
+      "sha256": "500590c5675b2431836606c5a60d5b6227b2418a776df8a0abb0b7139adf861d"
     },
     {
       "row": "F32",
       "label": "sprint end date calendar validity — one past the limit",
       "file": "boundary-F32-leap-over.json",
       "forecasterShould": "reject",
-      "sha256": "ac2707ba1a270f8a8497550f540fbb4c4a56d32c1f11a50ad3ca2bf0b423f8cc"
+      "sha256": "1b589224468bd3e6a16f916c836047e676e1448bab5b17dcd713ee122ea114b7"
     },
     {
       "row": "F29",
       "label": "sprint velocity floor — at the limit",
       "file": "boundary-F29-at.json",
       "forecasterShould": "accept",
-      "sha256": "285913368a1a31e94f45ede42bb7406c1bfd2fac7d5f5941163ada557d3253b2"
+      "sha256": "e0b85cf369ee01a9967e2cb189522299d066a1c48e311db70fd491ee8e26da60"
     },
     {
       "row": "F29",
       "label": "sprint velocity floor — one past the limit",
       "file": "boundary-F29-over.json",
       "forecasterShould": "reject",
-      "sha256": "e2896228d478a59d3a733256064fd0c80e09adcd56959943ba23302a682b8bff"
+      "sha256": "47c8a8d47d5db114650ef2edc90ed9960783afad3181d8e18617ee4a22c767f2"
     }
   ]
 }

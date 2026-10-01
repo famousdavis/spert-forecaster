@@ -1,6 +1,7 @@
 {
   "version": "1.0",
   "source": "spert-story-map",
+  "milestoneBacklog": "remaining",
   "projects": [
     {
       "id": "prod-fixture",
@@ -14,7 +15,7 @@
         {
           "id": "rel-1",
           "name": "Release One",
-          "backlogSize": 20,
+          "backlogSize": 9,
           "color": "#2563eb",
           "showOnChart": true,
           "createdAt": "2026-01-01T00:00:00.000Z",

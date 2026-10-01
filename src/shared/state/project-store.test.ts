@@ -16,6 +16,7 @@ import {
 import { DEFAULT_BURN_UP_CONFIG } from '@/shared/types/burn-up'
 import { syncBus } from '@/shared/firebase/sync-bus'
 import type { ChangeLogEntry } from './storage'
+import type { MilestoneBacklogBasis, ParsedImportData } from './import-utils'
 import type { Project, Sprint } from '@/shared/types'
 
 // Helper: reset store state before each test
@@ -1154,16 +1155,20 @@ describe('importDataAndSelectFirst', () => {
 // ---------------------------------------------------------------------------
 
 describe('applySmartImport', () => {
-  type ParsedImportData =
-    | { exportType: 'spert-forecaster-project-export'; projects: Project[]; sprints: Sprint[] }
-    | { exportType: 'spert-story-map'; projects: Project[]; sprints: Sprint[] }
-    | { exportType: 'legacy'; projects: Project[]; sprints: Sprint[]; _originalExportData: { version: string; exportedAt: string; projects: Project[]; sprints: Sprint[] } }
-
+  // The REAL ParsedImportData, imported — not a hand-copied union. A local copy
+  // of it lived here until v0.44.0, and it was the reason one new required field
+  // on StoryMapImportData reddened 25 call sites in this file at once.
   function projectExportIn(projects: Project[], sprints: Sprint[] = []): ParsedImportData {
     return { exportType: 'spert-forecaster-project-export', projects, sprints }
   }
-  function storyMapIn(projects: Project[], sprints: Sprint[] = []): ParsedImportData {
-    return { exportType: 'spert-story-map', projects, sprints }
+  // 'total' is what every file before Story Map v0.53.8 carries, and what each
+  // test below was written against.
+  function storyMapIn(
+    projects: Project[],
+    sprints: Sprint[] = [],
+    milestoneBacklog: MilestoneBacklogBasis = 'total',
+  ): ParsedImportData {
+    return { exportType: 'spert-story-map', projects, sprints, milestoneBacklog }
   }
   function legacyIn(projects: Project[], sprints: Sprint[] = []): ParsedImportData {
     return {
