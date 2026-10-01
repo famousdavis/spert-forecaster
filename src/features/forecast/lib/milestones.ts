@@ -34,6 +34,8 @@
 //    history lives in GanttApp, which this tool feeds into.
 
 import type { Milestone } from '@/shared/types'
+import type { ForecastScope } from '@/shared/state/forecast-results-store'
+import { exceedsBacklog, fallsShortOfBacklog } from '@/shared/lib/backlog-tolerance'
 
 export interface MilestoneCompletionInfo {
   /** True iff this milestone's backlogSize is 0 (zeroed here, or sent as 0 by Story Map). */
@@ -91,18 +93,26 @@ export interface MilestonePickerOption {
  * Percentile picker kept offering them until v0.44.1, where picking one
  * charted a threshold of zero.
  *
- * Charted, not-completed milestones, in order. When there is more than one,
- * the last carries "(Total)".
+ * Charted, not-completed milestones, in order. When the run has an Entire
+ * Project scope (`projectScopeIndex`, v0.45.0) it comes last as "Entire
+ * Project (Total)", and no milestone is the total. Otherwise, when there is
+ * more than one milestone, the last carries "(Total)".
  */
 export function buildMilestonePickerOptions(
   milestones: Milestone[],
   completionInfo: MilestoneCompletionInfo[] = [],
+  projectScopeIndex: number | null = null,
 ): MilestonePickerOption[] {
   const visible = computeVisibleForecastMilestones(milestones, completionInfo)
-  return visible.map(({ milestone, originalIndex }, i) => ({
+  const lastIsTotal = projectScopeIndex === null && visible.length > 1
+  const options = visible.map(({ milestone, originalIndex }, i) => ({
     value: originalIndex,
-    label: i === visible.length - 1 && visible.length > 1 ? `${milestone.name} (Total)` : milestone.name,
+    label: lastIsTotal && i === visible.length - 1 ? `${milestone.name} (Total)` : milestone.name,
   }))
+  if (projectScopeIndex !== null) {
+    options.push({ value: projectScopeIndex, label: 'Entire Project (Total)' })
+  }
+  return options
 }
 
 /**
@@ -115,4 +125,87 @@ export function buildMilestonePickerOptions(
  */
 export function pickerFallback(options: MilestonePickerOption[]): number | null {
   return options.length > 0 ? options[options.length - 1].value : null
+}
+
+/**
+ * The scopes a milestone run produces, and the thresholds it must be sent.
+ *
+ * ⚠️ THE ENTIRE PROJECT SCOPE (v0.45.0). D20 dated the LAST milestone as the
+ * whole project ('cumulative-final'). That is right only when the milestones
+ * add up to the backlog. Since Story Map v0.53.8 sends each release's
+ * REMAINING work, a project with work outside every release sums to less,
+ * and its "Entire Project" headline came out early by exactly that work. So
+ * when the milestones fall short of the backlog by more than rounding, the
+ * backlog itself is appended to the SAME run's thresholds and recorded as a
+ * trailing scope of kind 'project':
+ *
+ *   - It is the no-milestone run, trial for trial: a threshold at the backlog
+ *     is crossed in the iteration a trial completes
+ *     (monte-carlo.project-scope.test.ts pins it byte for byte).
+ *   - It comes from the same trials as the milestones, so no milestone can be
+ *     dated after the project, which a second, separate run could not promise.
+ *   - The engine and the worker are untouched; only the threshold list grows.
+ *
+ * Covering the backlog (within rounding) or past it: D20 exactly as before —
+ * N milestones, N scopes, the last 'cumulative-final'. A milestone past the
+ * backlog is dated at completion and flagged unreachable, as it always was.
+ */
+export function planMilestoneRun(
+  thresholds: number[],
+  names: string[],
+  backlog: number,
+  projectName: string,
+): { runThresholds: number[]; scopes: ForecastScope[] } {
+  const n = thresholds.length
+  const addProjectScope = fallsShortOfBacklog(thresholds[n - 1], backlog, n)
+  const scopes: ForecastScope[] = thresholds.map((threshold, i) => ({
+    kind: i === n - 1 && !addProjectScope ? 'cumulative-final' : 'milestone',
+    milestoneIndex: i,
+    label: names[i] ?? `Milestone ${i + 1}`,
+    cumulativeThreshold: threshold,
+    // Past the backlog by more than rounding can explain, and NOTHING ELSE.
+    // A trial that exits by completion has crossed every threshold <= backlog
+    // regardless of scope growth, because the crossing test runs in the same
+    // loop iteration `remaining` goes non-positive. Growth delays crossings;
+    // it does not prevent them. Do not add a scope-growth disjunct.
+    //
+    // A threshold within the allowance of the backlog is dated at completion
+    // either way, which is the right date for it: it IS the backlog, give or
+    // take Story Map's rounding (0.13 + 0.13 against 0.25). k = i + 1
+    // milestones are summed into it.
+    thresholdUnreachable: exceedsBacklog(threshold, backlog, i + 1),
+  }))
+  if (!addProjectScope) return { runThresholds: thresholds, scopes }
+  return {
+    runThresholds: [...thresholds, backlog],
+    scopes: [...scopes, {
+      kind: 'project',
+      milestoneIndex: null,
+      label: projectName,
+      cumulativeThreshold: backlog,
+      thresholdUnreachable: false,
+    }],
+  }
+}
+
+/**
+ * The milestones' total in a run and how many figures it sums — read from the
+ * run's MILESTONE scopes, never its last scope, which may be the project's own.
+ * Null for a run without milestones.
+ */
+export function runMilestoneTotal(scopes: ForecastScope[]): { total: number; count: number } | null {
+  const milestoneScopes = scopes.filter((s) => s.milestoneIndex !== null)
+  if (milestoneScopes.length === 0) return null
+  return { total: milestoneScopes[milestoneScopes.length - 1].cumulativeThreshold, count: milestoneScopes.length }
+}
+
+/**
+ * Where a run's Entire Project scope is — always last — or null when it has
+ * none. A run without milestones also has a single 'project' scope, but no
+ * milestones for it to stand apart from, so it reads as none here.
+ */
+export function projectScopeIndexOf(scopes: ForecastScope[]): number | null {
+  if (scopes.length < 2) return null
+  const last = scopes.length - 1
+  return scopes[last].kind === 'project' ? last : null
 }

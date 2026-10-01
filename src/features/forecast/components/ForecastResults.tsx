@@ -39,6 +39,11 @@ interface ForecastResultsProps {
    *  milestones are filtered out of the per-milestone forecast tables — they
    *  appear in the ForecastSummary breakdown past-tense instead. */
   milestoneCompletionInfo?: MilestoneCompletionInfo[]
+  /** The run's Entire Project scope (v0.45.0): its own table, marked Total, after the milestones'.
+   *  Null when the run has none — the last milestone's table is then the total. */
+  projectScopeIndex?: number | null
+  /** The remaining backlog, for the Entire Project table's heading. */
+  remainingBacklog?: number
   unitOfMeasure?: string
   effectiveMean?: number
   effectiveStdDev?: number
@@ -152,6 +157,8 @@ export function ForecastResults({
   milestoneResultsState,
   cumulativeThresholds = [],
   milestoneCompletionInfo = [],
+  projectScopeIndex = null,
+  remainingBacklog = 0,
   unitOfMeasure = '',
   effectiveMean,
   effectiveStdDev,
@@ -190,6 +197,15 @@ export function ForecastResults({
   )
 
   const hasMilestones = visibleMilestones.length > 0 && milestoneResultsState && milestoneResultsState.milestoneResults.length > 0
+  // With an Entire Project scope, IT is the total and gets a table of its own;
+  // no milestone's table is marked Total. (Every milestone complete leaves no
+  // milestone table, and the single fallback table below is this same scope.)
+  const projectResult = projectScopeIndex !== null
+    ? milestoneResultsState?.milestoneResults[projectScopeIndex]
+    : undefined
+  const projectSimData = projectScopeIndex !== null
+    ? milestoneResultsState?.milestoneSimulationData?.[projectScopeIndex] ?? null
+    : null
 
   // Dynamic percentile mode: we have simulation data and user-selectable percentiles
   const useDynamic = !!(simulationData && selectedPercentiles && startDate && sprintCadenceWeeks)
@@ -294,7 +310,7 @@ export function ForecastResults({
                 if (!milestoneResult) return null
 
                 const milestoneSimData = milestoneResultsState.milestoneSimulationData?.[originalIndex] ?? null
-                const isLast = visIdx === visibleMilestones.length - 1
+                const isLast = !projectResult && visIdx === visibleMilestones.length - 1
                 const cumulativeBacklog = cumulativeThresholds[originalIndex] ?? 0
                 const rows = buildRows(milestoneResult as QuadResults, milestoneSimData)
 
@@ -328,6 +344,29 @@ export function ForecastResults({
                   </div>
                 )
               })}
+              {projectResult && (
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="inline-block size-3 rounded-full bg-spert-blue" />
+                    <h4 className="text-sm font-semibold dark:text-gray-100">
+                      Entire Project
+                      <span className="ml-2 font-normal text-spert-text-muted">
+                        ({remainingBacklog.toLocaleString()} {unitOfMeasure} remaining)
+                      </span>
+                      <span className="ml-2 text-xs font-normal text-spert-text-muted italic">
+                        Total
+                      </span>
+                    </h4>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <ResultsTable
+                      rows={buildRows(projectResult as QuadResults, projectSimData)}
+                      columns={columns}
+                      completedSprintCount={completedSprintCount}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <div className="overflow-x-auto">

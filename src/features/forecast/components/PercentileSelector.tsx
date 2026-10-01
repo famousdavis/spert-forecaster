@@ -35,6 +35,8 @@ interface PercentileSelectorProps {
   milestoneCompletionInfo?: MilestoneCompletionInfo[]
   selectedMilestoneIndex?: number
   onMilestoneIndexChange?: (index: number) => void
+  /** The run's Entire Project scope, offered last as "Entire Project (Total)" — null when it has none. */
+  projectScopeIndex?: number | null
   // Second slider props
   percentile2?: number
   truncatedNormalResult2?: ForecastResult | null
@@ -174,6 +176,7 @@ export function PercentileSelector(props: PercentileSelectorProps) {
     milestoneCompletionInfo = [],
     selectedMilestoneIndex = 0,
     onMilestoneIndexChange,
+    projectScopeIndex = null,
     percentile2,
     onPercentile2Change,
   } = props
@@ -189,8 +192,8 @@ export function PercentileSelector(props: PercentileSelectorProps) {
   // kept its own filter until v0.44.1 and never learned to hide completed
   // milestones — see buildMilestonePickerOptions in ../lib/milestones.
   const options = useMemo(
-    () => buildMilestonePickerOptions(milestones, milestoneCompletionInfo),
-    [milestones, milestoneCompletionInfo]
+    () => buildMilestonePickerOptions(milestones, milestoneCompletionInfo, projectScopeIndex),
+    [milestones, milestoneCompletionInfo, projectScopeIndex]
   )
 
   // Move a selection the picker no longer offers to its LAST option — see

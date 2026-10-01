@@ -187,3 +187,132 @@ describe('the results table fallback reads the overall scope', () => {
     for (const s of seen) expect(s.table, `table at index ${s.i}`).toBe(seen[0].table)
   })
 })
+
+// ═══════════════════════════════════════════════════════════════════════════
+// v0.45.0 — when the milestones fall short of the backlog, the run carries an
+// Entire Project scope of its own (kind 'project', always last).
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Milestones Alpha 40 + Beta 20 = 60 against a backlog of 100: a trailing project scope at 100. */
+function seedWithProjectScope() {
+  seed(true)
+  useProjectStore.setState({
+    projects: [{
+      ...useProjectStore.getState().projects[0],
+      milestones: [
+        { id: 'm1', name: 'Alpha', backlogSize: 40, color: '#10b981', createdAt: '', updatedAt: '' },
+        { id: 'm2', name: 'Beta', backlogSize: 20, color: '#3b82f6', createdAt: '', updatedAt: '' },
+      ],
+    }],
+  })
+  const project = useProjectStore.getState().projects[0]
+  const data = SCOPE_SPRINTS.map(([lo, hi]) => scopeData(spread(lo, hi)))
+  useForecastResultsStore.setState({
+    record: {
+      projectId: PID,
+      runAt: '2026-01-02T00:00:00.000Z',
+      runConfig: readForecastInputSnapshot(project),
+      simData: data.map((d) => d.sim),
+      quadResults: data.map((d) => d.quad),
+      scopes: [
+        { kind: 'milestone', milestoneIndex: 0, label: 'Alpha', cumulativeThreshold: 40, thresholdUnreachable: false },
+        { kind: 'milestone', milestoneIndex: 1, label: 'Beta', cumulativeThreshold: 60, thresholdUnreachable: false },
+        { kind: 'project', milestoneIndex: null, label: 'Entire Project Fixture', cumulativeThreshold: 100, thresholdUnreachable: false },
+      ],
+    },
+  })
+}
+
+describe('with an Entire Project scope, "Entire Project" is that scope at every index', () => {
+  beforeEach(() => { seedWithProjectScope() })
+
+  it('the hero, the summary sentence and the deadline panel read the project scope', () => {
+    renderTab()
+    const target = calculateSprintFinishDate(calculateSprintStartDate(START, 10, CADENCE), CADENCE)
+    act(() => { useForecastResultsStore.getState().patchViewState(PID, { targetDate: target }) })
+    fireEvent.click(screen.getByRole('button', { name: /Deadline Probability/ }))
+
+    const seen = [2, 0, 1, 2].map((i) => {
+      select(i)
+      return { i, hero: hero(), sentence: sentence(), deadline: deadline() }
+    })
+    expect(seen[0].hero).toContain(overallP80Date())
+    for (const s of seen) {
+      expect.soft(s.hero, `hero at index ${s.i}`).toBe(seen[0].hero)
+      expect.soft(s.sentence, `sentence at index ${s.i}`).toBe(seen[0].sentence)
+      expect.soft(s.deadline, `deadline at index ${s.i}`).toBe(seen[0].deadline)
+    }
+  })
+
+  it('the chart picker offers "Entire Project (Total)" and keeps the selection on it', () => {
+    // A run leaves the selection on the project scope. The chart picker must
+    // be able to show it — or its auto-correct moves the selection to a
+    // milestone the moment the chart opens.
+    renderTab()
+    select(2)
+    fireEvent.click(screen.getByRole('button', { name: /Cumulative Probability Distribution/ }))
+    const picker = document.getElementById('cdf-milestone-select') as HTMLSelectElement
+    // Soft: whether the option is offered, and whether the selection
+    // survived the chart opening, are separate failures worth seeing apart.
+    expect.soft([...picker.options].map((o) => o.text)).toEqual(['Alpha', 'Beta', 'Entire Project (Total)'])
+    expect.soft(picker.selectedOptions[0]?.text).toBe('Entire Project (Total)')
+    expect.soft(useForecastResultsStore.getState().viewState[PID].selectedMilestoneIndex).toBe(2)
+  })
+
+  it('Forecast Results adds an Entire Project table, and only it is the total', () => {
+    renderTab()
+    fireEvent.click(screen.getByRole('button', { name: /Forecast Results/ }))
+    const headings = [...document.querySelectorAll('h4')].map((h) => h.textContent ?? '')
+    expect(headings).toHaveLength(3)
+    expect(headings[0]).toMatch(/^Alpha/)
+    expect(headings[1]).toMatch(/^Beta/)
+    expect(headings[1]).not.toMatch(/Total/)
+    expect(headings[2]).toMatch(/^Entire Project\s*\(100 points remaining\)\s*Total$/)
+  })
+})
+
+describe('the notice for milestones past the backlog', () => {
+  /** Milestones 60 + 50 + 20 = 130 against `backlog`; a D20 record with the run's own flags. */
+  function seedPastBacklog(backlog: number) {
+    seed(true)
+    useProjectStore.setState({
+      projects: [{
+        ...useProjectStore.getState().projects[0],
+        milestones: [
+          { id: 'm1', name: 'Alpha', backlogSize: 60, color: '#10b981', createdAt: '', updatedAt: '' },
+          { id: 'm2', name: 'Beta', backlogSize: 50, color: '#3b82f6', createdAt: '', updatedAt: '' },
+          { id: 'm3', name: 'Gamma', backlogSize: 20, color: '#f59e0b', createdAt: '', updatedAt: '' },
+        ],
+      }],
+      forecastInputs: { [PID]: { remainingBacklog: String(backlog), velocityMean: '20', velocityStdDev: '4' } },
+    })
+    const record = useForecastResultsStore.getState().record!
+    useForecastResultsStore.setState({
+      record: {
+        ...record,
+        runConfig: readForecastInputSnapshot(useProjectStore.getState().projects[0]),
+        scopes: [
+          { kind: 'milestone', milestoneIndex: 0, label: 'Alpha', cumulativeThreshold: 60, thresholdUnreachable: 60 > backlog },
+          { kind: 'milestone', milestoneIndex: 1, label: 'Beta', cumulativeThreshold: 110, thresholdUnreachable: 110 > backlog },
+          { kind: 'cumulative-final', milestoneIndex: 2, label: 'Gamma', cumulativeThreshold: 130, thresholdUnreachable: 130 > backlog },
+        ],
+      },
+    })
+  }
+  const notice = () => screen.queryByText(/dated at project completion/)
+
+  it('shows when the milestones add up to more than the backlog', () => {
+    seedPastBacklog(70)
+    renderTab()
+    expect(notice()?.textContent).toBe(
+      'Your milestones add up to 130 points, more than the 70 points remaining backlog. ' +
+      'Any milestone past the backlog is dated at project completion.'
+    )
+  })
+
+  it('does not show when they match it', () => {
+    seedPastBacklog(130)
+    renderTab()
+    expect(notice()).toBeNull()
+  })
+})

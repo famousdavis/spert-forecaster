@@ -2,9 +2,11 @@
 // Licensed under the GNU General Public License v3.0.
 // See LICENSE file in the project root for full license text.
 
-import type { PercentileResults } from './monte-carlo'
+import type { PercentileResults, QuadResults } from './monte-carlo'
 import type { ProductivityAdjustment, Milestone, ForecastMode } from '@/shared/types'
+import type { ForecastRunRecord } from '@/shared/state/forecast-results-store'
 import { today } from '@/shared/lib/dates'
+import { projectScopeIndexOf } from './milestones'
 
 /**
  * Escape a string for CSV: double quotes, collapse newlines, and prefix any
@@ -67,6 +69,10 @@ interface ExportData {
       triangular: PercentileResults[]
       uniform: PercentileResults[]
     }
+    /** The run's Entire Project scope (v0.45.0), exported after the milestones
+     *  as the total. Absent when the milestones cover the backlog — the last
+     *  milestone is then the total, as before. */
+    project?: { backlog: number; results: QuadResults }
   }
 }
 
@@ -313,32 +319,80 @@ function csvMilestoneRow(
   mi: number
 ): void {
   const ms = milestoneData.milestones[mi]
-  const isLast = mi === milestoneData.milestones.length - 1
+  // With an Entire Project scope the project is the total, not this milestone.
+  const isLast = mi === milestoneData.milestones.length - 1 && !milestoneData.project
   lines.push(`Milestone: ${ms.name}${isLast ? ' (Total)' : ''} - ${ms.backlogSize} remaining / ${ms.cumulativeBacklog} cumulative`)
+  csvSection2bRows(lines, hasBootstrap, {
+    truncatedNormal: milestoneData.distributions.truncatedNormal[mi],
+    lognormal: milestoneData.distributions.lognormal[mi],
+    gamma: milestoneData.distributions.gamma[mi],
+    bootstrap: milestoneData.distributions.bootstrap?.[mi] ?? null,
+    triangular: milestoneData.distributions.triangular[mi],
+    uniform: milestoneData.distributions.uniform[mi],
+  })
+}
+
+/** Section 2b, the Entire Project scope (v0.45.0) — after the milestones, as the total. */
+function csvProjectRow(
+  lines: string[],
+  hasBootstrap: boolean,
+  project: NonNullable<NonNullable<ExportData['milestoneData']>['project']>
+): void {
+  lines.push(`Entire Project (Total) - ${project.backlog} remaining`)
+  csvSection2bRows(lines, hasBootstrap, project.results)
+}
+
+/** Section 2b's percentile header and rows for one scope. Shared by milestone and project rows. */
+function csvSection2bRows(lines: string[], hasBootstrap: boolean, r: QuadResults): void {
   lines.push(percentileHeaderFor(hasBootstrap))
-
-  const tnResults = milestoneData.distributions.truncatedNormal[mi]
-  const lnResults = milestoneData.distributions.lognormal[mi]
-  const gaResults = milestoneData.distributions.gamma[mi]
-  const bsResults = milestoneData.distributions.bootstrap?.[mi] ?? null
-  const triResults = milestoneData.distributions.triangular[mi]
-  const uniResults = milestoneData.distributions.uniform[mi]
-
   for (const p of PERCENTILE_ROWS) {
-    const tn = tnResults[p.key]
-    const ln = lnResults[p.key]
-    const ga = gaResults[p.key]
-    const tri = triResults[p.key]
-    const uni = uniResults[p.key]
+    const tn = r.truncatedNormal[p.key]
+    const ln = r.lognormal[p.key]
+    const ga = r.gamma[p.key]
+    const tri = r.triangular[p.key]
+    const uni = r.uniform[p.key]
     let line = `P${p.label},${tn.sprintsRequired},${tn.finishDate},${ln.sprintsRequired},${ln.finishDate},${ga.sprintsRequired},${ga.finishDate}`
-    if (hasBootstrap && bsResults) {
-      const bs = bsResults[p.key]
+    if (hasBootstrap && r.bootstrap) {
+      const bs = r.bootstrap[p.key]
       line += `,${bs.sprintsRequired},${bs.finishDate}`
     }
     line += `,${tri.sprintsRequired},${tri.finishDate},${uni.sprintsRequired},${uni.finishDate}`
     lines.push(line)
   }
   lines.push('')
+}
+
+/**
+ * Section 2b's data from a milestone run: one row per milestone, and — when
+ * the run has an Entire Project scope (v0.45.0) — the project row, carried
+ * SEPARATELY. The milestone rows get the milestone scopes only, so no
+ * milestone row can be handed the project's numbers.
+ */
+export function buildMilestoneCsvData(
+  milestones: Milestone[],
+  record: Pick<ForecastRunRecord, 'quadResults' | 'scopes'>,
+): NonNullable<ExportData['milestoneData']> {
+  let cumulative = 0
+  const rows = milestones.map((m) => {
+    cumulative += m.backlogSize
+    return { name: m.name, backlogSize: m.backlogSize, cumulativeBacklog: cumulative }
+  })
+  const projectIdx = projectScopeIndexOf(record.scopes)
+  const quads = projectIdx !== null ? record.quadResults.slice(0, projectIdx) : record.quadResults
+  return {
+    milestones: rows,
+    distributions: {
+      truncatedNormal: quads.map((r) => r.truncatedNormal),
+      lognormal: quads.map((r) => r.lognormal),
+      gamma: quads.map((r) => r.gamma),
+      bootstrap: quads[0]?.bootstrap ? quads.map((r) => r.bootstrap!) : null,
+      triangular: quads.map((r) => r.triangular),
+      uniform: quads.map((r) => r.uniform),
+    },
+    project: projectIdx !== null
+      ? { backlog: record.scopes[projectIdx].cumulativeThreshold, results: record.quadResults[projectIdx] }
+      : undefined,
+  }
 }
 
 export function generateForecastCsv(data: ExportData): string {
@@ -358,6 +412,7 @@ export function generateForecastCsv(data: ExportData): string {
     for (let mi = 0; mi < md.milestones.length; mi++) {
       csvMilestoneRow(data, lines, hasBootstrap, md, mi)
     }
+    if (md.project) csvProjectRow(lines, hasBootstrap, md.project)
   }
 
   csvFrequencyDistribution(data, lines, hasBootstrap, totalTrials)

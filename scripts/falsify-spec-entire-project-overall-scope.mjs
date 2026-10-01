@@ -85,10 +85,11 @@ export const mutations = [
     expectFailing: /a genuine shortfall just past the allowance is NOT covered/,
   },
   {
+    // v0.45.0 moved the scope list, flag and all, into planMilestoneRun.
     id: 'E4  the unreachable flag ignores how many milestones are summed (k = 0)',
-    file: STATE,
-    find: 'exceedsBacklog(threshold, runConfig.remainingBacklog, i + 1)',
-    replace: 'exceedsBacklog(threshold, runConfig.remainingBacklog, 0)',
+    file: MILESTONES,
+    find: 'thresholdUnreachable: exceedsBacklog(threshold, backlog, i + 1)',
+    replace: 'thresholdUnreachable: exceedsBacklog(threshold, backlog, 0)',
     expectFailing: /Story Map rounding past the backlog is NOT unreachable/,
   },
   {
@@ -137,8 +138,8 @@ export const mutations = [
   {
     id: 'E11 the Custom Percentile picker drops the completion filter',
     file: SELECTOR,
-    find: 'buildMilestonePickerOptions(milestones, milestoneCompletionInfo)',
-    replace: 'buildMilestonePickerOptions(milestones)',
+    find: 'buildMilestonePickerOptions(milestones, milestoneCompletionInfo, projectScopeIndex)',
+    replace: 'buildMilestonePickerOptions(milestones, undefined, projectScopeIndex)',
     expectFailing: /does not offer a completed milestone/,
   },
   {

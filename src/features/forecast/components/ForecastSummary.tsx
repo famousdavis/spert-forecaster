@@ -43,6 +43,9 @@ interface ForecastSummaryProps {
    * completed milestones past-tense in the breakdown.
    */
   milestoneCompletionInfo?: MilestoneCompletionInfo[]
+  /** Set when the run's milestones add up to more than its backlog, by more
+   *  than rounding (useForecastState). Shown as a one-line notice. */
+  milestonesPastBacklog?: { milestoneTotal: number; backlog: number } | null
   hasBootstrap: boolean
   forecastMode: ForecastMode
   modelScopeGrowth?: boolean
@@ -131,6 +134,19 @@ export function buildMilestoneSummaryText(
   return `${milestoneName}: Sprint ${absoluteSprint} (${formatDateLong(finishDate)})`
 }
 
+/**
+ * The notice for milestones that add up to MORE than the backlog (v0.45.0).
+ * A milestone whose cumulative threshold is past the backlog is never crossed
+ * by the simulation — the trials end at the backlog — so it is dated at
+ * project completion, and several such milestones share that one date. The
+ * line explains why, where those dates are read.
+ */
+export function buildMilestonesPastBacklogText(milestoneTotal: number, backlog: number, unitOfMeasure: string): string {
+  return `Your milestones add up to ${milestoneTotal.toLocaleString()} ${unitOfMeasure}, ` +
+    `more than the ${backlog.toLocaleString()} ${unitOfMeasure} remaining backlog. ` +
+    'Any milestone past the backlog is dated at project completion.'
+}
+
 /** Past-tense per-milestone line used in the breakdown for completed milestones.
  *  A milestone is "completed" when its backlogSize is 0 — set by the user, or sent by
  *  Story Map v0.53.8+ for a finished release. The system
@@ -155,6 +171,7 @@ export function ForecastSummary({
   milestones = [],
   milestoneResultsState,
   milestoneCompletionInfo: completionInfo = [],
+  milestonesPastBacklog = null,
   hasBootstrap,
   forecastMode,
   modelScopeGrowth,
@@ -339,8 +356,13 @@ export function ForecastSummary({
     }).filter(Boolean) as string[]
   }, [milestoneResultsState, visibleMilestones, completionInfo, effectiveDistribution, selectedPercentile, startDate, sprintCadenceWeeks, completedSprintCount])
 
+  const pastBacklogText = milestonesPastBacklog
+    ? buildMilestonesPastBacklogText(milestonesPastBacklog.milestoneTotal, milestonesPastBacklog.backlog, unitOfMeasure)
+    : null
+
   const handleCopy = () => {
     let fullText = summaryText
+    if (pastBacklogText) fullText += `\n\n${pastBacklogText}`
     if (milestoneTexts.length > 0) {
       fullText += '\n\nMilestones:\n' + milestoneTexts.map((t) => `  - ${t}`).join('\n')
     }
@@ -467,6 +489,11 @@ export function ForecastSummary({
               ? `Based on sprint history (×${volatilityMultiplier} volatility).`
               : 'Based on sprint history.'}
       </p>
+      {pastBacklogText && (
+        <p className="text-xs text-spert-warning-dark dark:text-yellow-400 mt-1">
+          {pastBacklogText}
+        </p>
+      )}
       {milestoneTexts.length > 0 && (
         <div className="mt-2 pl-3 border-l-2 border-blue-200 dark:border-blue-700">
           {visibleMilestones.map(({ milestone, originalIndex }, visIdx) => {

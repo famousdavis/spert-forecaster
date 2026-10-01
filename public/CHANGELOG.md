@@ -1,5 +1,26 @@
 # Changelog
 
+## v0.45.0 - 2026-10-01
+
+When your milestones add up to less than the remaining backlog, the Forecast tab's "Entire Project" now forecasts the whole backlog, not just the milestones. Until now it was dated where the last milestone was reached, so on a project with work outside every milestone the headline came out early — by exactly that work — while its sentence named the full backlog.
+
+That shape became common with v0.44.0. Story Map milestones now carry the work still to do in each release, so any Story Map project with unassigned work, or a release that is already finished, adds up to less than its backlog. v0.44.1 stopped "Entire Project" from following the chart pickers; this release makes the date it shows the right one.
+
+### Changed
+- **"Entire Project" is dated at the whole remaining backlog when the milestones fall short of it.** This covers the "Your forecast" headline, the summary sentence, the Deadline Probability panel's Entire Project scope, the burn-up chart and the CSV export. On the sample project with its last release finished (milestones of 0, 100, 150 and 0 against 460 points), the headline used to read January 20, 2027, the date of the 250 points of milestone work. It now reads April 14, 2027, the date for all 460. With every milestone finished it used to say the 460 points would be done the next sprint, and the burn-up drew 460 points in a single sprint; both now run to April 2027. The forecast for the whole backlog comes from the same simulated trials as the milestones, so no milestone can be dated after the project. When the milestones do add up to the backlog, or Story Map's two-decimal rounding is the only difference, nothing changes.
+- **The chart and Custom Percentile pickers offer "Entire Project (Total)" when there is one.** It is selected after each run, so the Cumulative Probability chart, the Histogram and the custom percentile cards open on the whole project. No milestone is marked "(Total)" then, because none is. When the milestones cover the backlog, the last milestone keeps "(Total)" as before.
+- **Forecast Results shows an Entire Project table after the milestones' tables**, marked Total, and the CSV export adds an "Entire Project (Total)" row after the per-milestone rows. In both, the last milestone loses its Total mark in that case.
+
+### Added
+- **A notice when your milestones add up to more than the remaining backlog.** It appears in the forecast summary, under the summary sentence: "Your milestones add up to 500 story points, more than the 460 story points remaining backlog. Any milestone past the backlog is dated at project completion." A milestone past the backlog is never reached in the simulation, whose trials end at the backlog, so it is dated at completion, and several of them can share that one date. Nothing on the Forecast tab said why until now. Rounding never triggers it: it uses the same allowance for Story Map's rounding as every other comparison of milestones with the backlog. It is included when you copy the summary as text.
+
+### Notes
+- **Connect AI sees the new scope as `kind: "project"`, last in the list.** Its `finalScopeCoversBacklog` and `backlogDivergence` fields still describe the milestones themselves, so they still report the shortfall, and the deadline block is computed for the project scope. When every milestone is complete, the snapshot keeps the project scope instead of a placeholder, because it is the only date that means anything then.
+- **The engine is unchanged.** The whole backlog is added to the list of points the same run already dates. A committed test pins that the result is identical, trial for trial and for every distribution, to a run without milestones from the same random sequence, with productivity adjustments and scope growth both ways.
+- **Checked in the browser on the sample project**, against the release before: the finished-last-release case moved from January 20 to April 14, 2027; every milestone finished moved from the next sprint to April 14, 2027, with the burn-up running to Sprint 22 instead of Sprint 9; and v2 Release set to 500, past the 460-point backlog, showed the notice.
+- **Each change above was broken on purpose, and a named check failed every time.** The 23 breakages are committed in `scripts/falsify-spec-entire-project-scope.mjs`, including the strict comparison that would show the notice on rounding. The v0.44.1 breakages still fail their checks against this release.
+- **Tests:** 1,857, up from 1,814.
+
 ## v0.44.1 - 2026-10-01
 
 "Entire Project" on the Forecast tab now always means the entire project. Until now the forecast summary, the Deadline Probability panel, the Forecast Results table and the CSV export followed whichever milestone a chart's "Milestone:" picker last pointed at, so picking a milestone in a chart quietly re-dated the whole project to that milestone's date — under the words "the project will finish by".

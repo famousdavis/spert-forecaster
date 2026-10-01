@@ -44,6 +44,8 @@ interface HistogramChartProps {
   milestoneCompletionInfo?: MilestoneCompletionInfo[]
   selectedMilestoneIndex?: number
   onMilestoneIndexChange?: (index: number) => void
+  /** The run's Entire Project scope, for the milestone picker — null when it has none. */
+  projectScopeIndex?: number | null
 }
 
 const CHART_COLORS = COLORS.chart
@@ -66,6 +68,7 @@ export function HistogramChart({
   milestoneCompletionInfo = [],
   selectedMilestoneIndex = 0,
   onMilestoneIndexChange,
+  projectScopeIndex = null,
 }: HistogramChartProps) {
   const [isExpanded, setIsExpanded] = useState(false)
   const fontSizes = CHART_FONT_SIZES[fontSize]
@@ -122,6 +125,7 @@ export function HistogramChart({
             milestoneCompletionInfo={milestoneCompletionInfo}
             selectedMilestoneIndex={selectedMilestoneIndex}
             onMilestoneIndexChange={onMilestoneIndexChange}
+            projectScopeIndex={projectScopeIndex}
             fontSize={fontSize}
             onFontSizeChange={onFontSizeChange}
           />

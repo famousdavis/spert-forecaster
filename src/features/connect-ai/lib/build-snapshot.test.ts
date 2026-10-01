@@ -1118,3 +1118,59 @@ describe('notVisibleToYou says nothing the v0.44.1 screen makes false', () => {
     expect(disclosuresOf(b)).toMatch(/scope growth/)
   })
 })
+
+// ═══════════════════════════════════════════════════════════════════════════
+// v0.45.0 — a run whose milestones fall short of the backlog carries an
+// Entire Project scope of its own (kind 'project', last).
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('the Entire Project scope in the snapshot', () => {
+  const SHORT = [{ threshold: 40 }, { threshold: 60 }, { threshold: 100, kind: 'project' as const }]
+
+  it('every milestone complete: the collapse KEEPS the project scope — the only date that means anything', () => {
+    const b = buildSnapshot(input({
+      project: withMilestones([0, 0]),
+      record: scopedRecord([{ threshold: 0 }, { threshold: 0 }, { threshold: 100, kind: 'project' }], 100),
+      view: { ...VIEW, selectedMilestoneIndex: 2 },
+    }))
+    const scopes = scopesOf(b)
+    expect(scopes).toHaveLength(1)
+    expect(scopes[0]).toMatchObject({ kind: 'project', milestoneIndex: null, cumulativeThreshold: 100, renderedOnScreen: true })
+    expect(Object.keys(scopes[0].byDistribution as object).length).toBeGreaterThan(0)
+    // The selection is the project scope, which is scopes[0] here.
+    expect((b.userSelections as Record<string, unknown>).selectedMilestoneIndex).toBe(0)
+    expect(disclosuresOf(b)).toMatch(/project's remaining backlog/)
+  })
+
+  it('every milestone complete, no project scope: the placeholder, as before', () => {
+    const b = buildSnapshot(input({
+      project: withMilestones([0, 0]),
+      record: scopedRecord([{ threshold: 0 }, { threshold: 0, kind: 'cumulative-final' }], 0.01),
+    }))
+    expect(scopesOf(b)[0].label).toBe('all milestones complete')
+  })
+
+  it('the project scope is on screen whenever the summary shows Entire Project', () => {
+    const b = buildSnapshot(input({
+      project: withMilestones([40, 20]),
+      record: scopedRecord(SHORT, 100),
+      view: { ...VIEW, selectedMilestoneIndex: 0, summaryScope: '__project__' },
+    }))
+    expect(scopesOf(b)[2]).toMatchObject({ kind: 'project', renderedOnScreen: true })
+  })
+
+  it('the divergence fields still say the milestones fall short', () => {
+    const b = buildSnapshot(input({ project: withMilestones([40, 20]), record: scopedRecord(SHORT, 100) }))
+    expect(resultsOf(b).finalScopeCoversBacklog).toBe(false)
+    expect(resultsOf(b).backlogDivergence).toEqual({ finalMilestoneThreshold: 60, remainingBacklog: 100 })
+  })
+
+  it('the deadline block reads the project scope', () => {
+    const b = buildSnapshot(input({
+      project: withMilestones([40, 20]),
+      record: scopedRecord(SHORT, 100),
+      view: { ...VIEW, targetDate: '2027-01-31' },
+    }))
+    expect((b.deadlineProbability as Record<string, unknown>).scope).toBe('project')
+  })
+})

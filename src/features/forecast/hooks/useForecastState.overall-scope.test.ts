@@ -102,3 +102,30 @@ describe('CSV sections 2-4 export the overall scope, whatever is selected', () =
     expect(vi.mocked(generateForecastCsv)).toHaveBeenCalledTimes(2)
   })
 })
+
+describe('CSV section 2b with an Entire Project scope (v0.45.0)', () => {
+  it('passes the project scope as the total, and the milestone rows only the milestones', async () => {
+    const data = [scope(1), scope(4), scope(7)]
+    useForecastResultsStore.setState({
+      record: {
+        projectId: PID,
+        runAt: '2026-01-02T00:00:00.000Z',
+        runConfig: readForecastInputSnapshot(useProjectStore.getState().projects[0]),
+        simData: data.map((d) => d.sim),
+        quadResults: data.map((d) => d.quad),
+        scopes: [
+          { kind: 'milestone', milestoneIndex: 0, label: 'Alpha', cumulativeThreshold: 40, thresholdUnreachable: false },
+          { kind: 'milestone', milestoneIndex: 1, label: 'Beta', cumulativeThreshold: 100, thresholdUnreachable: false },
+          { kind: 'project', milestoneIndex: null, label: 'Overall Scope', cumulativeThreshold: 120, thresholdUnreachable: false },
+        ],
+      },
+    })
+    const { result } = renderHook(() => useForecastState())
+    await waitFor(() => expect(result.current.results).not.toBeNull())
+    act(() => { result.current.handleExportCsv() })
+    const md = vi.mocked(generateForecastCsv).mock.calls.at(-1)![0].milestoneData!
+    expect(md.distributions.lognormal).toEqual([data[0].quad.lognormal, data[1].quad.lognormal])
+    expect(md.project?.backlog).toBe(120)
+    expect(md.project?.results).toBe(data[2].quad)
+  })
+})

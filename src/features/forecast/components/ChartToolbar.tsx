@@ -21,6 +21,8 @@ interface ChartToolbarProps {
   milestoneCompletionInfo?: MilestoneCompletionInfo[]
   selectedMilestoneIndex?: number
   onMilestoneIndexChange?: (index: number) => void
+  /** The run's Entire Project scope, offered last as "Entire Project (Total)" — null when it has none. */
+  projectScopeIndex?: number | null
   fontSize?: ChartFontSize
   onFontSizeChange?: (size: ChartFontSize) => void
 }
@@ -31,14 +33,15 @@ export function ChartToolbar({
   milestoneCompletionInfo = [],
   selectedMilestoneIndex = 0,
   onMilestoneIndexChange,
+  projectScopeIndex = null,
   fontSize = 'small',
   onFontSizeChange,
 }: ChartToolbarProps) {
   // One builder for every forecast-control picker — see
   // buildMilestonePickerOptions in ../lib/milestones for why it is shared.
   const options = useMemo(
-    () => buildMilestonePickerOptions(milestones, milestoneCompletionInfo),
-    [milestones, milestoneCompletionInfo]
+    () => buildMilestonePickerOptions(milestones, milestoneCompletionInfo, projectScopeIndex),
+    [milestones, milestoneCompletionInfo, projectScopeIndex]
   )
 
   // Move a selection the picker no longer offers to its LAST option — see

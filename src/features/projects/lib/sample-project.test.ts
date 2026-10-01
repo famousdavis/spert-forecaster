@@ -71,9 +71,9 @@ describe('loadSampleProject', () => {
     })
   })
 
-  it('seeds the last sprint with backlogAtSprintEnd = 200 (Delta D contract test)', () => {
+  it('seeds the last sprint with backlogAtSprintEnd = 460 (Delta D contract test)', () => {
     // This is the contract test that locks the auto-derivation chain. If any link breaks,
-    // the sample project silently loses its "200 pre-fill" promise on the Forecast tab.
+    // the sample project silently loses its "460 pre-fill" promise on the Forecast tab.
     loadSampleProject()
     const state = useProjectStore.getState()
     const sampleId = state.projects[0].id
