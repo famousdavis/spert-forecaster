@@ -26,6 +26,7 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { FirstRunBanner } from './FirstRunBanner'
 import { InvitationBanner } from './InvitationBanner'
 import { LocalStorageWarningBanner } from './LocalStorageWarningBanner'
+import { ExportCheckWarning } from './ExportCheckWarning'
 import { AiConnectivityProvider } from '@/features/connect-ai/AiConnectivityProvider'
 import { ConnectAiLauncher } from '@/features/connect-ai/components/ConnectAiLauncher'
 // Deep imports rather than widening `@/features/projects`' barrel, which deliberately exports
@@ -131,6 +132,7 @@ export function AppShell() {
         <InvitationBanner />
         <FirstRunBanner />
         <LocalStorageWarningBanner />
+        <ExportCheckWarning />
 
         <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} />
 

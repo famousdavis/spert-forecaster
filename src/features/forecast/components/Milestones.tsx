@@ -17,6 +17,8 @@ interface MilestonesProps {
   unitOfMeasure: string
 }
 
+const ADD_MILESTONE_LABEL = '+ Add Milestone'
+
 export function Milestones({ projectId, unitOfMeasure }: MilestonesProps) {
   const projects = useProjectStore((state) => state.projects)
   const milestones = useMemo(() => {
@@ -86,9 +88,17 @@ export function Milestones({ projectId, unitOfMeasure }: MilestonesProps) {
           editingId={editingItem?.id ?? null}
         />
       )}
-      addButtonLabel="+ Add Milestone"
+      addButtonLabel={ADD_MILESTONE_LABEL}
       deleteDialogTitle="Delete Milestone"
       maxItems={MAX_MILESTONES}
+      capNotice={
+        <p>
+          You can add up to {MAX_MILESTONES} milestones by hand — more than that makes the charts
+          hard to read. The <strong>{ADD_MILESTONE_LABEL}</strong> button comes back when this
+          project has fewer than {MAX_MILESTONES}. Story Map updates can still bring in more, and
+          the project keeps them.
+        </p>
+      }
       softLimit={MILESTONE_SOFT_LIMIT}
       softLimitMessage={`You have ${milestones.length} milestones. Consider keeping it under ${MILESTONE_SOFT_LIMIT} for best chart readability.`}
       panelId={`milestones-panel-${projectId}`}

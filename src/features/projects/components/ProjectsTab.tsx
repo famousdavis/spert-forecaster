@@ -22,7 +22,8 @@ import { loadSampleProject } from '../lib/sample-project'
 // Type-only: the hook is CALLED in AppShell now, not here. Importing the value would put it
 // back in this component's runtime graph and invite someone to call it again by accident.
 import type { useImportState } from '../hooks/useImportState'
-import { exportSingleProject } from '../lib/export-project'
+import { downloadJson, exportSingleProject } from '../lib/export-project'
+import { reportExportCheck } from '@/shared/state/export-check-store'
 import { getWorkspaceId, getStorageMode } from '@/shared/state/storage'
 import { auth } from '@/shared/firebase/config'
 import { loadOwnedProjectIds } from '@/shared/firebase/firestore-driver'
@@ -158,18 +159,10 @@ export function ProjectsTab({ onViewHistory, importState }: ProjectsTabProps) {
   }
 
   const handleExport = () => {
-    const data = exportData()
-    const json = JSON.stringify(data, null, 2)
-    const blob = new Blob([json], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `spert-forecaster-${today()}.json`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
+    const json = downloadJson(`spert-forecaster-${today()}.json`, exportData())
     toast.success('Project data exported')
+    // After the save, never before it: the check cannot block or undo the file.
+    reportExportCheck(json)
   }
 
   const handleClone = useCallback(
@@ -190,7 +183,7 @@ export function ProjectsTab({ onViewHistory, importState }: ProjectsTabProps) {
         const settings = useSettingsStore.getState()
         const storageRef =
           (getStorageMode() === 'cloud' && auth?.currentUser?.uid) || getWorkspaceId()
-        exportSingleProject(projectId, {
+        const { json } = exportSingleProject(projectId, {
           projects,
           sprints,
           originRef: originRef || getWorkspaceId(),
@@ -200,6 +193,7 @@ export function ProjectsTab({ onViewHistory, importState }: ProjectsTabProps) {
           exportedById: settings.exportId || undefined,
         })
         toast.success('Project exported')
+        reportExportCheck(json)
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Unknown error'
         toast.error(`Export failed: ${message}`)

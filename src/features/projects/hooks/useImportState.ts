@@ -11,6 +11,7 @@ import { buildImportBannerDetails } from '../lib/import-banner'
 import { getStorageMode } from '@/shared/state/storage'
 import { validateImportData, type ExportData } from '@/shared/state/import-validation'
 import { MAX_FILE_SIZE } from '@/shared/state/import-limits'
+import { describeImportRefusal } from '@/shared/state/refusal-reasons'
 import type { Sprint } from '@/shared/types'
 import {
   availableActions,
@@ -329,9 +330,11 @@ export function useImportState() {
         try {
           validateImportData(raw)
         } catch (err) {
-          return refuse(
-            `Import failed: ${err instanceof Error ? err.message : 'Validation error'}`,
-          )
+          // Names the project the thrown error belongs to; the SAME text by file and by
+          // crosslink. Built before `refuse(` so the register's extractor sees no literal
+          // here — the text is data-dependent and could never be pinned by substring.
+          const text = describeImportRefusal(err instanceof Error ? err.message : 'Validation error', raw)
+          return refuse(text)
         }
         const imported = classifyImportData(raw as ExportData)
         if (imported.projects.length === 0) {

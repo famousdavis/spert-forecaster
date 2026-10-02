@@ -11,6 +11,7 @@ import { useSettingsStore } from '@/shared/state/settings-store'
 import { exportSelectedProjects } from '@/features/projects/lib/export-project'
 import { getWorkspaceId, getStorageMode } from '@/shared/state/storage'
 import { auth } from '@/shared/firebase/config'
+import { reportExportCheck } from '@/shared/state/export-check-store'
 
 const sectionHeaderClass = 'text-lg font-semibold text-spert-blue mb-4'
 const descriptionClass = 'text-xs text-spert-text-muted dark:text-gray-400'
@@ -71,6 +72,7 @@ export function ExportProjectsSection() {
           ? 'Project exported'
           : `${result.exported} projects exported`,
       )
+      reportExportCheck(result.json)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error'
       toast.error(`Export failed: ${message}`)

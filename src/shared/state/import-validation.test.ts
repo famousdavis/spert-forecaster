@@ -261,7 +261,7 @@ describe('validateImportData – milestone validation', () => {
     const many = (n: number) => Array.from({ length: n }, (_, i) =>
       makeMilestone({ id: `ms-${i}`, name: `MS ${i}`, backlogSize: 10 + i }))
     const withTokens = (n: number) => ({
-      ...makeExportData([makeProject({ milestones: many(n) })]),
+      ...(makeExportData([makeProject({ milestones: many(n) })]) as Record<string, unknown>),
       _originRef: 'origin-token', _storageRef: 'storage-token',
     })
 
