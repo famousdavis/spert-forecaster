@@ -47,6 +47,7 @@ import { join } from 'node:path'
 import { validateImportData } from '../import-validation'
 import { classifyImportData, isStoryMapExport, MAX_STRING_LENGTH as UTILS_MAX_STRING_LENGTH } from '../import-utils'
 import { MAX_MILESTONES } from '@/features/forecast/constants'
+import { MILESTONE_CEILING } from '../import-limits'
 import { getLastSprintBacklog } from '@/shared/lib/forecast-derivations'
 import { exceedsBacklog } from '@/shared/lib/backlog-tolerance'
 import type { Sprint } from '@/shared/types'
@@ -341,7 +342,7 @@ interface BoundaryPair {
  */
 const BOUNDARY_PAIRS: readonly BoundaryPair[] = [
   {
-    row: 'F14', limit: 'MAX_MILESTONES', label: 'milestones per project',
+    row: 'F14', limit: 'MAX_MILESTONES', label: 'milestones per project in a Story Map file',
     at: () => withMilestoneCount(FORECASTER_LIMITS.MAX_MILESTONES),
     over: () => withMilestoneCount(FORECASTER_LIMITS.MAX_MILESTONES + 1),
     message: 'Project at index 0 has more than 10 milestones.',
@@ -878,21 +879,38 @@ describe('the vendored set — milestone figures are REMAINING work', () => {
 
 // ── Same-repo copies of the same limits ─────────────────────────────────────
 
-describe('the two copies of these limits inside THIS repo', () => {
-  it('MAX_MILESTONES (the UI cap) is the cap the validator enforces', () => {
-    // ⚠️ The validator does NOT import this constant — import-validation.ts
-    // writes `10` as a bare literal, twice, at lines 211-212. Raise
-    // MAX_MILESTONES and the UI will happily build projects this app's own
-    // importer rejects on round-trip. Nothing else in the repo binds the two.
-    expect(MAX_MILESTONES).toBe(FORECASTER_LIMITS.MAX_MILESTONES)
-    expect(validateImportData(withMilestoneCount(MAX_MILESTONES))).toBe(true)
-    expect(messageFrom(withMilestoneCount(MAX_MILESTONES + 1)))
-      .toBe('Project at index 0 has more than 10 milestones.')
+/**
+ * The canonical payload re-dressed as THIS app's workspace export: no `source`,
+ * no `milestoneBacklog`, and both workspace reconciliation tokens. Such a file is
+ * held to MILESTONE_CEILING, not to Story Map's send limit.
+ */
+const withOwnFileMilestoneCount = (n: number): Obj => {
+  const p = withMilestoneCount(n)
+  delete p.source
+  delete p.milestoneBacklog
+  p._originRef = 'origin-token'
+  p._storageRef = 'storage-token'
+  return p
+}
+
+describe('the limits inside THIS repo', () => {
+  it('MAX_MILESTONES (the panel\'s add cap) never exceeds the ceiling for this app\'s own files', () => {
+    // The add cap is no longer the importer's limit for this app's own files — a
+    // project can hold more, brought in by Story Map Updates. What still has to
+    // hold: the panel must never build a project this app's own export would refuse.
+    expect(MAX_MILESTONES).toBeLessThanOrEqual(MILESTONE_CEILING)
+    expect(validateImportData(withOwnFileMilestoneCount(MAX_MILESTONES))).toBe(true)
+  })
+
+  it('this app\'s own files are held to the ceiling, with its number in the message', () => {
+    expect(validateImportData(withOwnFileMilestoneCount(MILESTONE_CEILING))).toBe(true)
+    expect(messageFrom(withOwnFileMilestoneCount(MILESTONE_CEILING + 1)))
+      .toBe('Project at index 0 has more than 100 milestones.')
   })
 
   it('import-utils MAX_STRING_LENGTH is the cap the validator enforces', () => {
-    // import-utils.ts:10 carries the comment "Must match the private
-    // MAX_STRING_LENGTH in import-validation.ts". Until now nothing asserted it.
+    // import-utils.ts carries its own MAX_STRING_LENGTH and the comment "Must
+    // equal MAX_STRING_LENGTH in import-validation.ts"; this is that assertion.
     // It sizes the " - Copy (N)" truncation, so a drift silently produces copy
     // names the importer would refuse.
     expect(UTILS_MAX_STRING_LENGTH).toBe(FORECASTER_LIMITS.MAX_STRING_LENGTH)

@@ -23,12 +23,12 @@
 // floor(k/2) hundredths without being flagged.
 //
 // ⚠️ IT GROWS WITH k, AND THAT IS NOT OPTIONAL. A fixed allowance would have
-// to cover the largest k any path can produce. That couples it to
-// MAX_MILESTONES — a third copy of that limit — and assumes every path
-// enforces the limit, which the Story Map Update merge did not at v0.44.1: it
-// keeps local milestones alongside Story Map's, without a cap on the total.
-// Past the limit, a fixed allowance reads honest rounding as a real
-// overshoot.
+// to cover the largest k any path can produce, and nothing bounds k tightly:
+// the panel's add cap (MAX_MILESTONES) binds hand-adding only, this app's own
+// files may carry up to MILESTONE_CEILING, and the Story Map Update merge keeps
+// local milestones alongside Story Map's with no cap on the total at all.
+// Past whatever k a fixed allowance was sized for, it reads honest rounding as
+// a real overshoot.
 //
 // k is the number of milestones summed into the figure being compared: i + 1
 // for the cumulative threshold of milestone i, N for the total of N.

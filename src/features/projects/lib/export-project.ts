@@ -6,8 +6,10 @@ import type { Project, Sprint } from '@/shared/types'
 import type { ChangeLogEntry } from '@/shared/state/storage'
 import { APP_VERSION } from '@/shared/constants'
 import { today } from '@/shared/lib/dates'
+import { PROJECT_SUBSET_EXPORT_TYPE } from '@/shared/state/import-limits'
 
-export const PROJECT_SUBSET_EXPORT_TYPE = 'spert-forecaster-project-export'
+// Owned by import-limits.ts, which the importer's limit and classifier read too.
+export { PROJECT_SUBSET_EXPORT_TYPE }
 
 export interface ExportProjectsState {
   projects: Project[]

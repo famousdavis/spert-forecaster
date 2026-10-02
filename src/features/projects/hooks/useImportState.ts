@@ -10,6 +10,7 @@ import { useProjectStore } from '@/shared/state/project-store'
 import { buildImportBannerDetails } from '../lib/import-banner'
 import { getStorageMode } from '@/shared/state/storage'
 import { validateImportData, type ExportData } from '@/shared/state/import-validation'
+import { MAX_FILE_SIZE } from '@/shared/state/import-limits'
 import type { Sprint } from '@/shared/types'
 import {
   availableActions,
@@ -24,8 +25,6 @@ import {
   type ConflictAction,
 } from '@/shared/state/import-utils'
 
-// Outside the hook — not recreated on every render (C13).
-const MAX_FILE_SIZE = 10 * 1024 * 1024
 
 type ImportMode = 'merge' | 'replace-all'
 
