@@ -58,9 +58,13 @@ function fileItem(message: string, payload: Obj): ExportCheckItem {
   return { kind: 'file', reason: explainRefusal(message, payload)?.reason ?? message }
 }
 
+const MB = 1024 * 1024
+const megabytes = (n: number): string => n.toLocaleString('en-US', { maximumFractionDigits: 1 })
+
 function sizeItem(bytes: number): ExportCheckItem {
-  const mb = (n: number) => (n / (1024 * 1024)).toLocaleString('en-US', { maximumFractionDigits: 1 })
-  return { kind: 'file', reason: `the file is ${mb(bytes)} MB; an import accepts at most ${mb(MAX_FILE_SIZE)} MB` }
+  // The file's size rounds UP, so a file just over the limit never reads as equal to it.
+  const size = megabytes(Math.ceil((bytes / MB) * 10) / 10)
+  return { kind: 'file', reason: `the file is ${size} MB; an import accepts at most ${megabytes(MAX_FILE_SIZE / MB)} MB` }
 }
 
 /** One project, its own sprints, the file's own envelope. */
