@@ -32,14 +32,19 @@ const file = (n: number, envelope: Record<string, unknown>) =>
   ({ ...envelope, projects: [{ id: 'p', name: 'P', unitOfMeasure: 'pts', milestones: milestones(n) }], sprints: [] })
 const STORY_MAP = { source: 'spert-story-map' }
 const OWN = { _originRef: 'origin-token', _storageRef: 'storage-token' }
+const SUBSET = { _exportType: 'spert-forecaster-project-export' }
 const verdict = (p: unknown) => { try { validateImportData(p); return 'accepted' } catch (e) { return (e as Error).message } }
 
 describe('changed limits reach every enforcing site', () => {
-  it('the validator\'s per-file milestone limit', () => {
-    expect(verdict(file(3, STORY_MAP))).toBe('accepted')
-    expect(verdict(file(4, STORY_MAP))).toBe('Project at index 0 has more than 3 milestones.')
-    expect(verdict(file(7, OWN))).toBe('accepted')
-    expect(verdict(file(8, OWN))).toBe('Project at index 0 has more than 7 milestones.')
+  // One case per row of milestoneLimitFor — each row is its own enforcing site.
+  it.each([
+    ['a declared Story Map source', STORY_MAP, 3],
+    ['this app\'s per-project export', SUBSET, 7],
+    ['this app\'s workspace export (both tokens)', OWN, 7],
+    ['anything else', {}, 3],
+  ] as const)('the validator\'s limit for %s', (_row, envelope, limit) => {
+    expect(verdict(file(limit, envelope))).toBe('accepted')
+    expect(verdict(file(limit + 1, envelope))).toBe(`Project at index 0 has more than ${limit} milestones.`)
   })
 
   it('the export check and its reasons', () => {
