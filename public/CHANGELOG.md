@@ -1,5 +1,28 @@
 # Changelog
 
+## v0.46.0 - 2026-10-03
+
+This app's own JSON files now import again whatever a project holds. Until now an import refused any project with more than 10 milestones, including in a file this app had just written. A Story Map Update keeps the milestones of releases you removed or emptied in Story Map alongside the ones it brings, so a project could pass 10 that way; from then on its own export, and the whole workspace backup with it, could not be restored, and the message named an array position instead of the project.
+
+Ten stays the limit for files from SPERT Story Map, which is Story Map's own send limit. Files this app wrote now hold up to 100 milestones per project.
+
+### Changed
+- **Files this app wrote import projects of up to 100 milestones.** A workspace export (Export All) and a project export (the project row's download, or Settings → Export Projects) are recognised by what they carry: a project export by its export type, a workspace export by its two workspace reconciliation tokens. Every workspace export has carried both since v0.20.0, so backups already on disk, including ones this app used to refuse, now import as they were written: each milestone in the same order, with the same name, figure, colour and chart setting.
+- **Files from SPERT Story Map, and files that do not say where they came from, keep the limit of 10.** A file declaring Story Map as its source is held to Story Map's limit whatever else it carries. Story Map files from before it began declaring its source (v0.52.10) carry none of the markers above, so they stay at 10 too, and the message for one past the limit is unchanged.
+- **An import that is still refused names the project.** "Import failed: Project at index 1 has more than 10 milestones." now reads, for example, "Import failed: "Growth Product" — 13 milestones; this file can hold at most 10 per project." A sprint's problem names that sprint's own project and number. The text is the same whether the file was opened or sent from Story Map, where it follows Story Map's own "did not accept the transfer" message. A refusal with no single project to point at, such as two projects sharing an ID, keeps its old wording.
+- **The Milestones panel explains why its Add button is gone at 10 or more.** "Maximum of 10 items reached." is replaced by: "You can add up to 10 milestones by hand — more than that makes the charts hard to read. The + Add Milestone button comes back when this project has fewer than 10. Story Map updates can still bring in more, and the project keeps them." The advice to keep under 5 milestones for readability used to disappear at the cap; it now stays visible below that text.
+
+### Added
+- **Every JSON export checks that its own file will import again.** Export All, the project row's download and Settings → Export Projects each save the file first, then run the import's own checks on exactly what was saved, and compare its size with the 10 MB import ceiling. If the file would be refused, a warning appears above the tabs: "Your file was saved, but it will not restore." It lists every affected project by name, each with its problem in plain words (a name over 200 characters, a figure over 999,999, a finish date that is not a valid date, more milestones than the file can hold), and says what to do, including how to back up the other projects on their own. It stays until you dismiss it, survives switching tabs, and is replaced by the next export's result. A file that will import shows nothing, and the "Project data exported" message is unchanged.
+
+### Notes
+- **Why a project could pass 10.** A Story Map Update keeps every milestone your copy holds that the incoming file does not, so a release deleted, emptied or merged in Story Map stays here with its last figures, and it adds the releases Story Map sends. Story Map sends at most 10, so the first Update after a product's 11th release held 11, and repeated Updates grew further. Update itself is unchanged; the ceiling of 100 leaves room for it, and the export check reports a project that passes even that.
+- **The cloud was never the limit.** It saves projects of any milestone count; a 100-milestone project was checked against the suite's Firestore rules in the emulator, on create and on update.
+- **Checked in the browser, on an origin of its own, against this build.** A 13-milestone workspace file written by v0.45.0, which v0.45.0 refused, imported with all 13. The warning appeared at all three export points, stayed across tab switches, and cleared on the next clean export. At 100 milestones the forecast ran in under a second, every picker listed all 100, and the CSV and the Connect AI snapshot carried every milestone, with no console errors.
+- **Each change above was broken on purpose, and a named test failed every time.** There were 21 breakages, among them an export that drops milestones past 10, a limit keyed on the export type alone, a warning that stops at the first project or blocks the save, and a reason that names an array position.
+- **The Quick Reference Guide's "Up to 10 milestones per project." is now true of adding milestones by hand only.** It will be corrected in the next guide update.
+- **Tests:** 1,991, up from 1,857.
+
 ## v0.45.0 - 2026-10-01
 
 When your milestones add up to less than the remaining backlog, the Forecast tab's "Entire Project" now forecasts the whole backlog, not just the milestones. Until now it was dated where the last milestone was reached, so on a project with work outside every milestone the headline came out early — by exactly that work — while its sentence named the full backlog.
