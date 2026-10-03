@@ -20,8 +20,7 @@
 // quotes comes from its constant. Throws no screen of this app can trip get a
 // reason without numbers, rather than new constants for bounds nobody reaches.
 
-import { MAX_STRING_LENGTH, MAX_NUMERIC_VALUE } from './import-validation'
-import { MILESTONE_CEILING } from './import-limits'
+import { MAX_STRING_LENGTH, MAX_NUMERIC_VALUE, MILESTONE_CEILING } from './import-limits'
 
 type Obj = Record<string, unknown>
 

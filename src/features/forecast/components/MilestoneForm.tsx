@@ -7,6 +7,7 @@
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import type { Milestone } from '@/shared/types'
+import { MAX_NUMERIC_VALUE } from '@/shared/state/import-limits'
 import { DEFAULT_MILESTONE_COLORS } from '../constants'
 
 interface MilestoneFormProps {
@@ -39,12 +40,15 @@ export function MilestoneForm({
     })
   }
 
+  // The bounds are checked here as well as in `min`/`max`: the native check runs
+  // only when a browser submits the form, and this one keeps the button disabled.
   const parsedBacklog = Number(backlogSize)
   const isValid =
     name.trim().length > 0 &&
     backlogSize.length > 0 &&
     !isNaN(parsedBacklog) &&
-    parsedBacklog >= 0
+    parsedBacklog >= 0 &&
+    parsedBacklog <= MAX_NUMERIC_VALUE
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4 rounded-lg border border-border dark:border-gray-700 p-4 bg-white dark:bg-gray-800">
@@ -94,6 +98,7 @@ export function MilestoneForm({
             onChange={(e) => setBacklogSize(e.target.value)}
             placeholder={unitOfMeasure}
             min="0"
+            max={MAX_NUMERIC_VALUE}
             step="any"
             className={cn(
               'w-full rounded p-[0.4rem] text-[0.85rem] dark:text-gray-100',

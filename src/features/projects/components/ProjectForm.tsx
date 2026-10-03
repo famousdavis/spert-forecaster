@@ -9,6 +9,13 @@ import { cn } from '@/lib/utils'
 import type { Project } from '@/shared/types'
 import { DEFAULT_UNIT_OF_MEASURE } from '../constants'
 import { isValidDateRange } from '@/shared/lib/dates'
+import { MAX_STRING_LENGTH } from '@/shared/state/import-limits'
+
+// The form stores the TRIMMED name and unit, so the trimmed length is the one to
+// bound. `maxLength` stops typing past the limit, but it never flags a value
+// that arrives already over it (an edit form pre-filled from stored data is not
+// `tooLong`), so `isValid` checks the length too.
+const fitsStringLimit = (value: string) => value.trim().length <= MAX_STRING_LENGTH
 
 interface ProjectFormProps {
   project: Project | null
@@ -111,7 +118,13 @@ export const ProjectForm = forwardRef<ProjectFormHandle, ProjectFormProps>(funct
     }
   }
 
-  const isValid = name.trim().length > 0 && unitOfMeasure.trim().length > 0 && !startDateError && !finishDateError
+  const isValid =
+    name.trim().length > 0 &&
+    fitsStringLimit(name) &&
+    unitOfMeasure.trim().length > 0 &&
+    fitsStringLimit(unitOfMeasure) &&
+    !startDateError &&
+    !finishDateError
 
   const isEditing = project !== null
 
@@ -161,6 +174,7 @@ export const ProjectForm = forwardRef<ProjectFormHandle, ProjectFormProps>(funct
             onChange={(e) => setName(e.target.value)}
             className="p-2 text-[0.9rem] border border-spert-border dark:border-gray-600 rounded w-full bg-white dark:bg-gray-700 dark:text-gray-100"
             placeholder="Project name"
+            maxLength={MAX_STRING_LENGTH}
             required
           />
         </div>
@@ -177,6 +191,7 @@ export const ProjectForm = forwardRef<ProjectFormHandle, ProjectFormProps>(funct
             onChange={(e) => setUnitOfMeasure(e.target.value)}
             className="p-2 text-[0.9rem] border border-spert-border dark:border-gray-600 rounded w-full bg-white dark:bg-gray-700 dark:text-gray-100"
             placeholder="story points"
+            maxLength={MAX_STRING_LENGTH}
             required
           />
         </div>

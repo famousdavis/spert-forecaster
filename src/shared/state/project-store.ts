@@ -10,6 +10,7 @@ import { auth } from '@/shared/firebase/config'
 import { APP_VERSION } from '@/shared/constants'
 import { type BurnUpConfig, DEFAULT_BURN_UP_CONFIG } from '@/shared/types/burn-up'
 import { validateImportData, type ExportData } from './import-validation'
+import { MAX_STRING_LENGTH } from './import-limits'
 import { useForecastResultsStore } from './forecast-results-store'
 import { useSettingsStore } from './settings-store'
 import { syncBus } from '@/shared/firebase/sync-bus'
@@ -263,12 +264,14 @@ export const useProjectStore = create<ProjectState>()(
         const source = state.projects.find((p) => p.id === sourceId)
         if (!source) return null
 
-        // Both the import copy path and the clone path now share the same
-        // "X - Copy (N)" naming convention via nextCopyName. Number.MAX_SAFE_INTEGER
-        // skips truncation — clone operates on already-trusted in-memory names.
+        // Both the import copy path and the clone path share the same
+        // "X - Copy (N)" naming convention via nextCopyName, and both truncate to
+        // MAX_STRING_LENGTH: a source name near the limit, or a chain of clones,
+        // would otherwise grow past what the importer accepts, and the export
+        // holding it would not restore.
         // Trailing whitespace is trimmed (minor improvement over the prior inline walker).
         const existingNames = new Set(state.projects.map((p) => p.name))
-        const newName = nextCopyName(source.name, existingNames, Number.MAX_SAFE_INTEGER)
+        const newName = nextCopyName(source.name, existingNames, MAX_STRING_LENGTH)
 
         const newProjectId = generateId()
         const nowTime = now()

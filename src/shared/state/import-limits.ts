@@ -24,6 +24,19 @@ export const MILESTONE_CEILING = 100
 /** The import ceiling, in bytes of the file as saved. */
 export const MAX_FILE_SIZE = 10 * 1024 * 1024
 
+/**
+ * The longest a project name, a unit of measure or a milestone name may be, in
+ * characters. The project form, the clone and the import copy hold to it, so
+ * nothing they store is refused when its file comes back.
+ */
+export const MAX_STRING_LENGTH = 200
+
+/**
+ * The largest a milestone's remaining work, a sprint's done value or its
+ * backlog at end may be. The smallest is 0.
+ */
+export const MAX_NUMERIC_VALUE = 999999
+
 /** The `source` a Story Map export declares. */
 export const STORY_MAP_SOURCE = 'spert-story-map'
 

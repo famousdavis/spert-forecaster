@@ -17,6 +17,7 @@ import {
   type ConflictAction,
 } from './import-utils'
 import type { ExportData } from './import-validation'
+import { MAX_STRING_LENGTH } from './import-limits'
 import type { Project, Sprint } from '@/shared/types'
 
 // --- Helpers ---
@@ -833,10 +834,14 @@ describe('nextCopyName', () => {
     expect(result.length).toBeLessThanOrEqual(200)
     expect(result).toContain(' - Copy (1)')
   })
-  it('does not truncate when maxLength is Number.MAX_SAFE_INTEGER (clone path)', () => {
+  it('truncates for the clone path too: MAX_STRING_LENGTH, never an unbounded length', () => {
+    // Until v0.46.1 cloneProject passed Number.MAX_SAFE_INTEGER and its copy of a
+    // 250-character name kept all 250 characters. Now it passes the cap, like the
+    // import copy path: the base is cut to leave room for the longest suffix.
     const longName = 'A'.repeat(250)
-    const result = nextCopyName(longName, new Set(), Number.MAX_SAFE_INTEGER)
-    expect(result).toBe('A'.repeat(250) + ' - Copy (1)')
+    const result = nextCopyName(longName, new Set(), MAX_STRING_LENGTH)
+    expect(result).toBe('A'.repeat(MAX_STRING_LENGTH - ' - Copy (XXXXXXXX)'.length) + ' - Copy (1)')
+    expect(result.length).toBeLessThanOrEqual(MAX_STRING_LENGTH)
   })
   it('mutates the existingNames set so loop callers are collision-safe', () => {
     const names = new Set<string>()
