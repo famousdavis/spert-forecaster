@@ -34,6 +34,11 @@ interface CollapsibleCrudPanelProps<T extends CrudItem> {
   maxItems?: number
   softLimit?: number
   softLimitMessage?: string
+  /**
+   * Shown in place of "Maximum of N items reached." once the list is at or above
+   * `maxItems` — for a panel whose items can exceed the cap by other routes.
+   */
+  capNotice?: ReactNode
   panelId: string
   /** Extra content rendered between description and add button */
   headerExtra?: ReactNode
@@ -51,6 +56,7 @@ export function CollapsibleCrudPanel<T extends CrudItem>({
   maxItems,
   softLimit,
   softLimitMessage,
+  capNotice,
   panelId,
   headerExtra,
 }: CollapsibleCrudPanelProps<T>) {
@@ -65,8 +71,8 @@ export function CollapsibleCrudPanel<T extends CrudItem>({
 
   const showForm = isAdding || editingItem !== null
   const canAdd = maxItems === undefined || items.length < maxItems
-  const showSoftWarning =
-    softLimit !== undefined && items.length >= softLimit && canAdd
+  // Not gated on canAdd: the readability advice matters MOST past the cap.
+  const showSoftWarning = softLimit !== undefined && items.length >= softLimit
 
   const handleEdit = (item: T) => {
     setEditingItem(item)
@@ -158,15 +164,19 @@ export function CollapsibleCrudPanel<T extends CrudItem>({
             </button>
           )}
 
+          {maxItems !== undefined && !canAdd && !showForm && (
+            capNotice ? (
+              <div className="mt-2 text-xs text-spert-text-muted">{capNotice}</div>
+            ) : (
+              <p className="mt-2 text-xs text-spert-text-muted">
+                Maximum of {maxItems} items reached.
+              </p>
+            )
+          )}
+
           {showSoftWarning && !showForm && softLimitMessage && (
             <p className="mt-2 text-xs text-spert-warning-dark dark:text-yellow-400">
               {softLimitMessage}
-            </p>
-          )}
-
-          {maxItems !== undefined && !canAdd && !showForm && (
-            <p className="mt-2 text-xs text-spert-text-muted">
-              Maximum of {maxItems} items reached.
             </p>
           )}
 

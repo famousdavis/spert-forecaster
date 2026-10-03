@@ -71,7 +71,8 @@ describe('named cases — each one tells two candidate rules apart', () => {
 
   it('the allowance grows with k — a fixed one would be wrong at both ends', () => {
     // k = 12, all twelve figures rounded up by half a hundredth: six hundredths
-    // over, honestly. A fixed allowance sized to MAX_MILESTONES (10) is 5.5.
+    // over, honestly. A fixed allowance sized to the panel's add cap of 10 is 5.5,
+    // and an Update can carry k well past that cap.
     const sizes = Array.from({ length: 12 }, () => 0.13)
     const t = thresholds(sizes)
     const backlog = storyMapRound2(12 * 0.125)

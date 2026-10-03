@@ -1,0 +1,328 @@
+{
+  "version": "0.45.0",
+  "exportedAt": "2026-10-02T20:17:51.978Z",
+  "projects": [
+    {
+      "name": "Bystander",
+      "unitOfMeasure": "Story Points",
+      "sprintCadenceWeeks": 2,
+      "firstSprintStartDate": "2026-01-05",
+      "id": "4fd2f5ba-bfad-4adf-b80a-503d19abbd94",
+      "createdAt": "2026-10-02T20:17:51.969Z",
+      "updatedAt": "2026-10-02T20:17:51.969Z",
+      "milestones": [
+        {
+          "name": "Native A",
+          "backlogSize": 30,
+          "color": "#10b981",
+          "showOnChart": true,
+          "id": "eb9eb0d1-3a69-45f8-88c2-cd008f165d5c",
+          "createdAt": "2026-10-02T20:17:51.969Z",
+          "updatedAt": "2026-10-02T20:17:51.969Z"
+        },
+        {
+          "name": "Native Done",
+          "backlogSize": 0,
+          "color": "#3b82f6",
+          "showOnChart": false,
+          "id": "a70fa5eb-3945-4b66-9b64-c36efb9be441",
+          "createdAt": "2026-10-02T20:17:51.969Z",
+          "updatedAt": "2026-10-02T20:17:51.969Z"
+        }
+      ]
+    },
+    {
+      "id": "prod-growth",
+      "name": "Growth Product",
+      "sprintCadenceWeeks": 2,
+      "firstSprintStartDate": "2026-01-01",
+      "unitOfMeasure": "Story Points",
+      "milestones": [
+        {
+          "id": "rel-12",
+          "name": "Release 13",
+          "backlogSize": 10,
+          "color": "#0d9488",
+          "showOnChart": true,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-10-02T20:17:51.978Z"
+        },
+        {
+          "id": "rel-13",
+          "name": "Release 14",
+          "backlogSize": 10,
+          "color": "#ea580c",
+          "showOnChart": true,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-10-02T20:17:51.978Z"
+        },
+        {
+          "id": "rel-14",
+          "name": "Release 15",
+          "backlogSize": 10,
+          "color": "#2563eb",
+          "showOnChart": true,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-10-02T20:17:51.978Z"
+        },
+        {
+          "id": "rel-15",
+          "name": "Release 16",
+          "backlogSize": 10,
+          "color": "#0d9488",
+          "showOnChart": true,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-10-02T20:17:51.978Z"
+        },
+        {
+          "id": "rel-16",
+          "name": "Release 17",
+          "backlogSize": 10,
+          "color": "#ea580c",
+          "showOnChart": true,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-10-02T20:17:51.978Z"
+        },
+        {
+          "id": "rel-17",
+          "name": "Release 18",
+          "backlogSize": 10,
+          "color": "#2563eb",
+          "showOnChart": true,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-10-02T20:17:51.978Z"
+        },
+        {
+          "id": "rel-18",
+          "name": "Release 19",
+          "backlogSize": 10,
+          "color": "#0d9488",
+          "showOnChart": true,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-10-02T20:17:51.978Z"
+        },
+        {
+          "id": "rel-19",
+          "name": "Release 20",
+          "backlogSize": 10,
+          "color": "#ea580c",
+          "showOnChart": true,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-10-02T20:17:51.978Z"
+        },
+        {
+          "id": "rel-20",
+          "name": "Release 21",
+          "backlogSize": 10,
+          "color": "#2563eb",
+          "showOnChart": true,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-10-02T20:17:51.978Z"
+        },
+        {
+          "id": "rel-21",
+          "name": "Release 22",
+          "backlogSize": 10,
+          "color": "#0d9488",
+          "showOnChart": true,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-10-02T20:17:51.978Z"
+        },
+        {
+          "id": "rel-9",
+          "name": "Release 10",
+          "backlogSize": 10,
+          "color": "#0d9488",
+          "showOnChart": true,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-10-02T20:17:51.977Z"
+        },
+        {
+          "id": "rel-10",
+          "name": "Release 11",
+          "backlogSize": 10,
+          "color": "#ea580c",
+          "showOnChart": true,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-10-02T20:17:51.977Z"
+        },
+        {
+          "id": "rel-11",
+          "name": "Release 12",
+          "backlogSize": 10,
+          "color": "#2563eb",
+          "showOnChart": true,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-10-02T20:17:51.977Z"
+        },
+        {
+          "id": "rel-6",
+          "name": "Release 7",
+          "backlogSize": 10,
+          "color": "#4f46e5",
+          "showOnChart": true,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-10-02T20:17:51.977Z"
+        },
+        {
+          "id": "rel-7",
+          "name": "Release 8",
+          "backlogSize": 10,
+          "color": "#ea580c",
+          "showOnChart": true,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-10-02T20:17:51.977Z"
+        },
+        {
+          "id": "rel-8",
+          "name": "Release 9",
+          "backlogSize": 10,
+          "color": "#2563eb",
+          "showOnChart": true,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-10-02T20:17:51.977Z"
+        },
+        {
+          "id": "rel-3",
+          "name": "Release 4",
+          "backlogSize": 10,
+          "color": "#e11d48",
+          "showOnChart": true,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-10-02T20:17:51.976Z"
+        },
+        {
+          "id": "rel-4",
+          "name": "Release 5",
+          "backlogSize": 10,
+          "color": "#d97706",
+          "showOnChart": true,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-10-02T20:17:51.976Z"
+        },
+        {
+          "id": "rel-5",
+          "name": "Release 6",
+          "backlogSize": 10,
+          "color": "#059669",
+          "showOnChart": true,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-10-02T20:17:51.976Z"
+        },
+        {
+          "id": "rel-0",
+          "name": "Release 1",
+          "backlogSize": 10,
+          "color": "#2563eb",
+          "showOnChart": true,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-02-01T00:00:00.000Z"
+        },
+        {
+          "id": "rel-1",
+          "name": "Release 2",
+          "backlogSize": 10,
+          "color": "#0d9488",
+          "showOnChart": true,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-02-01T00:00:00.000Z"
+        },
+        {
+          "id": "rel-2",
+          "name": "Release 3",
+          "backlogSize": 10,
+          "color": "#7c3aed",
+          "showOnChart": true,
+          "createdAt": "2026-01-01T00:00:00.000Z",
+          "updatedAt": "2026-02-01T00:00:00.000Z"
+        }
+      ],
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-10-02T20:17:51.978Z"
+    }
+  ],
+  "sprints": [
+    {
+      "projectId": "4fd2f5ba-bfad-4adf-b80a-503d19abbd94",
+      "sprintNumber": 1,
+      "sprintStartDate": "2026-01-05",
+      "sprintFinishDate": "2026-01-16",
+      "doneValue": 12,
+      "backlogAtSprintEnd": 88,
+      "includedInForecast": true,
+      "id": "148378e0-2e4e-44fe-a486-e6f20b7a4f9e",
+      "createdAt": "2026-10-02T20:17:51.969Z",
+      "updatedAt": "2026-10-02T20:17:51.969Z"
+    },
+    {
+      "id": "sp-1",
+      "projectId": "prod-growth",
+      "sprintNumber": 1,
+      "sprintStartDate": "2026-01-01",
+      "sprintFinishDate": "2026-01-14",
+      "doneValue": 0,
+      "backlogAtSprintEnd": 100,
+      "includedInForecast": true,
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-10-02T20:17:51.978Z"
+    }
+  ],
+  "_originRef": "3ff1a5a5-993e-45bb-8feb-6a4617090b19",
+  "_storageRef": "3ff1a5a5-993e-45bb-8feb-6a4617090b19",
+  "_changeLog": [
+    {
+      "op": "add",
+      "entity": "project",
+      "id": "4fd2f5ba-bfad-4adf-b80a-503d19abbd94",
+      "t": 1790972271
+    },
+    {
+      "op": "add",
+      "entity": "sprint",
+      "id": "148378e0-2e4e-44fe-a486-e6f20b7a4f9e",
+      "t": 1790972271
+    },
+    {
+      "op": "add",
+      "entity": "milestone",
+      "id": "eb9eb0d1-3a69-45f8-88c2-cd008f165d5c",
+      "t": 1790972271
+    },
+    {
+      "op": "add",
+      "entity": "milestone",
+      "id": "a70fa5eb-3945-4b66-9b64-c36efb9be441",
+      "t": 1790972271
+    },
+    {
+      "op": "merge-import",
+      "entity": "dataset",
+      "source": "spert-story-map",
+      "t": 1790972271
+    },
+    {
+      "op": "merge-import",
+      "entity": "dataset",
+      "source": "spert-story-map",
+      "t": 1790972271
+    },
+    {
+      "op": "merge-import",
+      "entity": "dataset",
+      "source": "spert-story-map",
+      "t": 1790972271
+    },
+    {
+      "op": "merge-import",
+      "entity": "dataset",
+      "source": "spert-story-map",
+      "t": 1790972271
+    },
+    {
+      "op": "merge-import",
+      "entity": "dataset",
+      "source": "spert-story-map",
+      "t": 1790972271
+    }
+  ]
+}

@@ -118,13 +118,18 @@ export interface VendoredManifest {
  * accept, one past it must reject. A one-sided check passes just as happily
  * with the limit set wrong.
  *
- * The validator holds all three as PRIVATE constants (`MAX_STRING_LENGTH` and
- * `MAX_NUMERIC_VALUE`) or as a bare literal (the milestone cap, written `10`
- * twice at import-validation.ts:211-212). None can be imported, which is why
- * every pair below probes behaviour rather than reading a value.
+ * ⚠️ KEPT LITERAL ON PURPOSE, though this repo now exports all three
+ * (`STORY_MAP_MILESTONE_LIMIT` in import-limits.ts; `MAX_STRING_LENGTH` and
+ * `MAX_NUMERIC_VALUE` in import-validation.ts). This object records what Story
+ * Map COPIES. Importing the live values would make every pair below compare the
+ * validator with itself, and a changed limit would stay green here while Story
+ * Map's copy went stale.
+ *
+ * The milestone limit here is the one a STORY MAP file is held to. A file this
+ * app wrote is held to `MILESTONE_CEILING` instead — see `milestoneLimitFor`.
  */
 export const FORECASTER_LIMITS = {
-  /** Max milestones per project. */
+  /** Max milestones per project in a file from Story Map (its send limit). */
   MAX_MILESTONES: 10,
   /** Max length of any name field. */
   MAX_STRING_LENGTH: 200,
@@ -165,7 +170,7 @@ export const REGISTER: readonly RegisterRow[] = [
   { id: 'F11', line: 198, message: 'Project at index ${i} has invalid sprintCadenceWeeks (must be 1-52).', status: 'UNREACHABLE', basis: 'cadenceBounded' },
   { id: 'F12', line: 203, message: 'Project at index ${i} has invalid firstSprintStartDate (must be YYYY-MM-DD format).', status: 'PRECLUDED', basis: 'derivedDatesAreReal' },
   { id: 'F13', line: 209, message: 'Project at index ${i} has invalid "milestones" (must be an array).', status: 'UNREACHABLE', basis: 'milestonesArray' },
-  { id: 'F14', line: 212, message: 'Project at index ${i} has more than 10 milestones.', status: 'SHIPPED', basis: null },
+  { id: 'F14', line: 212, message: 'Project at index ${i} has more than ${limit} milestones.', status: 'SHIPPED', basis: null },
   { id: 'F15', line: 218, message: 'Project ${i}, milestone at index ${j} is not a valid object.', status: 'UNREACHABLE', basis: 'milestoneShape' },
   { id: 'F16', line: 221, message: 'Project ${i}, milestone at index ${j} is missing a valid "id".', status: 'UNREACHABLE', basis: 'milestoneShape' },
   { id: 'F17', line: 224, message: 'Project ${i}, duplicate milestone ID "${m.id}" at index ${j}.', status: 'UNREACHABLE', basis: 'milestoneIdsUnique' },

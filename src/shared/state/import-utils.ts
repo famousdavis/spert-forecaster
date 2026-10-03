@@ -4,29 +4,39 @@
 
 import type { Milestone, Project, Sprint } from '@/shared/types'
 import type { ExportData } from './import-validation'
+import {
+  declaresProjectSubsetExport,
+  declaresStoryMapSource,
+  type PROJECT_SUBSET_EXPORT_TYPE,
+  type STORY_MAP_SOURCE,
+} from './import-limits'
 
-// Must match the private MAX_STRING_LENGTH in import-validation.ts. Exported
-// for the clone path (project-store.ts) so both copy paths share one constant.
+// Must equal MAX_STRING_LENGTH in import-validation.ts — storymap-contract.test.ts
+// asserts it. Read by the import copy path's " - Copy (N)" truncation, so a
+// copy's name always fits the limit its next import will check.
 export const MAX_STRING_LENGTH = 200
 
 // --- Import file type guards ---
 // Moved from merge-import.ts in v0.30.0 (that file deleted).
 
 export interface ProjectSubsetExportData extends ExportData {
-  _exportType: 'spert-forecaster-project-export'
+  _exportType: typeof PROJECT_SUBSET_EXPORT_TYPE
 }
 
 // Story Map exports set source: 'spert-story-map' (NOT _exportType).
 export interface StoryMapExportData extends ExportData {
-  source: 'spert-story-map'
+  source: typeof STORY_MAP_SOURCE
 }
 
+// Both predicates DELEGATE to import-limits.ts, which the validator's
+// `milestoneLimitFor` also reads — so the file the validator limits as Story
+// Map's is exactly the file classified as Story Map's here.
 export function isProjectSubsetExport(data: ExportData): data is ProjectSubsetExportData {
-  return (data as unknown as Record<string, unknown>)._exportType === 'spert-forecaster-project-export'
+  return declaresProjectSubsetExport(data as unknown as Record<string, unknown>)
 }
 
 export function isStoryMapExport(data: ExportData): data is StoryMapExportData {
-  return (data as unknown as Record<string, unknown>).source === 'spert-story-map'
+  return declaresStoryMapSource(data as unknown as Record<string, unknown>)
 }
 
 // What a Story Map payload's `milestone.backlogSize` MEANS.

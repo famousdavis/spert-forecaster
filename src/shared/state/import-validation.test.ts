@@ -4,6 +4,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { validateImportData } from './import-validation'
+import { MILESTONE_CEILING, STORY_MAP_MILESTONE_LIMIT } from './import-limits'
 
 /** Helper: minimal valid project */
 function makeProject(overrides: Record<string, unknown> = {}) {
@@ -238,7 +239,7 @@ describe('validateImportData – milestone validation', () => {
     ).toThrow('invalid "milestones" (must be an array)')
   })
 
-  it('rejects more than 10 milestones', () => {
+  it('rejects more than 10 milestones in a file without workspace tokens', () => {
     const milestones = Array.from({ length: 11 }, (_, i) =>
       makeMilestone({ id: `ms-${i}`, name: `MS ${i}`, backlogSize: 10 + i }),
     )
@@ -247,11 +248,38 @@ describe('validateImportData – milestone validation', () => {
     ).toThrow('more than 10 milestones')
   })
 
-  it('accepts exactly 10 milestones', () => {
+  it('accepts exactly 10 milestones in a file without workspace tokens', () => {
     const milestones = Array.from({ length: 10 }, (_, i) =>
       makeMilestone({ id: `ms-${i}`, name: `MS ${i}`, backlogSize: 10 + i }),
     )
     expect(validateImportData(makeExportData([makeProject({ milestones })]))).toBe(true)
+  })
+
+  // This app's workspace export carries both workspace reconciliation tokens, and
+  // its own files are held to the ceiling, not to Story Map's send limit.
+  describe('a file carrying both workspace reconciliation tokens', () => {
+    const many = (n: number) => Array.from({ length: n }, (_, i) =>
+      makeMilestone({ id: `ms-${i}`, name: `MS ${i}`, backlogSize: 10 + i }))
+    const withTokens = (n: number) => ({
+      ...(makeExportData([makeProject({ milestones: many(n) })]) as Record<string, unknown>),
+      _originRef: 'origin-token', _storageRef: 'storage-token',
+    })
+
+    it('accepts one past the Story Map limit, and the ceiling itself', () => {
+      expect(validateImportData(withTokens(STORY_MAP_MILESTONE_LIMIT + 1))).toBe(true)
+      expect(validateImportData(withTokens(MILESTONE_CEILING))).toBe(true)
+    })
+
+    it('refuses one past the ceiling, naming the ceiling', () => {
+      expect(() => validateImportData(withTokens(MILESTONE_CEILING + 1)))
+        .toThrow(`Project at index 0 has more than ${MILESTONE_CEILING} milestones.`)
+    })
+
+    it('is held to the Story Map limit again when one token is missing', () => {
+      const file = withTokens(STORY_MAP_MILESTONE_LIMIT + 1) as Record<string, unknown>
+      delete file._storageRef
+      expect(() => validateImportData(file)).toThrow(`more than ${STORY_MAP_MILESTONE_LIMIT} milestones`)
+    })
   })
 
   it('rejects non-object milestone', () => {

@@ -6,8 +6,10 @@ import type { Project, Sprint } from '@/shared/types'
 import type { ChangeLogEntry } from '@/shared/state/storage'
 import { APP_VERSION } from '@/shared/constants'
 import { today } from '@/shared/lib/dates'
+import { PROJECT_SUBSET_EXPORT_TYPE } from '@/shared/state/import-limits'
 
-export const PROJECT_SUBSET_EXPORT_TYPE = 'spert-forecaster-project-export'
+// Owned by import-limits.ts, which the importer's limit and classifier read too.
+export { PROJECT_SUBSET_EXPORT_TYPE }
 
 export interface ExportProjectsState {
   projects: Project[]
@@ -102,7 +104,11 @@ export function buildProjectSubsetExport(
   return payload
 }
 
-function downloadJson(filename: string, payload: unknown): void {
+/**
+ * Save `payload` as a JSON download and return the EXACT string written, so the
+ * export check judges the bytes the file holds, not a re-serialisation.
+ */
+export function downloadJson(filename: string, payload: unknown): string {
   const json = JSON.stringify(payload, null, 2)
   const blob = new Blob([json], { type: 'application/json' })
   const url = URL.createObjectURL(blob)
@@ -113,6 +119,7 @@ function downloadJson(filename: string, payload: unknown): void {
   a.click()
   document.body.removeChild(a)
   URL.revokeObjectURL(url)
+  return json
 }
 
 /**
@@ -122,14 +129,14 @@ function downloadJson(filename: string, payload: unknown): void {
 export function exportSingleProject(
   projectId: string,
   state: ExportProjectsState,
-): { filename: string } {
+): { filename: string; json: string } {
   const project = state.projects.find((p) => p.id === projectId)
   if (!project) throw new Error('Project not found')
 
   const payload = buildProjectSubsetExport([projectId], state)
   const filename = `spert-forecaster-${slugifyProjectName(project.name)}-${today()}.json`
-  downloadJson(filename, payload)
-  return { filename }
+  const json = downloadJson(filename, payload)
+  return { filename, json }
 }
 
 /**
@@ -140,12 +147,12 @@ export function exportSingleProject(
 export function exportSelectedProjects(
   projectIds: string[],
   state: ExportProjectsState,
-): { filename: string; exported: number } {
+): { filename: string; exported: number; json: string } {
   const payload = buildProjectSubsetExport(projectIds, state)
   const filename =
     payload.projects.length === 1
       ? `spert-forecaster-${slugifyProjectName(payload.projects[0].name)}-${today()}.json`
       : `spert-forecaster-projects-${today()}.json`
-  downloadJson(filename, payload)
-  return { filename, exported: payload.projects.length }
+  const json = downloadJson(filename, payload)
+  return { filename, exported: payload.projects.length, json }
 }

@@ -4,6 +4,12 @@
 
 import type { Project, Sprint, Milestone, ProductivityAdjustment } from '@/shared/types'
 import type { ChangeLogEntry } from './storage'
+import {
+  STORY_MAP_MILESTONE_LIMIT,
+  MILESTONE_CEILING,
+  declaresStoryMapSource,
+  declaresProjectSubsetExport,
+} from './import-limits'
 
 export interface ExportData {
   version: string
@@ -19,9 +25,10 @@ export interface ExportData {
   _exportedById?: string
 }
 
-// Validation constants
-const MAX_STRING_LENGTH = 200
-const MAX_NUMERIC_VALUE = 999999
+// Validation constants. The first two are exported so the export check can
+// quote them in its reasons (refusal-reasons.ts).
+export const MAX_STRING_LENGTH = 200
+export const MAX_NUMERIC_VALUE = 999999
 const MIN_SPRINT_NUMBER = 1
 const MAX_SPRINT_NUMBER = 10000
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/
@@ -48,6 +55,37 @@ function isValidIsoDate(dateStr: unknown): boolean {
  */
 function isValidNumber(value: unknown, min: number, max: number): boolean {
   return typeof value === 'number' && Number.isFinite(value) && value >= min && value <= max
+}
+
+const isNonEmptyString = (v: unknown): boolean => typeof v === 'string' && v.length > 0
+
+/**
+ * The most milestones a project may carry in THIS file. The first matching row
+ * wins:
+ *
+ *   1. it declares `source: 'spert-story-map'` — whatever else it carries,
+ *      `_exportType` included                        → STORY_MAP_MILESTONE_LIMIT
+ *   2. it is this app's per-project export          → MILESTONE_CEILING
+ *   3. both workspace reconciliation tokens are
+ *      non-empty strings (this app's workspace export) → MILESTONE_CEILING
+ *   4. anything else — Story Map files from before it declared `source`, and
+ *      hand-made files                              → STORY_MAP_MILESTONE_LIMIT
+ *
+ * Row 1 keeps Story Map's contract (its send limit) whatever else a file says.
+ * Row 4 keeps old Story Map files at the limit they were always held to.
+ *
+ * ⚠️ The tokens are '' when `window` is undefined (`getWorkspaceId`), so a
+ * workspace export built outside a browser is judged by row 4. Every test that
+ * round-trips one runs in jsdom.
+ *
+ * Lives here, not in `import-limits.ts`, so a test that mocks the constants
+ * reaches it.
+ */
+export function milestoneLimitFor(d: Record<string, unknown>): number {
+  if (declaresStoryMapSource(d)) return STORY_MAP_MILESTONE_LIMIT
+  if (declaresProjectSubsetExport(d)) return MILESTONE_CEILING
+  if (isNonEmptyString(d._originRef) && isNonEmptyString(d._storageRef)) return MILESTONE_CEILING
+  return STORY_MAP_MILESTONE_LIMIT
 }
 
 // --- Field allowlists (M1, v0.28.3) ---
@@ -189,6 +227,7 @@ export function validateImportData(data: unknown): data is ExportData {
 
   // Track project IDs to detect duplicates
   const projectIds = new Set<string>()
+  const limit = milestoneLimitFor(d)
 
   for (let i = 0; i < d.projects.length; i++) {
     const p = d.projects[i] as Record<string, unknown> | null
@@ -231,8 +270,8 @@ export function validateImportData(data: unknown): data is ExportData {
       if (!Array.isArray(p.milestones)) {
         throw new Error(`Project at index ${i} has invalid "milestones" (must be an array).`)
       }
-      if (p.milestones.length > 10) {
-        throw new Error(`Project at index ${i} has more than 10 milestones.`)
+      if (p.milestones.length > limit) {
+        throw new Error(`Project at index ${i} has more than ${limit} milestones.`)
       }
       const milestoneIds = new Set<string>()
       for (let j = 0; j < p.milestones.length; j++) {
