@@ -45,9 +45,9 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { join } from 'node:path'
 import { validateImportData } from '../import-validation'
-import { classifyImportData, isStoryMapExport, MAX_STRING_LENGTH as UTILS_MAX_STRING_LENGTH } from '../import-utils'
+import { classifyImportData, isStoryMapExport, nextCopyName } from '../import-utils'
 import { MAX_MILESTONES } from '@/features/forecast/constants'
-import { MILESTONE_CEILING } from '../import-limits'
+import { MILESTONE_CEILING, MAX_STRING_LENGTH } from '../import-limits'
 import { getLastSprintBacklog } from '@/shared/lib/forecast-derivations'
 import { exceedsBacklog } from '@/shared/lib/backlog-tolerance'
 import type { Sprint } from '@/shared/types'
@@ -908,16 +908,22 @@ describe('the limits inside THIS repo', () => {
       .toBe('Project at index 0 has more than 100 milestones.')
   })
 
-  it('import-utils MAX_STRING_LENGTH is the cap the validator enforces', () => {
-    // import-utils.ts carries its own MAX_STRING_LENGTH and the comment "Must
-    // equal MAX_STRING_LENGTH in import-validation.ts"; this is that assertion.
-    // It sizes the " - Copy (N)" truncation, so a drift silently produces copy
-    // names the importer would refuse.
-    expect(UTILS_MAX_STRING_LENGTH).toBe(FORECASTER_LIMITS.MAX_STRING_LENGTH)
-    expect(validateImportData(
-      withProject((proj) => { proj.name = 'N'.repeat(UTILS_MAX_STRING_LENGTH) }),
-    )).toBe(true)
-    expect(messageFrom(withProject((proj) => { proj.name = 'N'.repeat(UTILS_MAX_STRING_LENGTH + 1) })))
+  it('the " - Copy (N)" truncation produces names the validator accepts', () => {
+    // Until v0.46.1, import-utils.ts carried its own copy of MAX_STRING_LENGTH
+    // and this test held the two equal. There is one now, in import-limits.ts,
+    // read by the validator, the import copy and the clone. What still needs
+    // holding is the effect: the LONGEST name the truncation can produce — the
+    // UUID fallback once (1) to (99) are taken — is exactly the cap, and the
+    // validator accepts it.
+    expect(MAX_STRING_LENGTH).toBe(FORECASTER_LIMITS.MAX_STRING_LENGTH)
+    const base = 'N'.repeat(MAX_STRING_LENGTH)
+    const taken = new Set<string>()
+    for (let k = 1; k <= 99; k++) nextCopyName(base, taken, MAX_STRING_LENGTH)
+    const longest = nextCopyName(base, taken, MAX_STRING_LENGTH)
+    expect(longest).toMatch(/ - Copy \([0-9a-f]{8}\)$/)
+    expect(longest).toHaveLength(MAX_STRING_LENGTH)
+    expect(validateImportData(withProject((proj) => { proj.name = longest }))).toBe(true)
+    expect(messageFrom(withProject((proj) => { proj.name = 'N'.repeat(MAX_STRING_LENGTH + 1) })))
       .toBe('Project at index 0 has a name exceeding 200 characters.')
   })
 })

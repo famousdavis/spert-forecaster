@@ -7,6 +7,8 @@ import type { ChangeLogEntry } from './storage'
 import {
   STORY_MAP_MILESTONE_LIMIT,
   MILESTONE_CEILING,
+  MAX_STRING_LENGTH,
+  MAX_NUMERIC_VALUE,
   declaresStoryMapSource,
   declaresProjectSubsetExport,
 } from './import-limits'
@@ -25,18 +27,24 @@ export interface ExportData {
   _exportedById?: string
 }
 
-// Validation constants. The first two are exported so the export check can
-// quote them in its reasons (refusal-reasons.ts).
-export const MAX_STRING_LENGTH = 200
-export const MAX_NUMERIC_VALUE = 999999
+// Validation constants. MAX_STRING_LENGTH and MAX_NUMERIC_VALUE live in
+// import-limits.ts, where the forms and the export check read them too.
 const MIN_SPRINT_NUMBER = 1
 const MAX_SPRINT_NUMBER = 10000
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/
 
 /**
- * Validate ISO date string format (YYYY-MM-DD) and check if it's a valid date
+ * The latest date `isValidIsoDate` accepts: DATE_REGEX allows four year digits.
+ * SprintForm's finish-date input uses it as its `max`, so the input and the rule
+ * state the same bound.
  */
-function isValidIsoDate(dateStr: unknown): boolean {
+export const MAX_ISO_DATE = '9999-12-31'
+
+/**
+ * Validate ISO date string format (YYYY-MM-DD) and check if it's a valid date.
+ * Exported so SprintForm applies this rule, not a restatement of it.
+ */
+export function isValidIsoDate(dateStr: unknown): boolean {
   if (typeof dateStr !== 'string') return false
   if (!DATE_REGEX.test(dateStr)) return false
 

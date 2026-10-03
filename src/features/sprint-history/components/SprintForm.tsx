@@ -13,6 +13,19 @@ import {
   resolveAllSprintDates,
   getNextBusinessDay,
 } from '@/shared/lib/dates'
+import { MAX_NUMERIC_VALUE } from '@/shared/state/import-limits'
+import { isValidIsoDate, MAX_ISO_DATE } from '@/shared/state/import-validation'
+
+// The bounds below are checked in `isValid` as well as in `min`/`max`: the
+// native check runs only when a browser submits the form, and `isValid` keeps
+// the button disabled. The figures take the import validator's bounds from the
+// same constant, and the finish date takes its date rule itself, so no value
+// this form saves is refused when its file comes back.
+const isFigureInRange = (value: string) => {
+  const n = Number(value)
+  return n >= 0 && n <= MAX_NUMERIC_VALUE
+}
+const isOptionalFigureInRange = (value: string) => value.length === 0 || isFigureInRange(value)
 
 interface SprintFormProps {
   sprint: Sprint | null
@@ -119,11 +132,16 @@ export function SprintForm({
   }
 
   const isFinishDateValid = !customFinishDate || customFinishDate >= sprintStartDate
+  // The finish date is saved as `sprintFinishDate`, and as `customFinishDate`
+  // when it differs from the computed one, so this one check covers both. A
+  // five-digit year passes the string comparison above; it fails this.
   const isValid =
     sprintStartDate.length > 0 &&
     effectiveFinishDate.length > 0 &&
+    isValidIsoDate(effectiveFinishDate) &&
     doneValue.length > 0 &&
-    Number(doneValue) >= 0 &&
+    isFigureInRange(doneValue) &&
+    isOptionalFigureInRange(backlogAtSprintEnd) &&
     isFinishDateValid
 
   const needsFirstSprintDate = !project.firstSprintStartDate && !sprint
@@ -158,7 +176,7 @@ export function SprintForm({
             id="doneValue"
             type="number"
             min="0"
-            max="999999"
+            max={MAX_NUMERIC_VALUE}
             step="any"
             value={doneValue}
             onChange={(e) => setDoneValue(e.target.value)}
@@ -185,7 +203,7 @@ export function SprintForm({
             id="backlogAtSprintEnd"
             type="number"
             min="0"
-            max="999999"
+            max={MAX_NUMERIC_VALUE}
             step="any"
             value={backlogAtSprintEnd}
             onChange={(e) => setBacklogAtSprintEnd(e.target.value)}
@@ -208,6 +226,7 @@ export function SprintForm({
               type="date"
               value={customFinishDate || computedFinishDate}
               min={sprintStartDate}
+              max={MAX_ISO_DATE}
               onChange={(e) => setCustomFinishDate(e.target.value)}
               className={cn(
                 'p-2 text-[0.9rem] rounded dark:text-gray-100',

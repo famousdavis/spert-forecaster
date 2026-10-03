@@ -13,6 +13,7 @@ import {
   validateImportData,
   type ExportData,
 } from './project-store'
+import { MAX_STRING_LENGTH } from './import-limits'
 import { DEFAULT_BURN_UP_CONFIG } from '@/shared/types/burn-up'
 import { syncBus } from '@/shared/firebase/sync-bus'
 import type { ChangeLogEntry } from './storage'
@@ -323,6 +324,34 @@ describe('cloneProject', () => {
 
     const names = useProjectStore.getState().projects.map((p) => p.name)
     expect(names).toContain('Source - Copy (3)')
+  })
+
+  // v0.46.1: the clone truncates to MAX_STRING_LENGTH, as the import copy does.
+  // Before, a clone of a 200-character name was 211 characters, and every export
+  // holding it was refused on re-import.
+  it('a clone of a name at the limit stays within it, and its export re-imports', () => {
+    const atLimit = 'N'.repeat(MAX_STRING_LENGTH)
+    useProjectStore.setState({ projects: [makeProject({ id: 'p1', name: atLimit })] })
+
+    const cloneId = useProjectStore.getState().cloneProject('p1')
+
+    const clone = useProjectStore.getState().projects.find((p) => p.id === cloneId)!
+    expect(clone.name).toBe(`${'N'.repeat(MAX_STRING_LENGTH - ' - Copy (XXXXXXXX)'.length)} - Copy (1)`)
+    expect(clone.name.length).toBeLessThanOrEqual(MAX_STRING_LENGTH)
+    expect(validateImportData(JSON.parse(JSON.stringify(useProjectStore.getState().exportData())))).toBe(true)
+  })
+
+  it('clones of clones never grow past the limit', () => {
+    // Each untruncated clone adds 11 characters, so 25 + 11 × 16 = 201 passed
+    // the limit at the 16th link; 20 links leaves no doubt.
+    useProjectStore.setState({ projects: [makeProject({ id: 'p0', name: 'N'.repeat(25) })] })
+
+    let sourceId = 'p0'
+    for (let k = 0; k < 20; k++) sourceId = useProjectStore.getState().cloneProject(sourceId)!
+
+    const lengths = useProjectStore.getState().projects.map((p) => p.name.length)
+    expect(Math.max(...lengths)).toBeLessThanOrEqual(MAX_STRING_LENGTH)
+    expect(validateImportData(JSON.parse(JSON.stringify(useProjectStore.getState().exportData())))).toBe(true)
   })
 
   it('deep-clones milestones with new ids', () => {

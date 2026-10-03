@@ -5,16 +5,12 @@
 import type { Milestone, Project, Sprint } from '@/shared/types'
 import type { ExportData } from './import-validation'
 import {
+  MAX_STRING_LENGTH,
   declaresProjectSubsetExport,
   declaresStoryMapSource,
   type PROJECT_SUBSET_EXPORT_TYPE,
   type STORY_MAP_SOURCE,
 } from './import-limits'
-
-// Must equal MAX_STRING_LENGTH in import-validation.ts — storymap-contract.test.ts
-// asserts it. Read by the import copy path's " - Copy (N)" truncation, so a
-// copy's name always fits the limit its next import will check.
-export const MAX_STRING_LENGTH = 200
 
 // --- Import file type guards ---
 // Moved from merge-import.ts in v0.30.0 (that file deleted).
@@ -305,8 +301,8 @@ export function normalizeProjectName(name: string): string {
 // the 8-char UUID fallback path (" - Copy (XXXXXXXX)" = exactly 18 chars), so
 // UUID-fallback candidates fit without post-construction truncation.
 //
-// Pass Number.MAX_SAFE_INTEGER for maxLength when truncation is undesirable
-// (e.g. cloneProject, which operates on already-trusted in-memory names).
+// Both callers — the import copy path and cloneProject — pass
+// MAX_STRING_LENGTH, so every copy name fits the limit its next import checks.
 //
 // MUTATES the provided set: the returned name is added to existingNames before
 // returning, so callers in a loop are intra-batch-collision-safe by default.
@@ -321,11 +317,7 @@ export function nextCopyName(
   maxLength: number,
 ): string {
   const SUFFIX_OVERHEAD = ' - Copy (XXXXXXXX)'.length // 18; covers numeric and UUID paths
-  const maxBase =
-    maxLength === Number.MAX_SAFE_INTEGER
-      ? baseName.trimEnd().length
-      : maxLength - SUFFIX_OVERHEAD
-  const truncatedBase = baseName.trimEnd().slice(0, maxBase)
+  const truncatedBase = baseName.trimEnd().slice(0, maxLength - SUFFIX_OVERHEAD)
   let suffix = 1
   let candidate = `${truncatedBase} - Copy (${suffix})`
   while (existingNames.has(candidate) && suffix < 99) {

@@ -119,11 +119,10 @@ export interface VendoredManifest {
  * with the limit set wrong.
  *
  * ⚠️ KEPT LITERAL ON PURPOSE, though this repo now exports all three
- * (`STORY_MAP_MILESTONE_LIMIT` in import-limits.ts; `MAX_STRING_LENGTH` and
- * `MAX_NUMERIC_VALUE` in import-validation.ts). This object records what Story
- * Map COPIES. Importing the live values would make every pair below compare the
- * validator with itself, and a changed limit would stay green here while Story
- * Map's copy went stale.
+ * (`STORY_MAP_MILESTONE_LIMIT`, `MAX_STRING_LENGTH` and `MAX_NUMERIC_VALUE`, all
+ * in import-limits.ts). This object records what Story Map COPIES. Importing the
+ * live values would make every pair below compare the validator with itself,
+ * and a changed limit would stay green here while Story Map's copy went stale.
  *
  * The milestone limit here is the one a STORY MAP file is held to. A file this
  * app wrote is held to `MILESTONE_CEILING` instead — see `milestoneLimitFor`.
