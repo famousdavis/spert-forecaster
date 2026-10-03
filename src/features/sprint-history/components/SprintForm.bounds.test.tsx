@@ -134,7 +134,7 @@ describe('SprintForm applies the validator\'s date rule to the Finish Date', () 
     ['the day after MAX_ISO_DATE', '10000-01-01', true],
     ['MAX_ISO_DATE itself', MAX_ISO_DATE, false],
     ['an ordinary later date', '2026-01-20', false],
-  ] as const)('a Finish Date changed to %s: disabled = %s', (_label, value, disabled) => {
+  ] as const)('a Finish Date changed to %s (%s): disabled = %s', (_label, value, disabled) => {
     const { done, finish, button } = renderForm(null)
     fireEvent.change(done, { target: { value: '5' } })
     fireEvent.change(finish, { target: { value } })
