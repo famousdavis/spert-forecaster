@@ -21,6 +21,12 @@ import {
   getNextBusinessDay,
   resolveAllSprintDates,
   resolveAnchorDate,
+  DATE_REGEX,
+  MAX_ISO_DATE,
+  isValidIsoDate,
+  findInvalidSprintDates,
+  findResolvedDateSpill,
+  spillRank,
 } from './dates'
 
 describe('addDays', () => {
@@ -614,5 +620,236 @@ describe('today', () => {
   it('handles December without rolling the year', () => {
     at(2026, 11, 31) // 31 December 2026
     expect(today()).toBe('2026-12-31')
+  })
+})
+
+// ── Brief 38 PR C: the date rule, the guard, the finder and the spill ────────
+// Every case below runs on INVALID inputs too: the guard exists for them.
+
+describe('isValidIsoDate (the import validator\'s rule, moved here verbatim)', () => {
+  it.each(['2026-09-04', '2028-02-29', '2026-12-31', MAX_ISO_DATE, '0000-01-01'])('accepts %s', (d) => {
+    expect(isValidIsoDate(d)).toBe(true)
+  })
+
+  it.each([
+    '20276-09-04', '202760-09-04', '2026-02-30', '2026-02-29', '2026-04-31', '2026-13-01', '2026-00-10',
+    '2026-09-00', '2026-02-32', '202-09-04', '2026-9-4', ' 2026-09-04', '2026-09-04 ', 'x2026-09-04',
+    '2026-09-04x', '', '+010000-01-03',
+  ])('refuses %s', (d) => {
+    expect(isValidIsoDate(d)).toBe(false)
+  })
+
+  it.each([null, undefined, 20260904, {}, ['2026-09-04']])('refuses a non-string (%s)', (v) => {
+    expect(isValidIsoDate(v)).toBe(false)
+  })
+
+  it('refuses a String object even when its text is a valid date (the typeof check)', () => {
+    expect(isValidIsoDate(new String('2026-09-04'))).toBe(false)
+  })
+
+  it('MAX_ISO_DATE is the last date DATE_REGEX can spell', () => {
+    expect(MAX_ISO_DATE).toBe('9999-12-31')
+    expect(DATE_REGEX.test(MAX_ISO_DATE)).toBe(true)
+    expect(DATE_REGEX.test('10000-01-01')).toBe(false)
+  })
+})
+
+describe('resolveAllSprintDates — the guard', () => {
+  const two = (custom: unknown) =>
+    resolveAllSprintDates('2026-08-10', 2, [{ sprintNumber: 1, customFinishDate: custom as string }, { sprintNumber: 2 }])
+
+  it.each(['20276-09-04', '2026-02-30', '2026-13-01', null])(
+    'a refused custom date (%s) resolves to the computed finish and carries the raw value',
+    (bad) => {
+      const r = two(bad)
+      expect(r.get(1)).toEqual({ startDate: '2026-08-10', finishDate: '2026-08-21', invalidFinishDate: bad })
+      expect(r.get(2)).toEqual({ startDate: '2026-08-24', finishDate: '2026-09-04' })
+    }
+  )
+
+  it('a valid custom date is used, with no invalidFinishDate key', () => {
+    const r = two('2026-08-28')
+    expect(r.get(1)).toEqual({ startDate: '2026-08-10', finishDate: '2026-08-28' })
+    expect('invalidFinishDate' in r.get(1)!).toBe(false)
+    expect(r.get(2)!.startDate).toBe('2026-08-31')
+  })
+
+  it('an absent custom date is the computed one, with no invalidFinishDate key', () => {
+    const r = two(undefined)
+    expect(r.get(1)).toEqual({ startDate: '2026-08-10', finishDate: '2026-08-21' })
+    expect('invalidFinishDate' in r.get(1)!).toBe(false)
+  })
+
+  it('resolveAnchorDate on a refused last custom date returns the computed next start', () => {
+    expect(resolveAnchorDate('2026-08-10', 2, [{ sprintNumber: 1 }, { sprintNumber: 2, customFinishDate: '20276-09-04' }]))
+      .toBe('2026-09-07')
+  })
+})
+
+describe('findInvalidSprintDates', () => {
+  const s = (n: number, extra: Record<string, unknown> = {}) =>
+    ({ id: `s${n}`, sprintNumber: n, sprintStartDate: '2026-01-05', sprintFinishDate: '2026-01-16', ...extra })
+  const keys = (found: ReturnType<typeof findInvalidSprintDates>) =>
+    found.map((d) => `${d.sprintNumber}:${d.field}:${String(d.value)}`)
+
+  it('counts a field only when it is not undefined: an own undefined key is absent', () => {
+    expect(findInvalidSprintDates([s(1, { customFinishDate: undefined })])).toEqual([])
+  })
+
+  it('flags null and non-strings, as the validator does', () => {
+    expect(keys(findInvalidSprintDates([s(1, { customFinishDate: null }), s(2, { sprintStartDate: 20260105 })])))
+      .toEqual(['1:customFinishDate:null', '2:sprintStartDate:20260105'])
+  })
+
+  it('lists every refused field, in sprint order, then the validator\'s field order', () => {
+    const found = findInvalidSprintDates([
+      s(5, { sprintStartDate: '+020276-09-05' }),
+      s(3, { sprintStartDate: 'x', sprintFinishDate: '20276-09-04', customFinishDate: '2026-02-30' }),
+    ])
+    expect(keys(found)).toEqual([
+      '3:sprintStartDate:x', '3:sprintFinishDate:20276-09-04', '3:customFinishDate:2026-02-30', '5:sprintStartDate:+020276-09-05',
+    ])
+    expect(found.map((d) => d.sprintId)).toEqual(['s3', 's3', 's3', 's5'])
+  })
+
+  it('a sprint whose dates all pass is not listed', () => {
+    expect(findInvalidSprintDates([s(1, { customFinishDate: '2026-01-14' })])).toEqual([])
+  })
+})
+
+describe('findResolvedDateSpill — exactly the spilled sprints, and every contributing custom date', () => {
+  type H = Array<{ sprintNumber: number; customFinishDate?: string }>
+  const run = (hs: H, first = '2026-08-10') =>
+    findResolvedDateSpill(hs, resolveAllSprintDates(first, 2, hs), resolveAnchorDate(first, 2, hs))
+  const n = (k: number, custom?: string) => (custom ? { sprintNumber: k, customFinishDate: custom } : { sprintNumber: k })
+  const Y = MAX_ISO_DATE
+  const cause = (k: number, finishDate = Y) => ({ sprintNumber: k, finishDate })
+
+  it('a valid 9999-12-31 mid-history spills the next sprint, and is its one cause', () => {
+    expect(run([n(1), n(2, Y), n(3)])).toEqual({ sprintNumber: 3, spilledSprints: [3], causes: [cause(2)] })
+  })
+
+  it('on the last sprint it spills only the forecast start', () => {
+    expect(run([n(1), n(2, Y)])).toEqual({ sprintNumber: null, spilledSprints: [], causes: [cause(2)] })
+  })
+
+  it('two custom dates that each push the calendar past 9999 are both causes (the stuck shape)', () => {
+    expect(run([n(1), n(2, Y), n(3, Y)])).toEqual({ sprintNumber: 3, spilledSprints: [3], causes: [cause(2), cause(3)] })
+  })
+
+  it('an earlier custom date whose computed successors run past 9999 is the one cause', () => {
+    expect(run([n(1, '9999-11-26'), n(2), n(3), n(4)]))
+      .toEqual({ sprintNumber: 4, spilledSprints: [4], causes: [cause(1, '9999-11-26')] })
+  })
+
+  it('reports the first spilled sprint exactly, and every spilled sprint after it', () => {
+    expect(run([n(1), n(2, Y), n(3), n(4)])).toEqual({ sprintNumber: 3, spilledSprints: [3, 4], causes: [cause(2)] })
+  })
+
+  it('an earlier custom date that pushes nothing is not a cause; only the latest before the spill is', () => {
+    expect(run([n(1, '2026-08-20'), n(2, Y), n(3)])?.causes).toEqual([cause(2)])
+  })
+
+  it('a custom date after the spill that pulls the schedule back is not a cause, and ends the spill', () => {
+    expect(run([n(1), n(2, Y), n(3), n(4, '9999-12-28')])).toEqual({ sprintNumber: 3, spilledSprints: [3, 4], causes: [cause(2)] })
+  })
+
+  it('a spill need not run to the last sprint (NM1: only sprints 4–6)', () => {
+    const hs = [n(1), n(2), n(3, Y), n(4), n(5), n(6, '2026-03-25'), n(7), n(8)]
+    expect(run(hs, '2026-01-05')).toEqual({ sprintNumber: 4, spilledSprints: [4, 5, 6], causes: [cause(3)] })
+  })
+
+  it('a later custom date can end a spill at once (NM2: only sprint 3)', () => {
+    const hs = [n(1), n(2, Y), n(3, '2026-02-12'), n(4), n(5), n(6), n(7), n(8)]
+    expect(run(hs, '2026-01-05')).toEqual({ sprintNumber: 3, spilledSprints: [3], causes: [cause(2)] })
+  })
+
+  it('9999-12-30 (a Thursday) on the last sprint keeps the forecast start in range', () => {
+    expect(run([n(1), n(2, '9999-12-30')])).toBeNull()
+  })
+
+  it('a schedule that runs out by itself has no cause', () => {
+    expect(run([n(1), n(2)], '9999-12-13')).toEqual({ sprintNumber: 2, spilledSprints: [2], causes: [] })
+  })
+
+  it('an ordinary history does not spill', () => {
+    expect(run([n(1), n(2, '2026-09-11'), n(3)])).toBeNull()
+  })
+
+  it('unsorted input is sorted first', () => {
+    const hs = [n(3), n(2, Y), n(1)]
+    expect(findResolvedDateSpill(hs, resolveAllSprintDates('2026-08-10', 2, hs), resolveAnchorDate('2026-08-10', 2, hs)))
+      .toEqual({ sprintNumber: 3, spilledSprints: [3], causes: [cause(2)] })
+  })
+
+  it('spillRank orders an earlier spill as worse, and no spill as best', () => {
+    const at = (sprintNumber: number | null) => ({ sprintNumber, spilledSprints: [], causes: [] })
+    expect(spillRank(at(3))).toBeLessThan(spillRank(at(5)))
+    expect(spillRank(at(5))).toBeLessThan(spillRank(at(null)))
+    expect(spillRank(at(null))).toBeLessThan(spillRank(null))
+    expect(spillRank(at(null))).toBe(Number.MAX_SAFE_INTEGER)
+    expect(spillRank(null)).toBe(Number.POSITIVE_INFINITY)
+  })
+})
+
+describe('P14 — valid histories resolve exactly as before the guard (differential against f973ae4)', () => {
+  type H = Array<{ sprintNumber: number; customFinishDate?: string }>
+
+  // The oracle: f973ae4's resolveAllSprintDates and resolveAnchorDate, frozen verbatim apart from names.
+  function oracleAll(first: string, cadence: number, hs: H) {
+    const result = new Map<number, { startDate: string; finishDate: string }>()
+    if (hs.length === 0) return result
+    const sorted = [...hs].sort((a, b) => a.sprintNumber - b.sprintNumber)
+    let currentStart = first
+    for (const sprint of sorted) {
+      const prev = result.size > 0 ? sorted[sorted.indexOf(sprint) - 1] : null
+      currentStart = prev ? getNextBusinessDay(result.get(prev.sprintNumber)!.finishDate) : first
+      const computed = calculateSprintFinishDate(currentStart, cadence)
+      result.set(sprint.sprintNumber, { startDate: currentStart, finishDate: sprint.customFinishDate ?? computed })
+    }
+    return result
+  }
+  function oracleAnchor(first: string, cadence: number, hs: H) {
+    if (hs.length === 0) return first
+    const last = oracleAll(first, cadence, hs).get(Math.max(...hs.map((s) => s.sprintNumber)))
+    return last ? getNextBusinessDay(last.finishDate) : first
+  }
+
+  let seed = 20261004
+  const rand = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648 }
+  const pick = <T,>(xs: T[]): T => xs[Math.floor(rand() * xs.length)]
+  const genCustom = (first: string): string | undefined => {
+    if (rand() < 0.4) return addDays(first, Math.floor(rand() * 400))
+    return rand() < 0.1 ? pick(['2028-02-29', MAX_ISO_DATE, '0000-01-01']) : undefined
+  }
+  const genHistory = (first: string): H => {
+    const hs: H = []
+    let k = 0
+    for (let j = 0, count = 1 + Math.floor(rand() * 10); j < count; j++) {
+      k += pick([1, 1, 1, 2])
+      const custom = genCustom(first)
+      hs.push(custom === undefined ? { sprintNumber: k } : { sprintNumber: k, customFinishDate: custom })
+    }
+    return hs
+  }
+  const sameAsOracle = (first: string, cadence: number, hs: H) => {
+    const reversed = [...hs].reverse()
+    const got = resolveAllSprintDates(first, cadence, reversed)
+    expect([...got.entries()]).toEqual([...oracleAll(first, cadence, reversed).entries()])
+    for (const entry of got.values()) expect('invalidFinishDate' in entry).toBe(false)
+    expect(resolveAnchorDate(first, cadence, hs)).toBe(oracleAnchor(first, cadence, hs))
+  }
+
+  it('600 generated histories with valid inputs: identical maps, identical anchors, no invalidFinishDate key', () => {
+    let compared = 0
+    for (let i = 0; i < 600; i++) {
+      const first = pick(['2000-01-03', '2024-02-26', '2026-01-05', '2028-02-28', '2050-12-26', '9999-11-01'])
+      const hs = genHistory(first)
+      if (!hs.every((h) => h.customFinishDate === undefined || isValidIsoDate(h.customFinishDate))) continue
+      sameAsOracle(first, pick([1, 2, 3, 4]), hs)
+      compared++
+    }
+    // The filter must not silently empty the run: most generated histories are valid.
+    expect(compared).toBeGreaterThan(500)
   })
 })

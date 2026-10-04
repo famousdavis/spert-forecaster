@@ -55,6 +55,7 @@ import {
   calculateDeadlineProbability,
 } from '@/features/forecast/lib/deadline'
 import { canRunForecast, getRunForecastBlockedReason } from '@/features/forecast/lib/run-forecast-prereqs'
+import { aiBlockedStatusReason } from '@/shared/lib/sprint-date-texts'
 import { safeParseNumber } from '@/shared/lib/validation'
 import { coversBacklog } from '@/shared/lib/backlog-tolerance'
 import { APP_VERSION } from '@/shared/constants'
@@ -129,13 +130,16 @@ const REDACTED_KEYS = ['_originRef', '_storageRef', '_changeLog', '_exportedBy',
  */
 export function buildSnapshot(input: SnapshotInput): Record<string, unknown> {
   const {
-    project, allSprints, record, view, comparand, storedInputs,
+    project, allSprints, view, comparand, storedInputs,
     isSimulatingProjectId, distributionsEnabled, capturedAt,
   } = input
   const budget = input.byteBudget ?? SNAPSHOT_BYTE_BUDGET
   const notVisibleToYou: string[] = [...BASE_NOT_VISIBLE]
 
   const sprint = deriveSprintData(project, allSprints)
+  // D13: while a date the forecast uses is bad, the body is built as if no run
+  // existed — no runAt, no run-captured figures, no results.
+  const record = sprint.forecastDateBlock ? null : input.record
   const inputs = deriveForecastInputs(
     project, storedInputs, sprint.calculatedStats, sprint.includedSprintCount, sprint.includedSprints
   )
@@ -151,8 +155,12 @@ export function buildSnapshot(input: SnapshotInput): Record<string, unknown> {
   const { status, statusReason } = ladder
   const hasResults = status === 'fresh' || status === 'stale'
 
-  // The anchor: run-captured when a record exists, live otherwise.
+  // The anchor: run-captured when a record exists, live otherwise. While the
+  // forecast is refused the start is reported as unknown (null), never as the
+  // stand-in. ⚠️ Never blank anchorStart itself: percentile and deadline
+  // arithmetic below read it, and throw on ''.
   const anchorStart = record?.runConfig.startDate ?? sprint.forecastStartDate
+  const start = startDateFacts(sprint.forecastDateBlock !== null, record ? 'run-captured' : 'live', anchorStart)
   const anchorCadence = record?.runConfig.sprintCadenceWeeks ?? (project?.sprintCadenceWeeks ?? 0)
   const anchorBacklog = record?.runConfig.remainingBacklog ?? comparand.remainingBacklog
   const anchorLastSprint = record?.runConfig.lastSprintNumber ?? sprint.completedSprintCount
@@ -240,6 +248,7 @@ export function buildSnapshot(input: SnapshotInput): Record<string, unknown> {
       includedSprintCount: sprint.includedSprintCount,
       sprintsTruncated,
       sprintDatesResolved,
+      invalidSprintDates: sprint.invalidStoredDates.map((d) => ({ sprintNumber: d.sprintNumber, field: d.field, value: d.value })),
       velocityStats: {
         count: sprint.calculatedStats.count,
         mean: sprint.calculatedStats.mean,
@@ -257,7 +266,10 @@ export function buildSnapshot(input: SnapshotInput): Record<string, unknown> {
         return {
           sprintNumber: s.sprintNumber,
           startDate: resolved?.startDate ?? s.sprintStartDate,
-          finishDate: resolved?.finishDate ?? s.sprintFinishDate,
+          // A refused custom date is reported raw, never as its stand-in.
+          finishDate: resolved && 'invalidFinishDate' in resolved
+            ? resolved.invalidFinishDate
+            : (resolved?.finishDate ?? s.sprintFinishDate),
           doneValue: s.doneValue,
           backlogAtSprintEnd: s.backlogAtSprintEnd ?? null,
           includedInForecast: s.includedInForecast,
@@ -282,7 +294,7 @@ export function buildSnapshot(input: SnapshotInput): Record<string, unknown> {
       reason: cap(a.reason, SNAPSHOT_TEXT_CAPS.adjustmentReason),
       // Evaluated for EVERY adjustment including disabled ones, so the AI can
       // explain why a disabled or already-past one changes nothing.
-      appliesToForecastPeriod: a.endDate >= anchorStart,
+      appliesToForecastPeriod: start.appliesTo(a.endDate),
     })),
     forecastInputs: {
       mode,
@@ -298,8 +310,8 @@ export function buildSnapshot(input: SnapshotInput): Record<string, unknown> {
       selectedCV: inputs.selectedCV,
       scopeGrowthPerSprint: record?.runConfig.scopeGrowthPerSprint ?? comparand.scopeGrowthPerSprint,
       scopeGrowthModeled: view?.modelScopeGrowth ?? false,
-      forecastStartDate: anchorStart,
-      forecastStartDateSource: record ? 'run-captured' : 'live',
+      forecastStartDate: start.forecastStartDate,
+      forecastStartDateSource: start.forecastStartDateSource,
       trialCount: record?.runConfig.trialCount ?? comparand.trialCount,
     },
     userSelections,
@@ -309,7 +321,7 @@ export function buildSnapshot(input: SnapshotInput): Record<string, unknown> {
     status,
     statusReason,
     runAt: record?.runAt ?? null,
-    anchorSource: record ? 'run-captured' : 'live',
+    anchorSource: start.forecastStartDateSource,
     visibleDistributions,
     visibleDistributionsEmpty: visibleDistributions.length === 0,
   }
@@ -702,6 +714,10 @@ function resolveStatus(args: {
 }): { status: SnapshotStatus; statusReason: string | null } {
   const { project, record, comparand, isSimulatingProjectId, inputs } = args
 
+  // D13: while a date the forecast uses is bad, no results are carried, record or not.
+  const block = args.sprint.forecastDateBlock
+  if (block) return { status: 'absent', statusReason: aiBlockedStatusReason(block, args.sprint.completedSprintCount) }
+
   if (project && isSimulatingProjectId === project.id) {
     return {
       status: 'recomputing',
@@ -714,6 +730,7 @@ function resolveStatus(args: {
     firstSprintStartDate: project?.firstSprintStartDate,
     remainingBacklog: inputs.remainingBacklog,
     effectiveMean: inputs.effectiveMean,
+    dateBlock: block,
   }
   const blockedReason = getRunForecastBlockedReason(prereq)
   const parsedBacklog = safeParseNumber(inputs.remainingBacklog)
@@ -782,6 +799,23 @@ function resolveStatus(args: {
     }
   }
   return { status: 'fresh', statusReason: null }
+}
+
+/**
+ * The forecast-start facts, or nulls while the forecast is refused: the start
+ * is then unknown, and the stand-in must never be reported as it.
+ */
+function startDateFacts(blocked: boolean, source: 'run-captured' | 'live', anchorStart: string): {
+  forecastStartDate: string | null
+  forecastStartDateSource: 'run-captured' | 'live' | null
+  appliesTo: (endDate: string) => boolean | null
+} {
+  if (blocked) return { forecastStartDate: null, forecastStartDateSource: null, appliesTo: () => null }
+  return {
+    forecastStartDate: anchorStart,
+    forecastStartDateSource: source,
+    appliesTo: (endDate) => endDate >= anchorStart,
+  }
 }
 
 /**

@@ -4,6 +4,38 @@
 
 // Date utility functions
 
+// ── The date rule ────────────────────────────────────────────────────────────
+// The import validator's own rule, moved here so the validator, the forms, the
+// sprint-date guard and the forecast's refusal all apply one statement of it:
+// "a bad date" means the same thing everywhere.
+
+export const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/
+
+/**
+ * The latest date `isValidIsoDate` accepts: DATE_REGEX allows four year digits.
+ * SprintForm's finish-date input uses it as its `max`, so the input and the rule
+ * state the same bound.
+ */
+export const MAX_ISO_DATE = '9999-12-31'
+
+/**
+ * Validate ISO date string format (YYYY-MM-DD) and check if it's a valid date.
+ * Exported so every caller applies this rule, not a restatement of it.
+ */
+export function isValidIsoDate(dateStr: unknown): boolean {
+  if (typeof dateStr !== 'string') return false
+  if (!DATE_REGEX.test(dateStr)) return false
+
+  const date = new Date(dateStr)
+  if (isNaN(date.getTime())) return false
+
+  // Verify the date wasn't auto-corrected (e.g., "2026-02-30" -> "2026-03-02")
+  const [year, month, day] = dateStr.split('-').map(Number)
+  return date.getUTCFullYear() === year &&
+         date.getUTCMonth() === month - 1 &&
+         date.getUTCDate() === day
+}
+
 /**
  * Add days to a date string and return a new ISO date string.
  * Uses UTC to avoid DST issues.
@@ -229,12 +261,29 @@ export function getNextBusinessDay(dateStr: string): string {
   return nextDay
 }
 
+/** One sprint's resolved dates. */
+export interface ResolvedSprintDates {
+  startDate: string
+  finishDate: string
+  /**
+   * Present only when the stored custom finish date fails the rule: that raw
+   * value, whatever its type (`null` included). `finishDate` is then the
+   * computed one, a stand-in. Test with `'invalidFinishDate' in entry`, never
+   * with `??`, which would turn a `null` back into the stand-in.
+   */
+  invalidFinishDate?: unknown
+}
+
 /**
  * Resolve all historical sprint dates with cascade-forward logic.
  * When a sprint has a customFinishDate, all subsequent sprint start dates shift.
  *
  * @param firstSprintStartDate - The project's first sprint start date
  * @param cadenceWeeks - The project's sprint cadence in weeks
+ * A stored custom finish date the rule refuses never reaches date arithmetic:
+ * that sprint resolves to its computed finish, and its entry carries the raw
+ * value as `invalidFinishDate`.
+ *
  * @param historicalSprints - Array of sprints (will be sorted by sprintNumber internally)
  * @returns Map of sprintNumber → { startDate, finishDate } with cascade applied
  */
@@ -242,8 +291,8 @@ export function resolveAllSprintDates(
   firstSprintStartDate: string,
   cadenceWeeks: number,
   historicalSprints: Array<{ sprintNumber: number; customFinishDate?: string }>
-): Map<number, { startDate: string; finishDate: string }> {
-  const result = new Map<number, { startDate: string; finishDate: string }>()
+): Map<number, ResolvedSprintDates> {
+  const result = new Map<number, ResolvedSprintDates>()
 
   if (historicalSprints.length === 0) return result
 
@@ -267,9 +316,17 @@ export function resolveAllSprintDates(
     }
 
     const computedFinish = calculateSprintFinishDate(currentStart, cadenceWeeks)
-    const finishDate = sprint.customFinishDate ?? computedFinish
+    const custom = sprint.customFinishDate
 
-    result.set(sprint.sprintNumber, { startDate: currentStart, finishDate })
+    // THE GUARD: the one place a stored sprint date reaches date arithmetic.
+    // Which bad dates throw differs by engine (V8 throws on a five-digit year,
+    // JavaScriptCore on an impossible day) while the rule's verdict does not,
+    // so the rule is applied before anything parses the value.
+    if (custom !== undefined && !isValidIsoDate(custom)) {
+      result.set(sprint.sprintNumber, { startDate: currentStart, finishDate: computedFinish, invalidFinishDate: custom })
+    } else {
+      result.set(sprint.sprintNumber, { startDate: currentStart, finishDate: custom ?? computedFinish })
+    }
   }
 
   return result
@@ -359,4 +416,91 @@ export function calculateSprintProductivityFactor(
   }
 
   return totalFactor / workingDays.length
+}
+
+// ── Which stored sprint dates the rule refuses, and where dates run past 9999 ──
+
+export type SprintDateField = 'sprintStartDate' | 'sprintFinishDate' | 'customFinishDate'
+
+export interface InvalidSprintDate {
+  sprintId: string
+  sprintNumber: number
+  field: SprintDateField
+  value: unknown
+}
+
+/** The validator's order: start, finish, custom. */
+const SPRINT_DATE_FIELDS: readonly SprintDateField[] = ['sprintStartDate', 'sprintFinishDate', 'customFinishDate']
+
+/**
+ * Every stored sprint date the rule refuses, in sprint-number order, one entry
+ * per refused field.
+ *
+ * A field counts only when it is not `undefined`, exactly as the validator
+ * counts it. Key presence is not enough: the Story Map Update merge gives every
+ * matched sprint an own `customFinishDate` key holding `undefined`.
+ */
+export function findInvalidSprintDates(
+  sprints: ReadonlyArray<{ id: string; sprintNumber: number } & Partial<Record<SprintDateField, unknown>>>
+): InvalidSprintDate[] {
+  const found: InvalidSprintDate[] = []
+  for (const sprint of [...sprints].sort((a, b) => a.sprintNumber - b.sprintNumber)) {
+    for (const field of SPRINT_DATE_FIELDS) {
+      const value = sprint[field]
+      if (value !== undefined && !isValidIsoDate(value)) {
+        found.push({ sprintId: sprint.id, sprintNumber: sprint.sprintNumber, field, value })
+      }
+    }
+  }
+  return found
+}
+
+export interface ResolvedDateSpill {
+  /** The first sprint whose resolved start or finish fails the rule; null when only the forecast start does. */
+  sprintNumber: number | null
+  /**
+   * Exactly the sprints whose resolved start or finish fails the rule, in sprint
+   * order. A spill need not run to the last sprint: a later custom date can pull
+   * the schedule back under the limit.
+   */
+  spilledSprints: number[]
+  /**
+   * Every valid custom finish date that carries the calendar past MAX_ISO_DATE:
+   * the latest one before the first spilled date, plus each whose next date (the
+   * next sprint's start, or the forecast start) fails the rule. Empty when the
+   * schedule itself runs past it (a first-sprint date late in 9999).
+   */
+  causes: Array<{ sprintNumber: number; finishDate: string }>
+}
+
+/** Where resolved dates run past MAX_ISO_DATE, and every custom date that contributes; null when none do. */
+export function findResolvedDateSpill(
+  historicalSprints: ReadonlyArray<{ sprintNumber: number; customFinishDate?: string }>,
+  resolved: ReadonlyMap<number, { startDate: string; finishDate: string }>,
+  forecastStartDate: string
+): ResolvedDateSpill | null {
+  const sorted = [...historicalSprints].sort((a, b) => a.sprintNumber - b.sprintNumber)
+  const spilledSprints: number[] = []
+  let latestBefore: { sprintNumber: number; finishDate: string } | null = null
+  const pushing: Array<{ sprintNumber: number; finishDate: string }> = []
+  sorted.forEach((sprint, i) => {
+    const dates = resolved.get(sprint.sprintNumber)
+    if (dates && !(isValidIsoDate(dates.startDate) && isValidIsoDate(dates.finishDate))) spilledSprints.push(sprint.sprintNumber)
+    if (!isValidIsoDate(sprint.customFinishDate)) return
+    const cause = { sprintNumber: sprint.sprintNumber, finishDate: sprint.customFinishDate! }
+    if (spilledSprints.length === 0) latestBefore = cause
+    const next = i + 1 < sorted.length ? resolved.get(sorted[i + 1].sprintNumber)?.startDate : forecastStartDate
+    if (next !== undefined && !isValidIsoDate(next)) pushing.push(cause)
+  })
+  if (spilledSprints.length === 0 && isValidIsoDate(forecastStartDate)) return null
+  const causes = new Map<number, { sprintNumber: number; finishDate: string }>()
+  for (const c of [...(latestBefore ? [latestBefore] : []), ...pushing]) causes.set(c.sprintNumber, c)
+  // Already in sprint order: latestBefore precedes every pushing entry, and pushing is built in order.
+  return { sprintNumber: spilledSprints[0] ?? null, spilledSprints, causes: [...causes.values()] }
+}
+
+/** Order for comparing spills (D16): an earlier first spill is worse; no spill is best. */
+export function spillRank(spill: ResolvedDateSpill | null): number {
+  if (spill === null) return Number.POSITIVE_INFINITY
+  return spill.sprintNumber === null ? Number.MAX_SAFE_INTEGER : spill.sprintNumber
 }

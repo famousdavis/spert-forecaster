@@ -12,6 +12,7 @@ import {
   declaresStoryMapSource,
   declaresProjectSubsetExport,
 } from './import-limits'
+import { isValidIsoDate } from '@/shared/lib/dates'
 
 export interface ExportData {
   version: string
@@ -31,32 +32,8 @@ export interface ExportData {
 // import-limits.ts, where the forms and the export check read them too.
 const MIN_SPRINT_NUMBER = 1
 const MAX_SPRINT_NUMBER = 10000
-const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/
-
-/**
- * The latest date `isValidIsoDate` accepts: DATE_REGEX allows four year digits.
- * SprintForm's finish-date input uses it as its `max`, so the input and the rule
- * state the same bound.
- */
-export const MAX_ISO_DATE = '9999-12-31'
-
-/**
- * Validate ISO date string format (YYYY-MM-DD) and check if it's a valid date.
- * Exported so SprintForm applies this rule, not a restatement of it.
- */
-export function isValidIsoDate(dateStr: unknown): boolean {
-  if (typeof dateStr !== 'string') return false
-  if (!DATE_REGEX.test(dateStr)) return false
-
-  const date = new Date(dateStr)
-  if (isNaN(date.getTime())) return false
-
-  // Verify the date wasn't auto-corrected (e.g., "2026-02-30" -> "2026-03-02")
-  const [year, month, day] = dateStr.split('-').map(Number)
-  return date.getUTCFullYear() === year &&
-         date.getUTCMonth() === month - 1 &&
-         date.getUTCDate() === day
-}
+// The date rule (DATE_REGEX, MAX_ISO_DATE, isValidIsoDate) lives in
+// src/shared/lib/dates.ts, where the sprint-date guard applies it too.
 
 /**
  * Validate a number is finite and within bounds

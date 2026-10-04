@@ -26,7 +26,17 @@ import type {
 
 import { calculateVelocityStats, calculateScopeChangeStats } from './statistics'
 import type { ScopeChangeStats } from './statistics'
-import { today, resolveAnchorDate, resolveAllSprintDates } from './dates'
+import {
+  today,
+  resolveAnchorDate,
+  resolveAllSprintDates,
+  isValidIsoDate,
+  findInvalidSprintDates,
+  findResolvedDateSpill,
+  type InvalidSprintDate,
+  type ResolvedSprintDates,
+  type ResolvedDateSpill,
+} from './dates'
 import {
   DEFAULT_CV,
   DEFAULT_VOLATILITY_MULTIPLIER,
@@ -46,7 +56,15 @@ export interface DerivedSprintData {
   scopeChangeStats: ScopeChangeStats | null
   completedSprintCount: number
   forecastStartDate: string
-  resolvedSprintDates: Map<number, { startDate: string; finishDate: string }> | undefined
+  resolvedSprintDates: Map<number, ResolvedSprintDates> | undefined
+  /** Every stored sprint date the rule refuses, all three fields: what Sprint History marks (D12). */
+  invalidStoredDates: InvalidSprintDate[]
+  /** A valid first-sprint date and a cadence, so sprint dates can be worked out (D14: a refused first date counts as missing). */
+  scheduleUsable: boolean
+  /** Resolved dates past MAX_ISO_DATE and every custom date causing them, whatever else blocks; null when none. */
+  resolvedDateSpill: ResolvedDateSpill | null
+  /** Why the forecast must not run from these dates; null when nothing it uses is bad. */
+  forecastDateBlock: ForecastDateBlock | null
   canUseBootstrap: boolean
   historicalVelocities: number[]
 }
@@ -81,7 +99,8 @@ export function deriveSprintData(
     customFinishDate: s.customFinishDate,
   }))
 
-  const hasSchedule = !!project?.firstSprintStartDate && !!project?.sprintCadenceWeeks
+  // A refused first-sprint date is treated exactly like a missing one (D14).
+  const hasSchedule = isValidIsoDate(project?.firstSprintStartDate) && !!project?.sprintCadenceWeeks
 
   // No `projectSprints.length === 0 → today()` short-circuit: for a project
   // with no logged sprints the forecast must anchor on the FIRST sprint's
@@ -107,6 +126,11 @@ export function deriveSprintData(
         )
       : undefined
 
+  const invalidStoredDates = findInvalidSprintDates(projectSprints)
+  const resolvedDateSpill = hasSchedule
+    ? findResolvedDateSpill(sprintDateInputs, resolvedSprintDates ?? new Map(), forecastStartDate)
+    : null
+
   return {
     projectSprints,
     includedSprints,
@@ -116,9 +140,42 @@ export function deriveSprintData(
     completedSprintCount,
     forecastStartDate,
     resolvedSprintDates,
+    invalidStoredDates,
+    scheduleUsable: hasSchedule,
+    resolvedDateSpill,
+    forecastDateBlock: findForecastDateBlock(project, invalidStoredDates, resolvedDateSpill, hasSchedule),
     canUseBootstrap: includedSprints.length >= MIN_SPRINTS_FOR_BOOTSTRAP,
     historicalVelocities: includedSprints.map((s) => s.doneValue),
   }
+}
+
+/**
+ * What stops a forecast from running on these dates (D12, D14), first match wins:
+ *   1. the first-sprint date is present but fails the rule;
+ *   2. with a usable schedule, a stored custom finish date fails the rule. Without
+ *      one no custom date is used, so the missing-schedule reasons speak instead;
+ *   3. a resolved sprint date, or the forecast start, fails the rule (year 10000).
+ * Stored start and finish fields the forecast never reads do not block it;
+ * Sprint History still marks them. Output dates are not checked (D17).
+ */
+export type ForecastDateBlock =
+  | { kind: 'first-date'; value: unknown }
+  | { kind: 'custom-finish'; sprints: Array<{ sprintNumber: number; value: unknown }> }
+  | { kind: 'past-max'; spill: ResolvedDateSpill; firstSprintStartDate: string }
+
+export function findForecastDateBlock(
+  project: Project | undefined,
+  invalidStoredDates: InvalidSprintDate[],
+  resolvedDateSpill: ResolvedDateSpill | null,
+  scheduleUsable: boolean
+): ForecastDateBlock | null {
+  const first = project?.firstSprintStartDate
+  if (first !== undefined && !isValidIsoDate(first)) return { kind: 'first-date', value: first }
+  const custom = scheduleUsable ? invalidStoredDates.filter((d) => d.field === 'customFinishDate') : []
+  if (custom.length > 0) {
+    return { kind: 'custom-finish', sprints: custom.map((d) => ({ sprintNumber: d.sprintNumber, value: d.value })) }
+  }
+  return resolvedDateSpill ? { kind: 'past-max', spill: resolvedDateSpill, firstSprintStartDate: first ?? '' } : null
 }
 
 // ============================================================================

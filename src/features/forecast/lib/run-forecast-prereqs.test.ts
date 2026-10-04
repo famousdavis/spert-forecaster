@@ -11,6 +11,7 @@ describe('getRunForecastBlockedReason', () => {
     firstSprintStartDate: '2026-05-16',
     remainingBacklog: '1000',
     effectiveMean: 100,
+    dateBlock: null,
   }
 
   it('returns null when all prereqs satisfied', () => {
@@ -41,6 +42,7 @@ describe('getRunForecastBlockedReason', () => {
       firstSprintStartDate: undefined,
       remainingBacklog: '',
       effectiveMean: 0,
+      dateBlock: null,
     })
     expect(reason).toBe('Set sprint cadence on the Sprint History tab.')
   })
@@ -74,6 +76,7 @@ describe('canRunForecast', () => {
     firstSprintStartDate: '2026-05-16',
     remainingBacklog: '1000',
     effectiveMean: 100,
+    dateBlock: null,
   }
 
   it('returns true when every prereq is satisfied', () => {

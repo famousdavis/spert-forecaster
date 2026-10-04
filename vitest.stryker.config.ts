@@ -20,8 +20,11 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
-    // Every test file that imports monte-carlo.ts, math.ts or dates.ts directly,
-    // enumerated 2026-08-04. 297 tests, ~1.1s — barely more than the three
+    // Every test file that imported monte-carlo.ts, math.ts or dates.ts directly
+    // when enumerated, 2026-08-04. Later direct importers (for example
+    // SprintForm.bounds.test.tsx and ForecastTab.entire-project.test.tsx) are
+    // deliberately NOT added — see the caution below. 297 tests, ~1.1s at
+    // enumeration — barely more than the three
     // co-located unit files alone (210 tests, ~0.9s), so the indirect exercisers
     // are included: a killer left OUT of this list reports its mutants as
     // `Survived`, and a false GAP costs more analysis time than 0.2s costs runtime.

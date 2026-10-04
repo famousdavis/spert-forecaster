@@ -6,7 +6,9 @@
 
 import { useMemo } from 'react'
 import type { Sprint } from '@/shared/types'
-import { formatDateRange, resolveAllSprintDates } from '@/shared/lib/dates'
+import { resolveAllSprintDates, isValidIsoDate, findInvalidSprintDates } from '@/shared/lib/dates'
+import { groupBySprint } from '@/shared/lib/sprint-date-texts'
+import { sprintRowDateParts } from '../lib/sprint-date-display'
 
 interface RecentSprintsSummaryProps {
   sprints: Sprint[]
@@ -24,13 +26,18 @@ export function RecentSprintsSummary({
   sprintCadenceWeeks,
 }: RecentSprintsSummaryProps) {
   const resolvedDates = useMemo(() => {
-    if (!firstSprintStartDate || !sprintCadenceWeeks) return null
+    if (!isValidIsoDate(firstSprintStartDate) || !sprintCadenceWeeks) return null
     return resolveAllSprintDates(
-      firstSprintStartDate,
+      firstSprintStartDate!,
       sprintCadenceWeeks,
       sprints.map((s) => ({ sprintNumber: s.sprintNumber, customFinishDate: s.customFinishDate }))
     )
   }, [firstSprintStartDate, sprintCadenceWeeks, sprints])
+
+  const problems = useMemo(
+    () => new Map(groupBySprint(findInvalidSprintDates(sprints)).map((p) => [p.sprintNumber, p])),
+    [sprints]
+  )
 
   const recentSprints = useMemo(
     () =>
@@ -66,13 +73,12 @@ export function RecentSprintsSummary({
           </thead>
           <tbody>
             {recentSprints.map((sprint) => {
-              const resolved = resolvedDates?.get(sprint.sprintNumber)
-              const startDate = resolved?.startDate ?? sprint.sprintStartDate
-              const finishDate = resolved?.finishDate ?? sprint.sprintFinishDate
+              const { dates, warning } = sprintRowDateParts(sprint, resolvedDates?.get(sprint.sprintNumber), problems.get(sprint.sprintNumber))
               return (
                 <tr key={sprint.id} className="text-spert-text-secondary dark:text-gray-300">
                   <td className="py-1 pr-3 whitespace-nowrap">
-                    Sprint {sprint.sprintNumber}: {formatDateRange(startDate, finishDate)}
+                    Sprint {sprint.sprintNumber}: {dates}
+                    {warning && <span className="text-[#856404] dark:text-yellow-400"> ⚠ {warning}</span>}
                   </td>
                   <td className="py-1 pr-3 text-right font-medium">{sprint.doneValue}</td>
                   <td className="py-1 text-right">

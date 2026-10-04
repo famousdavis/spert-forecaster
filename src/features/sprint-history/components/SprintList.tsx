@@ -8,7 +8,9 @@ import { useMemo } from 'react'
 import { PencilIconButton } from '@/shared/components/PencilIconButton'
 import { TrashIconButton } from '@/shared/components/TrashIconButton'
 import type { Sprint } from '@/shared/types'
-import { formatDateRange, resolveAllSprintDates } from '@/shared/lib/dates'
+import { resolveAllSprintDates, isValidIsoDate, findInvalidSprintDates } from '@/shared/lib/dates'
+import { groupBySprint } from '@/shared/lib/sprint-date-texts'
+import { sprintRowDateParts } from '../lib/sprint-date-display'
 
 interface SprintListProps {
   sprints: Sprint[]
@@ -35,15 +37,21 @@ export function SprintList({
   onDelete,
   onToggleIncluded,
 }: SprintListProps) {
-  // Resolve all sprint dates with cascade-forward logic
+  // Resolve all sprint dates with cascade-forward logic. A refused first date counts as missing (D14).
   const resolvedDates = useMemo(() => {
-    if (!firstSprintStartDate || !sprintCadenceWeeks) return null
+    if (!isValidIsoDate(firstSprintStartDate) || !sprintCadenceWeeks) return null
     return resolveAllSprintDates(
-      firstSprintStartDate,
+      firstSprintStartDate!,
       sprintCadenceWeeks,
       sprints.map(s => ({ sprintNumber: s.sprintNumber, customFinishDate: s.customFinishDate }))
     )
   }, [firstSprintStartDate, sprintCadenceWeeks, sprints])
+
+  // Every stored date the rule refuses, from the stored fields, so rows are marked with or without a schedule (D12)
+  const problems = useMemo(
+    () => new Map(groupBySprint(findInvalidSprintDates(sprints)).map((p) => [p.sprintNumber, p])),
+    [sprints]
+  )
 
   // Sort sprints by sprint number
   const sortedSprints = useMemo(() => {
@@ -131,13 +139,13 @@ export function SprintList({
                 </td>
                 <td className="px-4 py-3 text-sm dark:text-gray-100">
                   {(() => {
-                    const resolved = resolvedDates?.get(sprint.sprintNumber)
-                    const startDate = resolved?.startDate ?? sprint.sprintStartDate
-                    const finishDate = resolved?.finishDate ?? sprint.sprintFinishDate
+                    const problem = problems.get(sprint.sprintNumber)
+                    const { dates, warning } = sprintRowDateParts(sprint, resolvedDates?.get(sprint.sprintNumber), problem)
                     return (
                       <>
-                        Sprint {sprint.sprintNumber}: {formatDateRange(startDate, finishDate)}
-                        {sprint.customFinishDate && (
+                        Sprint {sprint.sprintNumber}: {dates}
+                        {warning && <span className="text-[#856404] dark:text-yellow-400"> ⚠ {warning}</span>}
+                        {sprint.customFinishDate && !problem && (
                           <span className="ml-1 text-xs text-spert-blue" title="Custom finish date">&#9998;</span>
                         )}
                       </>

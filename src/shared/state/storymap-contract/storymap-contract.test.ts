@@ -462,11 +462,11 @@ describe('C3 — boundary pairs', () => {
   it('the leap pair is what proves the real-calendar rule, not the regex', () => {
     // Measured, and the reason the pair is a LEAP day rather than the register's
     // own "2026-13-45": that value is Invalid Date, so it dies at the isNaN
-    // guard (import-validation.ts:37) and NEVER exercises the auto-correction
-    // check below it. A non-leap Feb 29 does the opposite — it parses cleanly
-    // and is silently corrected to March 1 UTC, so ONLY the round-trip
-    // comparison at import-validation.ts:39-43 rejects it. Swap the pair for a
-    // shape-only bad date and lines 39-43 stop being covered by anything here.
+    // guard in isValidIsoDate (src/shared/lib/dates.ts) and NEVER exercises the
+    // auto-correction check below it. A non-leap Feb 29 does the opposite — it
+    // parses cleanly and is silently corrected to March 1 UTC, so ONLY that
+    // function's round-trip comparison rejects it. Swap the pair for a
+    // shape-only bad date and the round-trip stops being covered by anything here.
     expect(Number.isNaN(new Date('2026-13-45').getTime())).toBe(true)
 
     const corrected = new Date('2027-02-29')
@@ -780,9 +780,10 @@ describe('vendored-set coverage, derived rather than described', () => {
     isShaped(v) && Number.isNaN(new Date(v).getTime())
 
   it('reaches BOTH halves of the date rule, not just the isNaN guard', () => {
-    // import-validation.ts rejects a date two ways: :37 catches what cannot be
-    // parsed at all, :39-43 catches what parses and is silently moved. A set
-    // carrying only the first exercises the shallower half and looks complete.
+    // isValidIsoDate (src/shared/lib/dates.ts) rejects a date two ways: the
+    // isNaN guard catches what cannot be parsed at all, the round-trip catches
+    // what parses and is silently moved. A set carrying only the first
+    // exercises the shallower half and looks complete.
     const unparseable = rejects.filter((e) => finishDatesOf(e).some(isUnparseable))
     const corrected = rejects.filter((e) => finishDatesOf(e).some(autoCorrects))
     expect(unparseable.map((e) => e.file), 'nothing reaches the isNaN guard').not.toHaveLength(0)
