@@ -309,12 +309,14 @@ export function useForecastState() {
       firstSprintStartDate: selectedProject?.firstSprintStartDate,
       remainingBacklog: inputs.remainingBacklog,
       effectiveMean: inputs.effectiveMean,
+      dateBlock: sprintData.forecastDateBlock,
     }),
     [
       selectedProject?.sprintCadenceWeeks,
       selectedProject?.firstSprintStartDate,
       inputs.remainingBacklog,
       inputs.effectiveMean,
+      sprintData.forecastDateBlock,
     ]
   )
   const canRun = useMemo(() => canRunForecast(prereqInputs), [prereqInputs])
@@ -613,6 +615,7 @@ export function useForecastState() {
     completedSprintCount: sprintData.completedSprintCount,
     forecastStartDate: sprintData.forecastStartDate,
     resolvedSprintDates: sprintData.resolvedSprintDates,
+    forecastDateBlock: sprintData.forecastDateBlock,
     calculatedStats: sprintData.calculatedStats,
 
     // Milestone data (from useForecastInputs)

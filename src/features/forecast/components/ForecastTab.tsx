@@ -22,6 +22,7 @@ import { useProjectStore } from '@/shared/state/project-store'
 import { useCallback, useMemo, useState } from 'react'
 import type { DistributionType } from '@/shared/types/burn-up'
 import { ProjectsEmptyState } from '@/shared/components/ProjectsEmptyState'
+import { ForecastDateBlockNotice } from './ForecastDateBlockNotice'
 import { loadSampleProject } from '@/features/projects/lib/sample-project'
 import type { TabId } from '@/shell/components/TabNavigation'
 
@@ -39,6 +40,7 @@ export function ForecastTab({ onTabChange }: ForecastTabProps = {}) {
     completedSprintCount,
     forecastStartDate,
     resolvedSprintDates,
+    forecastDateBlock,
     calculatedStats,
     milestones,
     cumulativeThresholds,
@@ -167,7 +169,10 @@ export function ForecastTab({ onTabChange }: ForecastTabProps = {}) {
   // feeds the CDF, Histogram and Custom Percentile only. Swapping one for the
   // other is the v0.44.1 defect: the whole project re-dated to whichever
   // milestone a chart pointed at. (ForecastTab.entire-project.test.tsx)
-  const hasResults = selectedProject?.sprintCadenceWeeks && overallResults && overallSimulationData && simulationData
+  //
+  // D12: while a date the forecast uses is bad, nothing shows or exports a
+  // forecast — not even a record that is still fresh.
+  const hasResults = !forecastDateBlock && selectedProject?.sprintCadenceWeeks && overallResults && overallSimulationData && simulationData
 
   return (
     <div className="space-y-6">
@@ -203,7 +208,7 @@ export function ForecastTab({ onTabChange }: ForecastTabProps = {}) {
               remainingBacklog={remainingBacklog}
               velocityMean={velocityMean}
               velocityStdDev={velocityStdDev}
-              startDate={forecastStartDate}
+              startDate={forecastDateBlock ? '' : forecastStartDate}
               sprintCadenceWeeks={selectedProject.sprintCadenceWeeks}
               calculatedMean={calculatedStats.mean}
               calculatedStdDev={calculatedStats.standardDeviation}
@@ -239,6 +244,13 @@ export function ForecastTab({ onTabChange }: ForecastTabProps = {}) {
               runForecastBlockedReason={runForecastBlockedReason}
               isSimulating={isSimulating}
             />
+            {forecastDateBlock && (
+              <ForecastDateBlockNotice
+                block={forecastDateBlock}
+                lastSprintNumber={completedSprintCount}
+                onGoToSprintHistory={onTabChange ? () => onTabChange('sprint-history') : undefined}
+              />
+            )}
             {hasResults && (
               <div className={cn('mt-6 transition-opacity duration-300', isSimulating && 'opacity-50')}>
                 <ForecastSummary

@@ -2,6 +2,9 @@
 // Licensed under the GNU General Public License v3.0.
 // See LICENSE file in the project root for full license text.
 
+import type { ForecastDateBlock } from '@/shared/lib/forecast-derivations'
+import { forecastBlockedReason } from '@/shared/lib/sprint-date-texts'
+
 /**
  * Centralized "can the forecast run?" check, paired with a user-facing reason
  * string when it can't. Used by:
@@ -21,6 +24,8 @@ export interface RunForecastPrereqInputs {
   firstSprintStartDate: string | undefined
   remainingBacklog: string
   effectiveMean: number
+  /** deriveSprintData's forecastDateBlock: a date the forecast uses is bad (D12, D14). Required, so no caller can forget it. */
+  dateBlock: ForecastDateBlock | null
 }
 
 /**
@@ -37,9 +42,11 @@ export function getRunForecastBlockedReason({
   firstSprintStartDate,
   remainingBacklog,
   effectiveMean,
+  dateBlock,
 }: RunForecastPrereqInputs): string | null {
   if (!sprintCadenceWeeks) return 'Set sprint cadence on the Sprint History tab.'
   if (!firstSprintStartDate) return 'Set the first sprint start date on the Sprint History tab.'
+  if (dateBlock) return forecastBlockedReason(dateBlock)
   if (remainingBacklog && effectiveMean <= 0) return 'Velocity must be greater than 0.'
   return null
 }
@@ -54,10 +61,12 @@ export function canRunForecast({
   firstSprintStartDate,
   remainingBacklog,
   effectiveMean,
+  dateBlock,
 }: RunForecastPrereqInputs): boolean {
   return (
     !!sprintCadenceWeeks &&
     !!firstSprintStartDate &&
+    dateBlock === null &&
     !!remainingBacklog &&
     effectiveMean > 0
   )

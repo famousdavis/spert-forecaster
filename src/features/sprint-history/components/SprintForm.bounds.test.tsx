@@ -18,7 +18,8 @@ import { describe, it, expect, afterEach, vi } from 'vitest'
 import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { SprintForm } from './SprintForm'
 import { MAX_NUMERIC_VALUE } from '@/shared/state/import-limits'
-import { validateImportData, isValidIsoDate, MAX_ISO_DATE } from '@/shared/state/import-validation'
+import { validateImportData } from '@/shared/state/import-validation'
+import { isValidIsoDate, MAX_ISO_DATE } from '@/shared/lib/dates'
 import type { Project, Sprint } from '@/shared/types'
 
 const T = '2026-01-01T00:00:00.000Z'
@@ -132,7 +133,9 @@ describe('SprintForm applies the validator\'s date rule to the Finish Date', () 
   it.each([
     ['a five-digit year', '20276-01-16', true],
     ['the day after MAX_ISO_DATE', '10000-01-01', true],
-    ['MAX_ISO_DATE itself', MAX_ISO_DATE, false],
+    // D15: a last sprint finishing on MAX_ISO_DATE would start the next sprint in year 10000.
+    ['MAX_ISO_DATE itself', MAX_ISO_DATE, true],
+    ['9999-12-30, whose next business day is MAX_ISO_DATE', '9999-12-30', false],
     ['an ordinary later date', '2026-01-20', false],
   ] as const)('a Finish Date changed to %s (%s): disabled = %s', (_label, value, disabled) => {
     const { done, finish, button } = renderForm(null)
@@ -142,13 +145,13 @@ describe('SprintForm applies the validator\'s date rule to the Finish Date', () 
     expect(button.disabled).toBe(disabled)
   })
 
-  it('a date the rule accepts saves, and the validator accepts the sprint (MAX_ISO_DATE included)', () => {
+  it('the latest date this form saves for a last sprint (9999-12-30) saves, and the validator accepts the sprint', () => {
     const { onSubmit, done, finish, button } = renderForm(null)
     fireEvent.change(done, { target: { value: '5' } })
-    fireEvent.change(finish, { target: { value: MAX_ISO_DATE } })
+    fireEvent.change(finish, { target: { value: '9999-12-30' } })
     fireEvent.click(button)
     const saved = onSubmit.mock.calls[0][0]
-    expect([saved.sprintFinishDate, saved.customFinishDate]).toEqual([MAX_ISO_DATE, MAX_ISO_DATE])
+    expect([saved.sprintFinishDate, saved.customFinishDate]).toEqual(['9999-12-30', '9999-12-30'])
     expect(verdict(saved)).toBe('accepted')
   })
 

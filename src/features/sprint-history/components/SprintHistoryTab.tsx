@@ -19,8 +19,21 @@ import { SprintConfig } from './SprintConfig'
 import { VelocityStats } from './VelocityStats'
 import { VelocityChart } from './VelocityChart'
 import { ScopeAnalysis } from './ScopeAnalysis'
-import type { Sprint } from '@/shared/types'
+import { SprintDateNotice } from './SprintDateNotice'
+import { deriveSprintData } from '@/shared/lib/forecast-derivations'
+import { isValidIsoDate } from '@/shared/lib/dates'
+import { ADD_TITLE_FIRST_DATE } from '@/shared/lib/sprint-date-texts'
+import type { Project, Sprint } from '@/shared/types'
 import type { SprintCadence } from '@/features/projects/constants'
+
+/** Add Sprint's tooltip while it is disabled: a present-but-refused first date has its own (D14). */
+function addSprintTitle(project: Project | undefined, configComplete: boolean): string | undefined {
+  if (configComplete) return undefined
+  const first = project?.firstSprintStartDate
+  return first !== undefined && !isValidIsoDate(first)
+    ? ADD_TITLE_FIRST_DATE
+    : 'Set sprint cadence and first sprint start date first'
+}
 
 export function SprintHistoryTab() {
   const isClient = useIsClient()
@@ -38,6 +51,9 @@ export function SprintHistoryTab() {
     () => (selectedProject ? allSprints.filter((s) => s.projectId === selectedProject.id) : []),
     [allSprints, selectedProject]
   )
+
+  // Every bad stored date, the schedule's state and any spill past 9999, for the notice
+  const dateData = useMemo(() => deriveSprintData(selectedProject, allSprints), [selectedProject, allSprints])
 
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [editingSprint, setEditingSprint] = useState<Sprint | null>(null)
@@ -116,10 +132,11 @@ export function SprintHistoryTab() {
   // Check if firstSprintStartDate can be edited (only when no sprints exist)
   const canEditFirstSprintDate = sprints.length === 0
 
-  // Check if sprint configuration is complete (both cadence and first sprint date are set)
+  // Check if sprint configuration is complete (both cadence and first sprint date are set).
+  // A first date the rule refuses counts as missing (D14): nothing can be worked out from it.
   const isSprintConfigComplete =
     selectedProject?.sprintCadenceWeeks !== undefined &&
-    selectedProject?.firstSprintStartDate !== undefined
+    isValidIsoDate(selectedProject?.firstSprintStartDate)
 
   if (!isClient) {
     return <div className="text-muted-foreground">Loading...</div>
@@ -158,7 +175,7 @@ export function SprintHistoryTab() {
           <button
             onClick={handleCreate}
             disabled={!isSprintConfigComplete}
-            title={!isSprintConfigComplete ? 'Set sprint cadence and first sprint start date first' : undefined}
+            title={addSprintTitle(selectedProject, isSprintConfigComplete)}
             className={cn(
               'px-4 py-2 border-none rounded text-[0.9rem] font-semibold text-white',
               isSprintConfigComplete
@@ -170,6 +187,8 @@ export function SprintHistoryTab() {
           </button>
         )}
       </div>
+
+      {selectedProject && <SprintDateNotice project={selectedProject} data={dateData} />}
 
       {/* Recent sprints reference + Sprint Form — appear immediately after the Add Sprint button.
           Reference-then-form ordering is intentional: prior values above, in-progress form below. */}

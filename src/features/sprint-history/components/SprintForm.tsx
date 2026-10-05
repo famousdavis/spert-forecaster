@@ -7,14 +7,9 @@
 import { useState, useMemo } from 'react'
 import { cn } from '@/lib/utils'
 import type { Sprint, Project } from '@/shared/types'
-import {
-  calculateSprintFinishDate,
-  formatDateRange,
-  resolveAllSprintDates,
-  getNextBusinessDay,
-} from '@/shared/lib/dates'
+import { isValidIsoDate, MAX_ISO_DATE } from '@/shared/lib/dates'
 import { MAX_NUMERIC_VALUE } from '@/shared/state/import-limits'
-import { isValidIsoDate, MAX_ISO_DATE } from '@/shared/state/import-validation'
+import { planSprintFormDates, sprintFormDateIssue, savedDateNote, assumptionNote } from '../lib/sprint-form-dates'
 
 // The bounds below are checked in `isValid` as well as in `min`/`max`: the
 // native check runs only when a browser submits the form, and `isValid` keeps
@@ -55,63 +50,15 @@ export function SprintForm({
   // Calculate the sprint number and dates
   const sprintNumber = sprint?.sprintNumber ?? existingSprintCount + 1
 
-  // Resolve all sprint dates with cascade-forward logic
-  const resolvedDates = useMemo(() => {
-    if (!project.firstSprintStartDate || !project.sprintCadenceWeeks) return null
-    return resolveAllSprintDates(
-      project.firstSprintStartDate,
-      project.sprintCadenceWeeks,
-      allSprints.map(s => ({ sprintNumber: s.sprintNumber, customFinishDate: s.customFinishDate }))
-    )
-  }, [project.firstSprintStartDate, project.sprintCadenceWeeks, allSprints])
+  // The dates (cascade-resolved), and what the form must say about them: ../lib/sprint-form-dates.ts
+  const plan = useMemo(
+    () => planSprintFormDates(sprint, project, sprintNumber, allSprints),
+    [sprint, project, sprintNumber, allSprints]
+  )
+  const { sprintStartDate, computedFinishDate, dateLabel } = plan
 
-  const { sprintStartDate, computedFinishDate, dateLabel } = useMemo(() => {
-    if (sprint && resolvedDates) {
-      // Editing existing sprint - use cascade-resolved dates for start
-      const resolved = resolvedDates.get(sprint.sprintNumber)
-      const startDate = resolved?.startDate ?? sprint.sprintStartDate
-      const computedFinish = project.sprintCadenceWeeks
-        ? calculateSprintFinishDate(startDate, project.sprintCadenceWeeks)
-        : sprint.sprintFinishDate
-      return {
-        sprintStartDate: startDate,
-        computedFinishDate: computedFinish,
-        dateLabel: `Sprint ${sprint.sprintNumber}: ${formatDateRange(
-          startDate,
-          sprint.customFinishDate ?? computedFinish
-        )}`,
-      }
-    }
-
-    // New sprint - calculate dates using cascade-resolved anchor
-    if (!project.firstSprintStartDate || !project.sprintCadenceWeeks) {
-      return {
-        sprintStartDate: '',
-        computedFinishDate: '',
-        dateLabel: 'Set sprint configuration above to calculate dates',
-      }
-    }
-
-    // For a new sprint, the start date depends on the previous sprint's resolved finish
-    let startDate: string
-    if (resolvedDates && resolvedDates.size > 0) {
-      const maxExistingSprint = Math.max(...Array.from(resolvedDates.keys()))
-      const lastResolved = resolvedDates.get(maxExistingSprint)!
-      startDate = getNextBusinessDay(lastResolved.finishDate)
-    } else {
-      startDate = project.firstSprintStartDate
-    }
-
-    const finishDate = calculateSprintFinishDate(startDate, project.sprintCadenceWeeks)
-
-    return {
-      sprintStartDate: startDate,
-      computedFinishDate: finishDate,
-      dateLabel: `Sprint ${sprintNumber}: ${formatDateRange(startDate, finishDate)}`,
-    }
-  }, [sprint, project.firstSprintStartDate, project.sprintCadenceWeeks, sprintNumber, resolvedDates])
-
-  // Custom finish date state - initialized from sprint's custom date or empty (meaning use computed)
+  // Custom finish date state - initialized from sprint's custom date or empty (meaning use computed).
+  // A saved value the rule refuses is kept, never blanked: Update stays disabled until it is fixed.
   const [customFinishDate, setCustomFinishDate] = useState(sprint?.customFinishDate ?? '')
   const effectiveFinishDate = customFinishDate || computedFinishDate
   const hasCustomFinishDate = customFinishDate.length > 0 && customFinishDate !== computedFinishDate
@@ -132,6 +79,14 @@ export function SprintForm({
   }
 
   const isFinishDateValid = !customFinishDate || customFinishDate >= sprintStartDate
+  // Year 9999 (D15, D16): blocked only when this save would store a date past
+  // the limit, or cause or worsen a spill of the dates after it.
+  const dateIssue = sprintFormDateIssue({
+    sprint, project, allSprints, sprintNumber, sprintStartDate, effectiveFinishDate,
+    candidateCustom: hasCustomFinishDate ? customFinishDate : undefined,
+  })
+  const savedNote = savedDateNote(sprint, customFinishDate, computedFinishDate, sprintStartDate)
+  const assumption = assumptionNote(plan)
   // The finish date is saved as `sprintFinishDate`, and as `customFinishDate`
   // when it differs from the computed one, so this one check covers both. A
   // five-digit year passes the string comparison above; it fails this.
@@ -139,6 +94,7 @@ export function SprintForm({
     sprintStartDate.length > 0 &&
     effectiveFinishDate.length > 0 &&
     isValidIsoDate(effectiveFinishDate) &&
+    dateIssue === null &&
     doneValue.length > 0 &&
     isFigureInRange(doneValue) &&
     isOptionalFigureInRange(backlogAtSprintEnd) &&
@@ -265,6 +221,14 @@ export function SprintForm({
           </label>
         </div>
       </div>
+
+      {(savedNote || assumption) && (
+        <div className="space-y-1 text-xs text-[#856404] dark:text-yellow-400">
+          {savedNote && <p>{savedNote}</p>}
+          {assumption && <p>{assumption}</p>}
+        </div>
+      )}
+      {dateIssue && <p className="text-xs text-spert-error">{dateIssue}</p>}
 
       <div className="flex justify-end gap-2 pt-2">
         <button
