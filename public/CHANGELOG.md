@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.46.3 - 2026-10-05
+
+The SPERT® Suite Terms of Service and Privacy Policy have new editions — version 1.3 of each, effective October 5, 2026 — published at the same spertsuite.com addresses the app already links to. The AI Privacy Notice that covers Connect AI is now version 2.2.
+
+### Changed
+- **When you sign in, SPERT® Forecaster asks you to accept the new Terms of Service and Privacy Policy.** The acceptance it had recorded was for the April 5, 2026 editions (`TOS_VERSION` and `PRIVACY_VERSION` were `'04-05-2026'` and had never moved); both are now `'10-05-2026'`, so the record names the edition you actually accept.
+- **None of the changes alters what SPERT® Forecaster collects or does.** The documents now describe database backups (daily backups kept for up to 98 days, point-in-time recovery for up to 7 days), that data is stored at rest in the United States, and project sharing and invitation emails. The AI Privacy Notice now says that Connect AI relay data expires seven days after your last activity, or sooner when you disconnect, and that the Read Mode snapshot can be read only by the relay server.
+- **The copies kept in this repository were out of date.** `legal/TOS.pdf` and `legal/PRIVACY.pdf` still held the April 5 editions, three re-issues behind. Both are now byte-identical to the October 5 editions on spertsuite.com.
+
 ## v0.46.2 - 2026-10-04
 
 A sprint date this app's own import refuses can already be stored. It may be a five-digit year such as 20276-09-04, an impossible day such as February 30, or a date past December 31, 9999. Such a date was saved before v0.46.1 through the Finish Date field, which had no limit; it can also be left by a collaborator on an older version, or kept through a Story Map Update. Depending on the date and the browser, it crashed Sprint History and the Forecast tab, crashed Add Sprint, blanked the whole app while Connect AI was publishing, or produced a forecast from the wrong date without saying so. Now the app opens, says which date is wrong and how to fix it, and Edit fixes it.
