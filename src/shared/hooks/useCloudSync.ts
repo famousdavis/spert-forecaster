@@ -20,8 +20,10 @@ import {
   loadSettings,
   saveSettings,
   flushPendingSaves,
+  isProjectSaveOutstanding,
   SAVE_DEBOUNCE_MS,
 } from '@/shared/firebase/firestore-driver'
+import { mergeCloudView } from '@/shared/firebase/snapshot-merge'
 import { auth } from '@/shared/firebase/config'
 import {
   projectToFirestoreDoc,
@@ -30,7 +32,7 @@ import {
   settingsToFirestoreDoc,
   firestoreDocToSettings,
 } from '@/shared/firebase/firestore-converters'
-import type { FirestoreProjectDoc } from '@/shared/firebase/types'
+import type { FirestoreProjectDoc, SyncEvent } from '@/shared/firebase/types'
 import type { Project, Sprint } from '@/shared/types'
 import { getWorkspaceId } from '@/shared/state/storage'
 
@@ -50,6 +52,41 @@ function processProjectDocs(
 
   return { projects, sprints }
 }
+
+/**
+ * Waits between attempts at the first cloud load after a TRANSIENT failure; the
+ * last value repeats. A browser 'online' event, or Try again, cuts a wait short.
+ */
+export const FIRST_LOAD_RETRY_MS = [2000, 4000, 8000, 16000, 30000] as const
+
+/**
+ * First-load failures that a retry can cure (Brief 40, B2). Offline,
+ * getDocsFromServer rejects with `unavailable`, and the SDK reports every stream
+ * error it retries itself (deadline-exceeded, resource-exhausted, …) the same
+ * way once it decides it is offline. Anything else — permission-denied, or a
+ * data error thrown while applying the baseline — would fail the same way again,
+ * so it waits for Try again instead of retrying.
+ */
+const TRANSIENT_LOAD_CODES: ReadonlySet<string> = new Set(['unavailable', 'deadline-exceeded', 'resource-exhausted'])
+
+function errorField(err: unknown, field: 'code' | 'name'): string | undefined {
+  const value = typeof err === 'object' && err !== null ? (err as Record<string, unknown>)[field] : undefined
+  return typeof value === 'string' && value !== '' ? value : undefined
+}
+
+/**
+ * What the error panel shows for a failed first load: the error's Firestore
+ * `code` if it has one, else its `name` (a malformed document throws a plain
+ * TypeError), else `unknown`.
+ */
+export function loadErrorCode(err: unknown): string {
+  return errorField(err, 'code') ?? errorField(err, 'name') ?? 'unknown'
+}
+
+const isTransientLoadError = (err: unknown): boolean => TRANSIENT_LOAD_CODES.has(errorField(err, 'code') ?? '')
+
+const isProjectEvent = (event: SyncEvent): event is Extract<SyncEvent, { type: `project:${string}` }> =>
+  event.type.startsWith('project:')
 
 /**
  * Cloud sync hook — activates Firestore sync when in cloud mode.
@@ -92,6 +129,31 @@ export function useCloudSync(user: User | null, mode: 'local' | 'cloud') {
     // against a non-existent doc) and the zombie-reappear UX (delete races
     // ahead of create → snapshot re-inserts the project).
     const inFlightCreatePromises = new Map<string, Promise<void>>()
+
+    const isCreateUnconfirmed = (projectId: string) =>
+      pendingCreateTimers.has(projectId) || inFlightCreatePromises.has(projectId)
+
+    // Local deletes issued and not yet settled. A snapshot built before the
+    // delete reached the SDK still holds the project; mergeCloudView must not
+    // append it back. Cleared when the delete settles, so a REFUSED delete's
+    // rollback brings the project back, honestly.
+    const pendingDeletes = new Set<string>()
+
+    // ── First-load gate (Brief 40, R2) ──────────────────────────────────────
+    // Until the first cloud load has SUCCEEDED, no project write leaves this
+    // device. Before it, the store holds this device's last copy — possibly
+    // stale — and docMetaRef is empty, so every save would take the create path:
+    // a full setDoc that resets an existing project's members to {} and writes
+    // the stale copy over newer work. Writes are recorded by project id here and
+    // dispositioned once the load lands (releaseHeldWrites). The UI shows a
+    // loading panel instead of the project tabs meanwhile (AppShell), so in
+    // practice nothing is held; this is the guarantee, the panel is the UX.
+    let baselineReady = false
+    const heldProjectIds = new Set<string>()
+    // The current first-load wait's wake-up. Null while an attempt is in flight.
+    let wakeRetry: (() => void) | null = null
+    let loadFailureReported = false
+    let transientFailures = 0
 
     /**
      * Synchronously fire any pending create timers (used on tab close).
@@ -149,31 +211,148 @@ export function useCloudSync(user: User | null, mode: 'local' | 'cloud') {
     // re-sign-in creates a new closure with snapshotEverReceived = false).
     let snapshotEverReceived = false
 
-    // --- Async setup: load first, then attach listeners ---
-    async function setup() {
-      // Initial load from Firestore
-      try {
-        const projectDocs = await loadProjects(uid)
+    /**
+     * The first load is the baseline every later create decision rests on. It
+     * is merged into the store with the same rules as a snapshot, so the store's
+     * project order survives a reload on the same device.
+     */
+    function applyBaseline(projectDocs: Map<string, FirestoreProjectDoc>) {
+      const { projects, sprints } = processProjectDocs(projectDocs, docMetaRef)
+
+      // Data-loss guard: if cloud is empty but local has projects, skip
+      // replacement on initial load. This prevents wiping un-migrated local
+      // data when cloud mode activates without a prior upload.
+      const store = useProjectStore.getState()
+      if (projects.length === 0 && store.projects.length > 0) {
+        console.warn(
+          `Cloud returned 0 projects but local has ${store.projects.length} — skipping initial replacement to protect local data`
+        )
+      } else {
+        // A project created on this device while the load was outstanding is the
+        // only store project the cloud is allowed to lack.
+        const heldNew = (projectId: string) => heldProjectIds.has(projectId) && !projectDocs.has(projectId)
+        const merged = mergeCloudView(store, { projects, sprints }, {
+          isProtected: heldNew,
+          isCreateUnconfirmed: heldNew,
+          isDeletePending: () => false,
+        })
+        if (merged.changed) store.replaceProjectsFromCloud(merged.projects, merged.sprints)
+      }
+
+      baselineReady = true
+      store.setCloudLoadRetrying(false)
+      store.setCloudLoadError(null)
+    }
+
+    /**
+     * A write held before the first load touched a copy that may be stale. For a
+     * project the cloud has, the cloud version now in the store wins and the
+     * write is discarded. A project the cloud has never seen is created.
+     *
+     * ⚠️ A held DELETE of a project the cloud still has is discarded too, and the
+     * baseline merge has already put that project back. Unreachable today: the
+     * loading panel hides every delete control until the first load succeeds. If
+     * a delete control ever becomes reachable during the load, handle it here.
+     */
+    function releaseHeldWrites(cloudDocs: Map<string, FirestoreProjectDoc>) {
+      const held = [...heldProjectIds]
+      heldProjectIds.clear()
+      const inStore = new Set(useProjectStore.getState().projects.map((p) => p.id))
+      for (const projectId of held) {
+        if (!cloudDocs.has(projectId) && inStore.has(projectId)) {
+          handleSyncEvent({ type: 'project:save', projectId })
+        }
+      }
+    }
+
+    /**
+     * Wait for the next first-load attempt. After a TRANSIENT failure: the
+     * backoff delay, a browser 'online' event or Try again, whichever comes
+     * first. After any other failure (`delayMs` null): Try again only — no timer
+     * and no 'online' wake, because nothing automatic can cure it. Teardown wakes
+     * either.
+     */
+    function waitForRetry(delayMs: number | null): Promise<void> {
+      return new Promise((resolve) => {
+        let timer: ReturnType<typeof setTimeout> | undefined
+        const done = () => {
+          clearTimeout(timer)
+          window.removeEventListener('online', done)
+          wakeRetry = null
+          resolve()
+        }
+        if (delayMs !== null) {
+          timer = setTimeout(done, delayMs)
+          window.addEventListener('online', done)
+        }
+        wakeRetry = done
+      })
+    }
+
+    /** Report a failed first-load attempt, then wait for the next one (B2). */
+    function afterFailedLoad(err: unknown, transient: boolean): Promise<void> {
+      if (!loadFailureReported) {
+        loadFailureReported = true
+        console.error('Initial cloud load failed:', err)
+        toast.error('Failed to load your projects from the cloud.')
+      }
+      const store = useProjectStore.getState()
+      if (transient) {
+        store.setCloudLoadError(null)
+        store.setCloudLoadRetrying(true)
+        const delayMs = FIRST_LOAD_RETRY_MS[Math.min(transientFailures, FIRST_LOAD_RETRY_MS.length - 1)]
+        transientFailures++
+        return waitForRetry(delayMs)
+      }
+      store.setCloudLoadRetrying(false)
+      store.setCloudLoadError({ code: loadErrorCode(err) })
+      return waitForRetry(null)
+    }
+
+    /**
+     * Resolves with the baseline's documents once it is applied, or null if the
+     * effect was torn down first. It never gives up before either.
+     */
+    async function loadBaselineWithRetry(): Promise<Map<string, FirestoreProjectDoc> | null> {
+      while (!cancelled) {
+        let projectDocs: Map<string, FirestoreProjectDoc>
+        try {
+          projectDocs = await loadProjects(uid)
+        } catch (err) {
+          if (cancelled) return null
+          await afterFailedLoad(err, isTransientLoadError(err))
+          continue
+        }
         // `cancelled` handles teardown; `auth?.currentUser?.uid !== uid` adds
         // belt-and-suspenders defense for the user-switch edge case where a
         // different account signs in before the old effect tears down (H2).
-        if (cancelled || auth?.currentUser?.uid !== uid) return
-
-        const { projects, sprints } = processProjectDocs(projectDocs, docMetaRef)
-
-        // Data-loss guard: if cloud is empty but local has projects, skip
-        // replacement on initial load. This prevents wiping un-migrated local
-        // data when cloud mode activates without a prior upload.
-        const localProjects = useProjectStore.getState().projects
-        if (projects.length === 0 && localProjects.length > 0) {
-          console.warn(
-            `Cloud returned 0 projects but local has ${localProjects.length} — skipping initial replacement to protect local data`
-          )
-        } else {
-          useProjectStore.getState().replaceProjectsFromCloud(projects, sprints)
+        if (cancelled || auth?.currentUser?.uid !== uid) return null
+        try {
+          applyBaseline(projectDocs)
+          return projectDocs
+        } catch (err) {
+          // A data error while applying the baseline would fail the same way
+          // again: it waits for Try again, whatever its code.
+          await afterFailedLoad(err, false)
         }
+      }
+      return null
+    }
 
-        // Load settings
+    // --- Async setup: the baseline first, then the listeners ---
+    async function setup() {
+      const baselineDocs = await loadBaselineWithRetry()
+      if (baselineDocs === null) return
+
+      // Outside the first load's classified tries above (Brief 40): an exception
+      // here must never put the error panel over a baseline that has loaded.
+      try {
+        releaseHeldWrites(baselineDocs)
+      } catch (err) {
+        console.error('Releasing writes held during the first cloud load failed:', err)
+      }
+
+      try {
         const settingsDoc = await loadSettings(uid)
         if (cancelled || auth?.currentUser?.uid !== uid) return
         if (settingsDoc) {
@@ -181,20 +360,15 @@ export function useCloudSync(user: User | null, mode: 'local' | 'cloud') {
           useSettingsStore.getState().replaceSettingsFromCloud(settings)
         }
       } catch (err) {
-        console.error('Initial cloud load failed:', err)
-        toast.error('Failed to load your projects from the cloud.')
-      } finally {
-        // Pitfall #88: "Attempted, done" — fires on success, throw, and
-        // data-loss-guard bypass. !cancelled: if setup() is suspended at an
-        // await when the cleanup runs, the next microtask resumes setup() and
-        // hits this finally — by then `cancelled` is already true and the
-        // signal is suppressed, so cleanup's false wins.
-        if (!cancelled) {
-          useProjectStore.getState().setCloudDataLoaded(true)
-        }
+        console.error('Initial cloud settings load failed:', err)
       }
 
+      // Pitfall #88: cloudDataLoaded means the project baseline SUCCEEDED
+      // (Brief 40). !cancelled: if setup() is suspended at an await when the
+      // cleanup runs, the next microtask resumes setup() — by then `cancelled`
+      // is already true and the signal is suppressed, so cleanup's false wins.
       if (cancelled) return
+      useProjectStore.getState().setCloudDataLoaded(true)
 
       // Subscribe to Firestore snapshots (incoming changes)
       unsubscribeSnapshot = subscribeToUserProjects(uid, (projectDocs) => {
@@ -220,14 +394,21 @@ export function useCloudSync(user: User | null, mode: 'local' | 'cloud') {
           }
         }
 
-        useProjectStore.getState().replaceProjectsFromCloud(projects, sprints)
+        // Merged, never swapped in (Brief 40): the store's order is kept, a
+        // project with a local write not yet in this view keeps the store's
+        // version, and a merge that changes nothing writes nothing.
+        const store = useProjectStore.getState()
+        const merged = mergeCloudView(store, { projects, sprints }, {
+          isProtected: (projectId) => isProjectSaveOutstanding(projectId) || isCreateUnconfirmed(projectId),
+          isCreateUnconfirmed,
+          isDeletePending: (projectId) => pendingDeletes.has(projectId),
+        })
+        if (merged.changed) store.replaceProjectsFromCloud(merged.projects, merged.sprints)
       })
     }
 
-    setup()
-
-    // --- Subscribe to sync bus (outgoing changes) ---
-    unsubscribeSyncBus = syncBus.subscribe((event) => {
+    // --- Sync bus (outgoing changes) ---
+    function handleSyncEvent(event: SyncEvent) {
       const currentUser = userRef.current
       if (!currentUser) return
 
@@ -371,10 +552,13 @@ export function useCloudSync(user: User | null, mode: 'local' | 'cloud') {
           const rawPromise = inFlightCreatePromises.get(event.projectId)
           if (rawPromise) {
             const deleteId = event.projectId
+            // Tombstoned until the chained delete settles, or the create fails:
+            // a snapshot raised in between must not append the project back.
+            pendingDeletes.add(deleteId)
             rawPromise
               .then(() => {
                 docMetaRef.current.delete(deleteId)
-                deleteProject(deleteId).catch((err) => {
+                return deleteProject(deleteId).catch((err) => {
                   console.error('Cloud delete failed (chained after create):', err)
                   toast.error('Failed to delete project from the cloud.')
                 })
@@ -384,15 +568,20 @@ export function useCloudSync(user: User | null, mode: 'local' | 'cloud') {
                 // docMetaRef was never set by Branch A's .then on failure,
                 // so no cleanup is required here either.
               })
+              .finally(() => pendingDeletes.delete(deleteId))
             break
           }
 
           // ── Case 3: normal delete (doc confirmed in Firestore) ───────────
-          docMetaRef.current.delete(event.projectId)
-          deleteProject(event.projectId).catch((err) => {
-            console.error('Cloud delete failed:', err)
-            toast.error('Failed to delete project from the cloud.')
-          })
+          const deletedId = event.projectId
+          docMetaRef.current.delete(deletedId)
+          pendingDeletes.add(deletedId)
+          deleteProject(deletedId)
+            .catch((err) => {
+              console.error('Cloud delete failed:', err)
+              toast.error('Failed to delete project from the cloud.')
+            })
+            .finally(() => pendingDeletes.delete(deletedId))
           break
         }
         case 'project:import': {
@@ -448,17 +637,20 @@ export function useCloudSync(user: User | null, mode: 'local' | 'cloud') {
           for (const oldId of docMetaRef.current.keys()) {
             if (!importedIds.has(oldId)) {
               docMetaRef.current.delete(oldId)
-              deleteProject(oldId).catch((err) => {
-                console.error('Cloud delete failed:', err)
-                // Non-owner editors cannot delete projects they don't own. The
-                // replacement create succeeded, so the user now sees both the
-                // old and new project with the same name. Inform them so they
-                // can clean up manually.
-                toast.error(
-                  'Could not remove the original project from your cloud workspace — ' +
-                  'you may see a duplicate. Delete it manually if needed.'
-                )
-              })
+              pendingDeletes.add(oldId)
+              deleteProject(oldId)
+                .catch((err) => {
+                  console.error('Cloud delete failed:', err)
+                  // Non-owner editors cannot delete projects they don't own. The
+                  // replacement create succeeded, so the user now sees both the
+                  // old and new project with the same name. Inform them so they
+                  // can clean up manually.
+                  toast.error(
+                    'Could not remove the original project from your cloud workspace — ' +
+                    'you may see a duplicate. Delete it manually if needed.'
+                  )
+                })
+                .finally(() => pendingDeletes.delete(oldId))
             }
           }
 
@@ -487,7 +679,30 @@ export function useCloudSync(user: User | null, mode: 'local' | 'cloud') {
           break
         }
       }
+    }
+
+    /** R2: before the first load has succeeded, project writes are held, not sent. */
+    function holdBeforeBaseline(event: SyncEvent): boolean {
+      if (baselineReady || !isProjectEvent(event)) return false
+      if (event.type === 'project:import') {
+        console.warn('Import arrived before the first cloud load; discarded (Import is disabled until then).')
+      } else {
+        heldProjectIds.add(event.projectId)
+      }
+      return true
+    }
+
+    unsubscribeSyncBus = syncBus.subscribe((event) => {
+      if (!holdBeforeBaseline(event)) handleSyncEvent(event)
     })
+
+    // Try again (Brief 40): wakes whichever first-load wait is current. While an
+    // attempt is in flight there is no wait to wake, and the press does nothing.
+    const unsubscribeRetryRequests = useProjectStore.subscribe((state, prev) => {
+      if (state.cloudLoadRetryRequests !== prev.cloudLoadRetryRequests) wakeRetry?.()
+    })
+
+    setup()
 
     // --- Flush on beforeunload ---
     // v0.28.3 L3 (UX): if the user signs out and immediately closes the tab,
@@ -516,11 +731,18 @@ export function useCloudSync(user: User | null, mode: 'local' | 'cloud') {
 
     return () => {
       // Set cancelled = true FIRST. If setup() is suspended at an await, the
-      // next microtask resumes and hits the finally — !cancelled is already
-      // false so setCloudDataLoaded(true) is suppressed and cleanup's false
-      // wins (pitfall #88).
+      // next microtask resumes and hits its `cancelled` checks — so
+      // setCloudDataLoaded(true) is suppressed and cleanup's false wins
+      // (pitfall #88).
       cancelled = true
-      useProjectStore.getState().setCloudDataLoaded(false)
+      // Wake any first-load wait: its loop sees `cancelled` and exits, setting
+      // no state.
+      wakeRetry?.()
+      unsubscribeRetryRequests()
+      const store = useProjectStore.getState()
+      store.setCloudDataLoaded(false)
+      store.setCloudLoadRetrying(false)
+      store.setCloudLoadError(null)
       unsubscribeSnapshot?.()
       unsubscribeSyncBus?.()
       window.removeEventListener('beforeunload', handleBeforeUnload)

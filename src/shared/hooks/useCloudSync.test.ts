@@ -26,6 +26,7 @@ vi.mock('@/shared/firebase/firestore-driver', () => ({
   loadSettings: vi.fn(),
   saveSettings: vi.fn(),
   flushPendingSaves: vi.fn(),
+  isProjectSaveOutstanding: vi.fn(),
   // Inlined rather than re-exported so the mock factory doesn't need the real module.
   SAVE_DEBOUNCE_MS: 200,
 }))
@@ -53,6 +54,7 @@ import {
   deleteProject,
   subscribeToUserProjects,
   loadSettings,
+  isProjectSaveOutstanding,
   SAVE_DEBOUNCE_MS,
 } from '@/shared/firebase/firestore-driver'
 import { syncBus } from '@/shared/firebase/sync-bus'
@@ -124,6 +126,7 @@ beforeEach(() => {
   vi.mocked(saveProjectImmediate).mockResolvedValue(undefined)
   vi.mocked(deleteProject).mockResolvedValue(undefined)
   vi.mocked(loadSettings).mockResolvedValue(null)
+  vi.mocked(isProjectSaveOutstanding).mockReturnValue(false)
 
   // Capture snapshot callback WITHOUT firing it so tests control when docMetaRef
   // is populated (prevents replaceProjectsFromCloud from overwriting test state).
@@ -154,12 +157,25 @@ describe('useCloudSync — cloudDataLoaded signal (pitfall #88)', () => {
     )
   })
 
-  it('sets cloudDataLoaded true even when loadProjects throws (defensive)', async () => {
-    vi.mocked(loadProjects).mockRejectedValue(new Error('network error'))
+  // Brief 40 (U-H7). This test used to assert the OPPOSITE: "sets cloudDataLoaded
+  // true even when loadProjects throws". That flag opened Import and, with an
+  // empty docMetaRef, sent every save down the create path — a full setDoc that
+  // reset an existing project's members to {}. A transient failure now retries.
+  it('keeps cloudDataLoaded false while a transient first load fails, and sets it once a retry succeeds', async () => {
+    vi.mocked(loadProjects)
+      .mockRejectedValueOnce(Object.assign(new Error('offline'), { code: 'unavailable' }))
+      .mockResolvedValue(new Map())
+    vi.spyOn(console, 'error').mockImplementation(() => {})
     renderHook(() => useCloudSync(mockUser, 'cloud'))
-    await waitFor(() =>
-      expect(useProjectStore.getState().cloudDataLoaded).toBe(true),
-    )
+    await waitFor(() => expect(useProjectStore.getState().cloudLoadRetrying).toBe(true))
+    expect(useProjectStore.getState().cloudDataLoaded).toBe(false)
+    expect(useProjectStore.getState().cloudLoadError).toBeNull()
+    expect(vi.mocked(toast.error)).toHaveBeenCalledTimes(1)
+    // A browser 'online' event cuts the retry wait short.
+    act(() => { window.dispatchEvent(new Event('online')) })
+    await waitFor(() => expect(useProjectStore.getState().cloudDataLoaded).toBe(true))
+    expect(useProjectStore.getState().cloudLoadRetrying).toBe(false)
+    expect(vi.mocked(loadProjects)).toHaveBeenCalledTimes(2)
   })
 
   it('sets cloudDataLoaded true when data-loss guard fires (cloud empty, local non-empty)', async () => {

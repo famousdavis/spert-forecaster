@@ -474,6 +474,19 @@ describe('reorderProjects', () => {
     const names = useProjectStore.getState().projects.map((p) => p.name)
     expect(names).toEqual(['C', 'A', 'B'])
   })
+
+  // Brief 40, B3: a drag rewrote every project from this store a moment later,
+  // overwriting a collaborator's change made just after it. The cloud has no
+  // order field, so the saves wrote nothing new. Known-bad: a project:save per project.
+  it('emits no cloud save: order is kept per device', () => {
+    useProjectStore.setState({
+      projects: [makeProject({ id: 'a', name: 'A' }), makeProject({ id: 'b', name: 'B' }), makeProject({ id: 'c', name: 'C' })],
+    })
+    const spy = vi.spyOn(syncBus, 'emit')
+    useProjectStore.getState().reorderProjects(['c', 'a', 'b'])
+    expect(spy).not.toHaveBeenCalled()
+    spy.mockRestore()
+  })
 })
 
 describe('addSprint', () => {

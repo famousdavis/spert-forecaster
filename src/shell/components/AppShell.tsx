@@ -33,6 +33,10 @@ import { ConnectAiLauncher } from '@/features/connect-ai/components/ConnectAiLau
 // only `ProjectsTab`. The precedent is two lines above; no lint rule enforces either choice.
 import { useImportState } from '@/features/projects/hooks/useImportState'
 import { useCrosslinkReceiver } from '@/features/projects/hooks/useCrosslinkReceiver'
+import { exportWorkspaceBackup } from '@/features/projects/lib/export-backup'
+import { useAuth } from '@/shared/providers/AuthProvider'
+import { useStorageMode } from '@/shared/hooks/useStorageMode'
+import { CloudLoadingPanel, PROJECT_DATA_TABS, awaitsFirstCloudLoad } from './CloudLoadingPanel'
 
 export function AppShell() {
   const [activeTab, setActiveTab] = useState<TabId>('projects')
@@ -48,6 +52,15 @@ export function AppShell() {
   // opener. Mounted beside InvitationBanner rather than inside a tab for the same reason the
   // hook above is: the tabs come and go.
   useCrosslinkReceiver(importState)
+  // Brief 40, R2: in cloud mode the project tabs wait for the first cloud load.
+  // Auth still resolving counts as not loaded — useCloudSync has not started.
+  const { mode } = useStorageMode()
+  const { user, isLoading: authLoading } = useAuth()
+  const cloudDataLoaded = useProjectStore((state) => state.cloudDataLoaded)
+  const cloudLoadRetrying = useProjectStore((state) => state.cloudLoadRetrying)
+  const cloudLoadError = useProjectStore((state) => state.cloudLoadError)
+  const requestCloudLoadRetry = useProjectStore((state) => state.requestCloudLoadRetry)
+  const awaitingCloud = awaitsFirstCloudLoad({ mode, authLoading, signedIn: !!user, cloudDataLoaded })
   const { effectiveTheme } = useTheme()
   const faviconSrc = effectiveTheme === 'dark'
     ? '/spert-favicon-forecaster-dark.png'
@@ -137,11 +150,22 @@ export function AppShell() {
         <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} />
 
         <main className="mt-8 flex-1">
-          {activeTab === 'projects' && <ErrorBoundary><ProjectsTab onViewHistory={handleViewHistory} importState={importState} /></ErrorBoundary>}
-          {activeTab === 'sprint-history' && <ErrorBoundary><SprintHistoryTab /></ErrorBoundary>}
-          {activeTab === 'forecast' && <ErrorBoundary><ForecastTab onTabChange={setActiveTab} /></ErrorBoundary>}
-          {activeTab === 'about' && <ErrorBoundary><AboutTab /></ErrorBoundary>}
-          {activeTab === 'settings' && <ErrorBoundary><SettingsTab /></ErrorBoundary>}
+          {awaitingCloud && PROJECT_DATA_TABS.has(activeTab) ? (
+            <CloudLoadingPanel
+              retrying={cloudLoadRetrying}
+              error={cloudLoadError}
+              onTryAgain={requestCloudLoadRetry}
+              onExportBackup={exportWorkspaceBackup}
+            />
+          ) : (
+            <>
+              {activeTab === 'projects' && <ErrorBoundary><ProjectsTab onViewHistory={handleViewHistory} importState={importState} /></ErrorBoundary>}
+              {activeTab === 'sprint-history' && <ErrorBoundary><SprintHistoryTab /></ErrorBoundary>}
+              {activeTab === 'forecast' && <ErrorBoundary><ForecastTab onTabChange={setActiveTab} /></ErrorBoundary>}
+              {activeTab === 'about' && <ErrorBoundary><AboutTab /></ErrorBoundary>}
+              {activeTab === 'settings' && <ErrorBoundary><SettingsTab /></ErrorBoundary>}
+            </>
+          )}
         </main>
       </div>
 

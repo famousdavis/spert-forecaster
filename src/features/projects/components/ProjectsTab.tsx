@@ -11,7 +11,6 @@ import { useProjectStore } from '@/shared/state/project-store'
 import { useSettingsStore } from '@/shared/state/settings-store'
 import { useIsClient } from '@/shared/hooks'
 import { ConfirmDialog } from '@/shared/components/ConfirmDialog'
-import { today } from '@/shared/lib/dates'
 import { useStorageMode } from '@/shared/hooks/useStorageMode'
 import { SharingSection } from '@/features/auth/components/SharingSection'
 import { ProjectList } from './ProjectList'
@@ -22,7 +21,8 @@ import { loadSampleProject } from '../lib/sample-project'
 // Type-only: the hook is CALLED in AppShell now, not here. Importing the value would put it
 // back in this component's runtime graph and invite someone to call it again by accident.
 import type { useImportState } from '../hooks/useImportState'
-import { downloadJson, exportSingleProject } from '../lib/export-project'
+import { exportSingleProject } from '../lib/export-project'
+import { exportWorkspaceBackup } from '../lib/export-backup'
 import { reportExportCheck } from '@/shared/state/export-check-store'
 import { getWorkspaceId, getStorageMode } from '@/shared/state/storage'
 import { auth } from '@/shared/firebase/config'
@@ -55,7 +55,6 @@ export function ProjectsTab({ onViewHistory, importState }: ProjectsTabProps) {
   const cloneProject = useProjectStore((state) => state.cloneProject)
   const reorderProjects = useProjectStore((state) => state.reorderProjects)
   const sprints = useProjectStore((state) => state.sprints)
-  const exportData = useProjectStore((state) => state.exportData)
   const originRef = useProjectStore((state) => state._originRef)
   const changeLog = useProjectStore((state) => state._changeLog)
 
@@ -158,12 +157,9 @@ export function ProjectsTab({ onViewHistory, importState }: ProjectsTabProps) {
     setWantsToCreateNew(false)
   }
 
-  const handleExport = () => {
-    const json = downloadJson(`spert-forecaster-${today()}.json`, exportData())
-    toast.success('Project data exported')
-    // After the save, never before it: the check cannot block or undo the file.
-    reportExportCheck(json)
-  }
+  // The same helper serves "Export a backup" while the first cloud load is
+  // outstanding (Brief 40), so the two can never drift apart.
+  const handleExport = () => exportWorkspaceBackup()
 
   const handleClone = useCallback(
     (project: Project) => {
