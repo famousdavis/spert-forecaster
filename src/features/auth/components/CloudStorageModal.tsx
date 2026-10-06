@@ -11,6 +11,9 @@ import { useStorageMode } from '@/shared/hooks/useStorageMode'
 import { useProjectStore } from '@/shared/state/project-store'
 import { ConfirmDialog } from '@/shared/components/ConfirmDialog'
 import { normalizeDisplayName } from '@/features/auth/lib/display-name'
+import { exportWorkspaceBackup } from '@/features/projects/lib/export-backup'
+import { useFirstCloudLoadWindow } from '../hooks/useFirstCloudLoadWindow'
+import { EXPORT_BACKUP_LABEL, SIGN_OUT_WARNING, SWITCH_TO_LOCAL_WARNING } from '../lib/first-load-warnings'
 import { SignInButtons } from './SignInButtons'
 import { UploadConfirmPanel } from './UploadConfirmPanel'
 
@@ -42,6 +45,11 @@ export function CloudStorageModal({ isOpen, onClose }: CloudStorageModalProps) {
 
   const [showUploadConfirm, setShowUploadConfirm] = useState(false)
   const [showSwitchToLocalConfirm, setShowSwitchToLocalConfirm] = useState(false)
+  const [showSignOutConfirm, setShowSignOutConfirm] = useState(false)
+  // Brief 40: until the first cloud load succeeds, this browser's copy may be
+  // the only copy of some work, and both exits here remove it — so they warn
+  // first and offer a backup. Outside the window both behave as they always have.
+  const beforeFirstCloudLoad = useFirstCloudLoadWindow()
 
   const isSignedIn = !!user
   const isSignedInLocal = isSignedIn && mode === 'local'
@@ -52,6 +60,7 @@ export function CloudStorageModal({ isOpen, onClose }: CloudStorageModalProps) {
   const handleClose = useCallback(() => {
     setShowUploadConfirm(false)
     setShowSwitchToLocalConfirm(false)
+    setShowSignOutConfirm(false)
     onClose()
   }, [onClose])
 
@@ -119,6 +128,21 @@ export function CloudStorageModal({ isOpen, onClose }: CloudStorageModalProps) {
     // must close itself explicitly.
     handleClose()
   }, [signOut, handleClose])
+
+  // The cloud-mode identity card's Sign out: inside the first-load window it
+  // warns first (the local-mode card is never inside the window).
+  const handleCloudSignOutClick = useCallback(async () => {
+    if (beforeFirstCloudLoad) {
+      setShowSignOutConfirm(true)
+      return
+    }
+    await handleSignOut()
+  }, [beforeFirstCloudLoad, handleSignOut])
+
+  const handleConfirmSignOut = useCallback(() => {
+    setShowSignOutConfirm(false)
+    void handleSignOut()
+  }, [handleSignOut])
 
   if (!isOpen) return null
 
@@ -244,7 +268,7 @@ export function CloudStorageModal({ isOpen, onClose }: CloudStorageModalProps) {
                     <IdentityCard
                       displayName={displayName}
                       email={user.email ?? ''}
-                      onSignOut={handleSignOut}
+                      onSignOut={handleCloudSignOutClick}
                     />
                   </div>
                 )}
@@ -255,15 +279,36 @@ export function CloudStorageModal({ isOpen, onClose }: CloudStorageModalProps) {
       </div>
 
       {/* Switch-to-local confirm (dialog-over-dialog) */}
+      {beforeFirstCloudLoad ? (
+        <ConfirmDialog
+          isOpen={showSwitchToLocalConfirm}
+          {...SWITCH_TO_LOCAL_WARNING}
+          extraAction={{ label: EXPORT_BACKUP_LABEL, onClick: exportWorkspaceBackup }}
+          onConfirm={handleConfirmSwitchToLocal}
+          onCancel={() => setShowSwitchToLocalConfirm(false)}
+          variant="danger"
+        />
+      ) : (
+        <ConfirmDialog
+          isOpen={showSwitchToLocalConfirm}
+          title="Switch to local storage?"
+          message="Any projects created only in cloud mode won't be accessible in local storage. Your cloud data will remain in Firebase but won't sync until you switch back."
+          confirmLabel="Switch to Local"
+          cancelLabel="Stay in Cloud"
+          onConfirm={handleConfirmSwitchToLocal}
+          onCancel={() => setShowSwitchToLocalConfirm(false)}
+          variant="default"
+        />
+      )}
+
+      {/* Sign-out warning, inside the first-load window only (dialog-over-dialog) */}
       <ConfirmDialog
-        isOpen={showSwitchToLocalConfirm}
-        title="Switch to local storage?"
-        message="Any projects created only in cloud mode won't be accessible in local storage. Your cloud data will remain in Firebase but won't sync until you switch back."
-        confirmLabel="Switch to Local"
-        cancelLabel="Stay in Cloud"
-        onConfirm={handleConfirmSwitchToLocal}
-        onCancel={() => setShowSwitchToLocalConfirm(false)}
-        variant="default"
+        isOpen={showSignOutConfirm}
+        {...SIGN_OUT_WARNING}
+        extraAction={{ label: EXPORT_BACKUP_LABEL, onClick: exportWorkspaceBackup }}
+        onConfirm={handleConfirmSignOut}
+        onCancel={() => setShowSignOutConfirm(false)}
+        variant="danger"
       />
     </div>
   )

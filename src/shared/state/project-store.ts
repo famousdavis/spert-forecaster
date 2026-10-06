@@ -55,13 +55,28 @@ interface ProjectState {
   _isCloudUpdate: boolean
 
   // Cloud data hydration signal (transient, not persisted).
-  // Set true after the initial loadProjects() attempt completes in useCloudSync —
-  // regardless of outcome: success, Firestore error, or data-loss-guard bypass.
-  // "Attempted, done" — not "succeeded". Prevents import from running against
-  // stale local data during the post-sign-in hydration window (pitfall #88).
-  // Reset to false on cloud deactivate / sign-out.
+  // Set true once the first cloud load has SUCCEEDED in useCloudSync (including
+  // the data-loss-guard bypass, which is a successful load of zero projects).
+  // Until Brief 40 this meant "attempted, done" and turned true on a failed
+  // load too — which let an import or an edit write against an empty docMetaRef
+  // and reset shared projects' members. A failed load now leaves this false
+  // until a retry succeeds (pitfall #88). Reset to false on cloud deactivate /
+  // sign-out.
   cloudDataLoaded: boolean
   setCloudDataLoaded: (value: boolean) => void
+  // The first cloud load's failure state (Brief 40; transient, not persisted).
+  // cloudLoadRetrying: a TRANSIENT failure (the cloud can't be reached) and
+  // useCloudSync is retrying. cloudLoadError: any other failure, held until the
+  // user presses Try again; `code` is what the error panel shows. They choose
+  // only the waiting panel's wording.
+  cloudLoadRetrying: boolean
+  setCloudLoadRetrying: (value: boolean) => void
+  cloudLoadError: { code: string } | null
+  setCloudLoadError: (value: { code: string } | null) => void
+  // Try again. Bumps a counter that useCloudSync watches to wake whichever wait
+  // its first-load loop is in; while an attempt is in flight it does nothing.
+  cloudLoadRetryRequests: number
+  requestCloudLoadRetry: () => void
 
   // Project actions
   addProject: (project: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>) => void
@@ -234,8 +249,14 @@ export const useProjectStore = create<ProjectState>()(
       _changeLog: [] as ChangeLogEntry[],
       _isCloudUpdate: false,
       cloudDataLoaded: false,
+      cloudLoadRetrying: false,
+      cloudLoadError: null,
+      cloudLoadRetryRequests: 0,
 
       setCloudDataLoaded: (value) => set({ cloudDataLoaded: value }),
+      setCloudLoadRetrying: (value) => set({ cloudLoadRetrying: value }),
+      setCloudLoadError: (value) => set({ cloudLoadError: value }),
+      requestCloudLoadRetry: () => set((state) => ({ cloudLoadRetryRequests: state.cloudLoadRetryRequests + 1 })),
 
       addProject: (projectData) => {
         const id = generateId()
@@ -362,11 +383,11 @@ export const useProjectStore = create<ProjectState>()(
               .filter((p): p is Project => p !== undefined),
           }
         })
-        // Emit save for each project so cloud sync can persist order
-        const isCloud = get()._isCloudUpdate
-        for (const id of projectIds) {
-          emitProjectSave(id, isCloud)
-        }
+        // Emits NO cloud save (Brief 40, B3). The cloud has no order field, so a
+        // save per project wrote nothing new — but each one rewrote the project
+        // from this store a moment later, overwriting a collaborator's change
+        // made just after the drag. Order is per device: the persisted store,
+        // which useCloudSync's order-preserving merge keeps.
       },
 
       setViewingProjectId: (id) => set({ viewingProjectId: id }),
@@ -755,6 +776,8 @@ export const useProjectStore = create<ProjectState>()(
           burnUpConfigs: {},
           _changeLog: [],
           cloudDataLoaded: false,
+          cloudLoadRetrying: false,
+          cloudLoadError: null,
         })
         // Same rationale, one store over: the run record holds a previous
         // user's raw trial arrays, and the view-state map holds their target

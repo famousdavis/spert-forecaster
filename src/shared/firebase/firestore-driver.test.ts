@@ -15,6 +15,7 @@ vi.mock('firebase/firestore', () => ({
   doc: vi.fn(() => ({ __ref: true })),
   getDoc: vi.fn(),
   getDocs: vi.fn(),
+  getDocsFromServer: vi.fn(),
   setDoc: (...args: unknown[]) => mockSetDoc(...args),
   deleteDoc: vi.fn(),
   deleteField: () => mockDeleteFieldSentinel,
@@ -23,7 +24,7 @@ vi.mock('firebase/firestore', () => ({
   where: vi.fn(),
 }))
 
-import { getDocs, where } from 'firebase/firestore'
+import { getDocs, getDocsFromServer, where } from 'firebase/firestore'
 import {
   PROJECT_MERGE_FIELDS,
   SETTINGS_MERGE_FIELDS,
@@ -240,6 +241,7 @@ describe('projects collection — query shape required by the Firestore list rul
   beforeEach(() => {
     vi.mocked(where).mockClear()
     vi.mocked(getDocs).mockResolvedValue({ docs: [] } as never)
+    vi.mocked(getDocsFromServer).mockResolvedValue({ docs: [] } as never)
   })
 
   it('loadProjects filters by owner and by each member role — never unfiltered', async () => {

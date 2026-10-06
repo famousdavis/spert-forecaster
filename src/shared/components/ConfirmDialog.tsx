@@ -16,12 +16,24 @@ interface ConfirmDialogProps {
   onConfirm: () => void
   onCancel: () => void
   variant?: 'danger' | 'default'
+  /**
+   * Optional third button, shown FIRST: [extra] [confirm] [cancel]. The warnings
+   * before an action that removes this browser's copy of the user's projects use
+   * it for "Export a backup", which runs without closing the dialog (Brief 40).
+   * Focus still opens on Cancel, so Enter never runs the destructive choice by
+   * default. Without it the dialog is exactly the two-button dialog it always was.
+   */
+  extraAction?: { label: string; onClick: () => void }
 }
+
+const secondaryButtonClass =
+  'px-4 py-2 text-sm font-medium rounded border border-spert-border dark:border-gray-600 bg-white dark:bg-gray-700 text-spert-text dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors'
 
 /**
  * Accessible confirmation dialog that replaces window.confirm()
  * - Traps focus within the dialog
- * - Supports keyboard navigation (Escape to cancel, Enter to confirm)
+ * - Supports keyboard navigation: Escape cancels; Enter activates the focused
+ *   button, and focus opens on Cancel (there is no dialog-level Enter shortcut)
  * - Uses proper ARIA attributes for screen readers
  */
 export function ConfirmDialog({
@@ -33,10 +45,13 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
   variant = 'danger',
+  extraAction,
 }: ConfirmDialogProps) {
   const dialogRef = useRef<HTMLDivElement>(null)
   const confirmButtonRef = useRef<HTMLButtonElement>(null)
   const cancelButtonRef = useRef<HTMLButtonElement>(null)
+  const extraButtonRef = useRef<HTMLButtonElement>(null)
+  const hasExtra = extraAction !== undefined
 
   // Focus the cancel button when dialog opens (safer default)
   useEffect(() => {
@@ -55,9 +70,13 @@ export function ConfirmDialog({
         onCancel()
       }
 
-      // Trap focus within dialog
+      // Trap focus within dialog, in the buttons' on-screen order
       if (e.key === 'Tab') {
-        const focusableElements = [cancelButtonRef.current, confirmButtonRef.current].filter(Boolean)
+        const focusableElements = (
+          hasExtra
+            ? [extraButtonRef.current, confirmButtonRef.current, cancelButtonRef.current]
+            : [cancelButtonRef.current, confirmButtonRef.current]
+        ).filter(Boolean)
         const firstElement = focusableElements[0]
         const lastElement = focusableElements[focusableElements.length - 1]
 
@@ -70,7 +89,7 @@ export function ConfirmDialog({
         }
       }
     },
-    [isOpen, onCancel]
+    [isOpen, onCancel, hasExtra]
   )
 
   useEffect(() => {
@@ -126,14 +145,17 @@ export function ConfirmDialog({
           {message}
         </p>
 
-        <div className="flex justify-end gap-3">
-          <button
-            ref={cancelButtonRef}
-            onClick={onCancel}
-            className="px-4 py-2 text-sm font-medium rounded border border-spert-border dark:border-gray-600 bg-white dark:bg-gray-700 text-spert-text dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
-          >
-            {cancelLabel}
-          </button>
+        <div className={cn('flex justify-end gap-3', hasExtra && 'flex-wrap')}>
+          {extraAction && (
+            <button ref={extraButtonRef} onClick={extraAction.onClick} className={secondaryButtonClass}>
+              {extraAction.label}
+            </button>
+          )}
+          {!hasExtra && (
+            <button ref={cancelButtonRef} onClick={onCancel} className={secondaryButtonClass}>
+              {cancelLabel}
+            </button>
+          )}
           <button
             ref={confirmButtonRef}
             onClick={onConfirm}
@@ -146,6 +168,11 @@ export function ConfirmDialog({
           >
             {confirmLabel}
           </button>
+          {hasExtra && (
+            <button ref={cancelButtonRef} onClick={onCancel} className={secondaryButtonClass}>
+              {cancelLabel}
+            </button>
+          )}
         </div>
       </div>
     </div>

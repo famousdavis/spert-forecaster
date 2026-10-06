@@ -13,6 +13,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  getDocsFromServer,
   setDoc,
   deleteDoc,
   deleteField,
@@ -104,6 +105,35 @@ export const SAVE_DEBOUNCE_MS = 200
 
 const pendingSaveTimers = new Map<string, ReturnType<typeof setTimeout>>()
 const pendingSaveFns = new Map<string, () => Promise<void>>()
+// Writes handed to the SDK and not yet settled, per key. A COUNT, not a flag: a
+// second write to the same key can be issued before the first one settles.
+const inFlightSaves = new Map<string, number>()
+
+async function runSave(key: string, saveFn: () => Promise<void>): Promise<void> {
+  inFlightSaves.set(key, (inFlightSaves.get(key) ?? 0) + 1)
+  try {
+    await saveFn()
+  } finally {
+    // ⚠️ In `finally`, not on success only. The SDK settles a refused write's
+    // promise BEFORE it dispatches the rollback snapshot (listeners run via
+    // setTimeout(0)), so the project is no longer protected when the rollback
+    // arrives, and the refused edit reverts in the store as it should.
+    const left = (inFlightSaves.get(key) ?? 1) - 1
+    if (left > 0) inFlightSaves.set(key, left)
+    else inFlightSaves.delete(key)
+  }
+}
+
+/**
+ * TRUE while a save of this project waits in its debounce timer or has been
+ * handed to the SDK and not yet settled. useCloudSync keeps the store's version
+ * of such a project when a snapshot arrives (Brief 40): its newest state is not
+ * in that snapshot yet.
+ */
+export function isProjectSaveOutstanding(projectId: string): boolean {
+  const key = `project:${projectId}`
+  return pendingSaveTimers.has(key) || inFlightSaves.has(key)
+}
 
 function debouncedSave(key: string, saveFn: () => Promise<void>, delayMs = SAVE_DEBOUNCE_MS): void {
   const existingTimer = pendingSaveTimers.get(key)
@@ -116,7 +146,7 @@ function debouncedSave(key: string, saveFn: () => Promise<void>, delayMs = SAVE_
       pendingSaveTimers.delete(key)
       pendingSaveFns.delete(key)
       try {
-        await saveFn()
+        await runSave(key, saveFn)
       } catch (err) {
         console.error(`Firestore save failed for ${key}:`, err)
         toast.error('Failed to save changes to the cloud. Please check your connection.')
@@ -142,7 +172,7 @@ export function flushPendingSaves(): void {
   }
   for (const [key, saveFn] of pendingSaveFns) {
     pendingSaveFns.delete(key)
-    saveFn().catch((err) => console.error(`Flush save failed for ${key}:`, err))
+    runSave(key, saveFn).catch((err) => console.error(`Flush save failed for ${key}:`, err))
   }
 }
 
@@ -175,7 +205,15 @@ function buildMergeWrite(
 
 // --- Project operations ---
 
-/** Load all projects where the user is owner or member. */
+/**
+ * Load all projects where the user is owner or member, FROM THE SERVER.
+ *
+ * ⚠️ getDocsFromServer, not getDocs: offline, getDocs resolves from the local
+ * cache — empty on a fresh page — and that empty answer used to count as "the
+ * cloud has nothing". useCloudSync treats this load as the baseline that every
+ * create decision rests on, so it must be the server's answer or a failure.
+ * Offline it rejects with code `unavailable` (Brief 40).
+ */
 export async function loadProjects(uid: string): Promise<Map<string, FirestoreProjectDoc>> {
   if (!db) throw new Error('Firestore not available')
 
@@ -201,7 +239,7 @@ export async function loadProjects(uid: string): Promise<Map<string, FirestorePr
     collection(db, COLLECTIONS.projects),
     where('owner', '==', uid)
   )
-  const ownedSnap = await getDocs(ownedQ)
+  const ownedSnap = await getDocsFromServer(ownedQ)
   for (const docSnap of ownedSnap.docs) {
     result.set(docSnap.id, docSnap.data() as FirestoreProjectDoc)
   }
@@ -213,7 +251,7 @@ export async function loadProjects(uid: string): Promise<Map<string, FirestorePr
       collection(db, COLLECTIONS.projects),
       where(`members.${uid}`, '==', role)
     )
-    const memberSnap = await getDocs(memberQ)
+    const memberSnap = await getDocsFromServer(memberQ)
     for (const docSnap of memberSnap.docs) {
       if (!result.has(docSnap.id)) {
         result.set(docSnap.id, docSnap.data() as FirestoreProjectDoc)
@@ -288,7 +326,25 @@ export async function deleteProject(projectId: string): Promise<void> {
   await deleteDoc(ref)
 }
 
-/** Subscribe to real-time updates for all projects where user is owner or member. */
+type QueryScope = 'owned' | 'editor' | 'viewer'
+
+/**
+ * Subscribe to real-time updates for all projects where user is owner or member.
+ *
+ * ⚠️ EVERY raise is applied, pending or not (Brief 40). The SDK raises nothing
+ * when a write is acknowledged, so a dropped pending raise left that query's map
+ * holding the pre-write document for good — and the next raise on ANY query
+ * pushed it into the store. The caller decides what to keep, per project
+ * (useCloudSync → mergeCloudView); this function never filters.
+ *
+ * ⚠️ ONE notify per burst of raises (Brief 40, B1). The SDK delivers each
+ * listener's raise in its own setTimeout(0), editor before viewer, so a role
+ * change — the project leaves one query and joins another — arrives as two
+ * raises. Notifying on each handed the caller a view WITHOUT the project in
+ * between: the merge dropped it, then appended it last, and the project on
+ * screen changed. The notify is deferred by one deduplicated setTimeout(0),
+ * which queues behind the sibling raises the SDK has already scheduled.
+ */
 export function subscribeToUserProjects(
   uid: string,
   callback: (projects: Map<string, FirestoreProjectDoc>) => void
@@ -296,39 +352,50 @@ export function subscribeToUserProjects(
   if (!db) return () => {}
 
   // Track results from each listener separately to avoid flicker on merge
-  const ownedProjects = new Map<string, FirestoreProjectDoc>()
-  const editorProjects = new Map<string, FirestoreProjectDoc>()
-  const viewerProjects = new Map<string, FirestoreProjectDoc>()
-
-  // Wait until all three listeners have delivered their first snapshot
-  // before calling the callback, to prevent briefly dropping shared projects
-  let ownedReady = false
-  let editorReady = false
-  let viewerReady = false
+  const results: Record<QueryScope, Map<string, FirestoreProjectDoc>> = {
+    owned: new Map(), editor: new Map(), viewer: new Map(),
+  }
+  // Wait until all three listeners have delivered their first snapshot — of any
+  // kind — before calling the callback, to prevent briefly dropping shared
+  // projects. A first raise that is pending, or served from cache, counts:
+  // waiting for a non-pending one deadlocked the listener whenever a write was
+  // pending at subscribe.
+  const ready: Record<QueryScope, boolean> = { owned: false, editor: false, viewer: false }
+  // Per subscription, never module-level: a re-subscribe must not share it.
+  let notifyTimer: ReturnType<typeof setTimeout> | null = null
+  let unsubscribed = false
 
   function mergeAndNotify() {
-    if (!ownedReady || !editorReady || !viewerReady) return
+    if (!ready.owned || !ready.editor || !ready.viewer) return
 
     const merged = new Map<string, FirestoreProjectDoc>()
     // Lower-priority first so owned takes precedence
-    for (const [id, d] of viewerProjects) merged.set(id, d)
-    for (const [id, d] of editorProjects) merged.set(id, d)
-    for (const [id, d] of ownedProjects) merged.set(id, d)
+    for (const [id, d] of results.viewer) merged.set(id, d)
+    for (const [id, d] of results.editor) merged.set(id, d)
+    for (const [id, d] of results.owned) merged.set(id, d)
     callback(merged)
   }
 
-  function handleSnapshot(
-    target: Map<string, FirestoreProjectDoc>,
-    setReady: () => void
-  ) {
+  function scheduleNotify() {
+    if (notifyTimer !== null) return
+    notifyTimer = setTimeout(() => {
+      // ⚠️ Cleared BEFORE the callback runs. A callback that throws (a malformed
+      // document does) would otherwise leave the handle set, and every later
+      // raise would find a notify "already scheduled": sync silenced until a reload.
+      notifyTimer = null
+      if (!unsubscribed) mergeAndNotify()
+    }, 0)
+  }
+
+  function handleSnapshot(scope: QueryScope) {
     return (snapshot: import('firebase/firestore').QuerySnapshot) => {
-      if (snapshot.metadata.hasPendingWrites) return
+      const target = results[scope]
       target.clear()
       for (const docSnap of snapshot.docs) {
         target.set(docSnap.id, docSnap.data() as FirestoreProjectDoc)
       }
-      setReady()
-      mergeAndNotify()
+      ready[scope] = true
+      scheduleNotify()
     }
   }
 
@@ -355,15 +422,21 @@ export function subscribeToUserProjects(
   // lives in a DIFFERENT repository, so it will NOT fail when you edit these
   // lines. Change one, change the other.
   const ownedQ = query(collection(db, COLLECTIONS.projects), where('owner', '==', uid))
-  const unsubOwned = onSnapshot(ownedQ, handleSnapshot(ownedProjects, () => { ownedReady = true }), handleListenerError('owned'))
+  const unsubOwned = onSnapshot(ownedQ, handleSnapshot('owned'), handleListenerError('owned'))
 
   const editorQ = query(collection(db, COLLECTIONS.projects), where(`members.${uid}`, '==', 'editor'))
-  const unsubEditor = onSnapshot(editorQ, handleSnapshot(editorProjects, () => { editorReady = true }), handleListenerError('editor'))
+  const unsubEditor = onSnapshot(editorQ, handleSnapshot('editor'), handleListenerError('editor'))
 
   const viewerQ = query(collection(db, COLLECTIONS.projects), where(`members.${uid}`, '==', 'viewer'))
-  const unsubViewer = onSnapshot(viewerQ, handleSnapshot(viewerProjects, () => { viewerReady = true }), handleListenerError('viewer'))
+  const unsubViewer = onSnapshot(viewerQ, handleSnapshot('viewer'), handleListenerError('viewer'))
 
   return () => {
+    // Nothing notifies after an unsubscribe (sign-out, mode switch, teardown).
+    unsubscribed = true
+    if (notifyTimer !== null) {
+      clearTimeout(notifyTimer)
+      notifyTimer = null
+    }
     unsubOwned()
     unsubEditor()
     unsubViewer()

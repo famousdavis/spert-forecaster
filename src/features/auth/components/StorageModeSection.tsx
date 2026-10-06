@@ -12,6 +12,9 @@ import { migrateLocalToCloud, type MigrationResult } from '@/shared/firebase/fir
 import { useProjectStore } from '@/shared/state/project-store'
 import { ConfirmDialog } from '@/shared/components/ConfirmDialog'
 import { normalizeDisplayName } from '@/features/auth/lib/display-name'
+import { exportWorkspaceBackup } from '@/features/projects/lib/export-backup'
+import { useFirstCloudLoadWindow } from '../hooks/useFirstCloudLoadWindow'
+import { EXPORT_BACKUP_LABEL, SIGN_OUT_WARNING, SWITCH_TO_LOCAL_WARNING } from '../lib/first-load-warnings'
 import { SignInButtons } from './SignInButtons'
 import { UploadConfirmPanel } from './UploadConfirmPanel'
 
@@ -36,6 +39,11 @@ export function StorageModeSection() {
   const [migrationResult, setMigrationResult] = useState<MigrationResult | null>(null)
   const [showMigrationPrompt, setShowMigrationPrompt] = useState(false)
   const [showLocalConfirm, setShowLocalConfirm] = useState(false)
+  const [showSignOutConfirm, setShowSignOutConfirm] = useState(false)
+  // Brief 40: until the first cloud load succeeds, this browser's copy may be
+  // the only copy of some work, and both exits below remove it — so they warn
+  // first and offer a backup. Outside the window both behave as they always have.
+  const beforeFirstCloudLoad = useFirstCloudLoadWindow()
 
   if (!isFirebaseAvailable) return null
 
@@ -63,6 +71,19 @@ export function StorageModeSection() {
     setMode('local')
     setMigrationResult(null)
     setShowLocalConfirm(false)
+  }
+
+  const handleSignOutClick = () => {
+    if (beforeFirstCloudLoad) {
+      setShowSignOutConfirm(true)
+      return
+    }
+    void signOut()
+  }
+
+  const handleConfirmSignOut = () => {
+    setShowSignOutConfirm(false)
+    void signOut()
   }
 
   const handleMigrationSuccess = (result: MigrationResult) => {
@@ -124,7 +145,7 @@ export function StorageModeSection() {
                 </p>
               </div>
               <button
-                onClick={signOut}
+                onClick={handleSignOutClick}
                 className="px-3 py-1.5 text-sm font-medium rounded border border-spert-border dark:border-gray-600 text-spert-text dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
               >
                 Sign out
@@ -257,15 +278,35 @@ export function StorageModeSection() {
         </div>
       </section>
 
+      {beforeFirstCloudLoad ? (
+        <ConfirmDialog
+          isOpen={showLocalConfirm}
+          {...SWITCH_TO_LOCAL_WARNING}
+          extraAction={{ label: EXPORT_BACKUP_LABEL, onClick: exportWorkspaceBackup }}
+          onConfirm={handleConfirmLocal}
+          onCancel={() => setShowLocalConfirm(false)}
+          variant="danger"
+        />
+      ) : (
+        <ConfirmDialog
+          isOpen={showLocalConfirm}
+          title="Switch to local storage?"
+          message="Any projects created only in cloud mode won't be accessible in local storage. Your cloud data will remain in Firebase but won't sync until you switch back."
+          confirmLabel="Switch to Local"
+          cancelLabel="Stay in Cloud"
+          onConfirm={handleConfirmLocal}
+          onCancel={() => setShowLocalConfirm(false)}
+          variant="default"
+        />
+      )}
+
       <ConfirmDialog
-        isOpen={showLocalConfirm}
-        title="Switch to local storage?"
-        message="Any projects created only in cloud mode won't be accessible in local storage. Your cloud data will remain in Firebase but won't sync until you switch back."
-        confirmLabel="Switch to Local"
-        cancelLabel="Stay in Cloud"
-        onConfirm={handleConfirmLocal}
-        onCancel={() => setShowLocalConfirm(false)}
-        variant="default"
+        isOpen={showSignOutConfirm}
+        {...SIGN_OUT_WARNING}
+        extraAction={{ label: EXPORT_BACKUP_LABEL, onClick: exportWorkspaceBackup }}
+        onConfirm={handleConfirmSignOut}
+        onCancel={() => setShowSignOutConfirm(false)}
+        variant="danger"
       />
     </>
   )
