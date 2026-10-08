@@ -21,9 +21,19 @@ import {
   saveSettings,
   flushPendingSaves,
   isProjectSaveOutstanding,
+  cancelPendingProjectSaves,
   SAVE_DEBOUNCE_MS,
 } from '@/shared/firebase/firestore-driver'
-import { mergeCloudView } from '@/shared/firebase/snapshot-merge'
+import { mergeCloudView, type CloudMergeResult } from '@/shared/firebase/snapshot-merge'
+import {
+  createFailureText,
+  deleteFailureText,
+  importSaveFailureText,
+  saveFailureText,
+  NOT_IN_CLOUD_SAVE_TEXT,
+} from '@/shared/firebase/firestore-errors'
+import { accessFromState, roleFromDoc, type ProjectAccess } from '@/shared/state/project-access'
+import { bumpSimulationGeneration } from '@/shared/lib/simulation-generation'
 import { auth } from '@/shared/firebase/config'
 import {
   projectToFirestoreDoc,
@@ -36,21 +46,57 @@ import type { FirestoreProjectDoc, SyncEvent } from '@/shared/firebase/types'
 import type { Project, Sprint } from '@/shared/types'
 import { getWorkspaceId } from '@/shared/state/storage'
 
-/** Convert Firestore project docs into typed arrays for the Zustand store. */
+/**
+ * Convert Firestore project docs into typed arrays for the Zustand store, and
+ * the signed-in user's role on each (Brief 39), from the doc's owner/members.
+ */
 function processProjectDocs(
   projectDocs: Iterable<[string, FirestoreProjectDoc]>,
-  docMetaRef: React.MutableRefObject<Map<string, FirestoreProjectDoc>>
-): { projects: Project[]; sprints: Sprint[] } {
+  docMetaRef: React.MutableRefObject<Map<string, FirestoreProjectDoc>>,
+  uid: string
+): { projects: Project[]; sprints: Sprint[]; roles: Record<string, ProjectAccess> } {
   const projects: Project[] = []
   const sprints: Sprint[] = []
+  const roles: Record<string, ProjectAccess> = {}
 
   for (const [docId, doc] of projectDocs) {
     docMetaRef.current.set(docId, doc)
+    roles[docId] = roleFromDoc(doc, uid)
     projects.push(firestoreDocToProject(docId, doc))
     sprints.push(...firestoreDocToSprints(doc))
   }
 
-  return { projects, sprints }
+  return { projects, sprints, roles }
+}
+
+/**
+ * Write a merged cloud view into the store. ⚠️ The roles go in on EVERY view
+ * (Brief 39): a role change alters only `members`, which no store project
+ * carries, so it arrives in a view whose merge changes nothing — writing roles
+ * only when the projects changed would never deliver it. When the projects did
+ * change, the roles ride in the same set(): one store write (each set()
+ * re-persists the whole dataset), and the map is replaced wholesale, so a
+ * project that left the view loses its entry in the write that drops it.
+ */
+function applyCloudView(merged: CloudMergeResult, roles: Record<string, ProjectAccess>): void {
+  const store = useProjectStore.getState()
+  if (merged.changed) store.replaceProjectsFromCloud(merged.projects, merged.sprints, roles)
+  else store.setProjectRoles(roles)
+}
+
+/**
+ * The entries for a store Brief 40's zero-project guard keeps (Brief 39, V1):
+ * the cloud returned nothing for this account, so every project the store
+ * holds is `not-in-cloud` — except one this browser is creating, which no view
+ * can contain yet and which stays the user's own (no entry → `owner`).
+ */
+function notInCloudRoles(
+  projects: Project[],
+  isBeingCreated: (projectId: string) => boolean
+): Record<string, ProjectAccess> {
+  const roles: Record<string, ProjectAccess> = {}
+  for (const p of projects) if (!isBeingCreated(p.id)) roles[p.id] = 'not-in-cloud'
+  return roles
 }
 
 /**
@@ -112,6 +158,26 @@ export function useCloudSync(user: User | null, mode: 'local' | 'cloud') {
 
     const uid = user.uid
     let cancelled = false
+
+    // Brief 39, V1. The stored projects are the cloud view of the account whose
+    // first load last succeeded here (`cloudAccountId`). Another account must
+    // never see them — whether or not anyone signed out in between — so they
+    // are cleared before this account's first load, with what a sign-out clears
+    // (performSignOutCleanup) except the storage mode: this account is mid-load.
+    // The previous run's cleanup has already cancelled its pending saves.
+    // docMetaRef is a component ref that outlives this effect: it is emptied
+    // too, so no owner or members of a previous session can reach this one's
+    // writes.
+    docMetaRef.current.clear()
+    const atStart = useProjectStore.getState()
+    if (atStart.cloudAccountId !== '' && atStart.cloudAccountId !== uid) {
+      bumpSimulationGeneration()                              // discard the previous account's runs
+      atStart.clearProjectsOnAccountChange()
+      useSettingsStore.getState().clearSettingsOnSignOut()    // Export Attribution: the next account must not export as this one
+      // As at every other call site that clears the projects: the previous
+      // account's AI pairing ends with its session.
+      syncBus.emit({ type: 'ai:session-teardown', reason: 'signout' })
+    }
     let unsubscribeSnapshot: (() => void) | null = null
     let unsubscribeSyncBus: (() => void) | null = null
 
@@ -131,13 +197,28 @@ export function useCloudSync(user: User | null, mode: 'local' | 'cloud') {
     const inFlightCreatePromises = new Map<string, Promise<void>>()
 
     const isCreateUnconfirmed = (projectId: string) =>
-      pendingCreateTimers.has(projectId) || inFlightCreatePromises.has(projectId)
+      pendingCreateTimers.has(projectId) || inFlightCreatePromises.has(projectId) || importCreatesInFlight.has(projectId)
 
     // Local deletes issued and not yet settled. A snapshot built before the
     // delete reached the SDK still holds the project; mergeCloudView must not
     // append it back. Cleared when the delete settles, so a REFUSED delete's
     // rollback brings the project back, honestly.
     const pendingDeletes = new Set<string>()
+
+    // The ids of the latest cloud view applied here — the first load, then each
+    // snapshot (Brief 39). docMetaRef never forgets a document that left the
+    // view; this does. An import deletes, and takes owner/members from
+    // docMetaRef for, only ids in this set: what this account's cloud holds as
+    // far as this browser knows.
+    let latestViewIds = new Set<string>()
+
+    // The import's own saves still in flight, by project id (Brief 39). Merged
+    // like any other outstanding save, so a raise built before the import
+    // reached the SDK cannot show a project's pre-import version or drop a
+    // project the import just added.
+    const importSavesInFlight = new Map<string, number>()
+    const importCreatesInFlight = new Set<string>()
+    const isImportSaveOutstanding = (projectId: string) => importSavesInFlight.has(projectId)
 
     // ── First-load gate (Brief 40, R2) ──────────────────────────────────────
     // Until the first cloud load has SUCCEEDED, no project write leaves this
@@ -174,6 +255,9 @@ export function useCloudSync(user: User | null, mode: 'local' | 'cloud') {
         const s = useProjectStore.getState()
         const p = s.projects.find((proj) => proj.id === projectId)
         if (!p) continue
+        // Brief 39 (V5): an edit never creates a project that no cloud view of
+        // this account contains — at unload either, as in Branch A's timer.
+        if (accessFromState(s, projectId) === 'not-in-cloud') continue   // nothing sent; no toast — the page is unloading
         const doc = projectToFirestoreDoc(
           p,
           s.sprints,
@@ -217,7 +301,8 @@ export function useCloudSync(user: User | null, mode: 'local' | 'cloud') {
      * project order survives a reload on the same device.
      */
     function applyBaseline(projectDocs: Map<string, FirestoreProjectDoc>) {
-      const { projects, sprints } = processProjectDocs(projectDocs, docMetaRef)
+      const { projects, sprints, roles } = processProjectDocs(projectDocs, docMetaRef, uid)
+      latestViewIds = new Set(projectDocs.keys())
 
       // Data-loss guard: if cloud is empty but local has projects, skip
       // replacement on initial load. This prevents wiping un-migrated local
@@ -227,6 +312,18 @@ export function useCloudSync(user: User | null, mode: 'local' | 'cloud') {
         console.warn(
           `Cloud returned 0 projects but local has ${store.projects.length} — skipping initial replacement to protect local data`
         )
+        // Kept, but in no view for this account: read only (V1). A project
+        // created here while the load was outstanding is released as a create
+        // below, and stays the user's own.
+        //
+        // ⚠️ heldProjectIds holds every project WRITTEN during the load, not only
+        // the ones created then, so a pre-existing project written during the
+        // load would be exempt too, and its released write would create it as
+        // this user's own. Safe only because nothing can write one then: the
+        // loading panel covers every edit control, and the crosslink receiver
+        // only previews in cloud mode. If a write path ever reaches a stored
+        // project during the load, exempt only the projects created then.
+        store.setProjectRoles(notInCloudRoles(store.projects, (projectId) => heldProjectIds.has(projectId)))
       } else {
         // A project created on this device while the load was outstanding is the
         // only store project the cloud is allowed to lack.
@@ -236,12 +333,13 @@ export function useCloudSync(user: User | null, mode: 'local' | 'cloud') {
           isCreateUnconfirmed: heldNew,
           isDeletePending: () => false,
         })
-        if (merged.changed) store.replaceProjectsFromCloud(merged.projects, merged.sprints)
+        applyCloudView(merged, roles)
       }
 
       baselineReady = true
       store.setCloudLoadRetrying(false)
       store.setCloudLoadError(null)
+      store.setCloudAccountId(uid)
     }
 
     /**
@@ -377,7 +475,8 @@ export function useCloudSync(user: User | null, mode: 'local' | 'cloud') {
         // closure variable from subscription setup, NOT a live read.
         if (auth?.currentUser?.uid !== uid) return
 
-        const { projects, sprints } = processProjectDocs(projectDocs, docMetaRef)
+        const { projects, sprints, roles } = processProjectDocs(projectDocs, docMetaRef, uid)
+        latestViewIds = new Set(projectDocs.keys())
 
         // Data-loss guard (I1) — fires AT MOST ONCE per cloud session. After
         // the first snapshot, subsequent empty snapshots propagate so that
@@ -390,6 +489,7 @@ export function useCloudSync(user: User | null, mode: 'local' | 'cloud') {
               `Cloud snapshot returned 0 projects but local has ${localProjects.length} — ` +
               `skipping first snapshot to protect local data`
             )
+            useProjectStore.getState().setProjectRoles(notInCloudRoles(localProjects, isCreateUnconfirmed))
             return
           }
         }
@@ -399,11 +499,12 @@ export function useCloudSync(user: User | null, mode: 'local' | 'cloud') {
         // version, and a merge that changes nothing writes nothing.
         const store = useProjectStore.getState()
         const merged = mergeCloudView(store, { projects, sprints }, {
-          isProtected: (projectId) => isProjectSaveOutstanding(projectId) || isCreateUnconfirmed(projectId),
+          isProtected: (projectId) =>
+            isProjectSaveOutstanding(projectId) || isCreateUnconfirmed(projectId) || isImportSaveOutstanding(projectId),
           isCreateUnconfirmed,
           isDeletePending: (projectId) => pendingDeletes.has(projectId),
         })
-        if (merged.changed) store.replaceProjectsFromCloud(merged.projects, merged.sprints)
+        applyCloudView(merged, roles)
       })
     }
 
@@ -448,6 +549,19 @@ export function useCloudSync(user: User | null, mode: 'local' | 'cloud') {
                 const p = s.projects.find((proj) => proj.id === projectId)
                 if (!p) return // deleted before timer fired
 
+                // Brief 39: the refusal text follows the access the user had
+                // when the write was issued, not when it settles.
+                const access = accessFromState(s, projectId)
+                if (access === 'not-in-cloud') {
+                  // Brief 39 (V5): no cloud view of this account contains this
+                  // project — it may be someone else's, deleted, or never
+                  // written. An edit never creates it (flushPendingCreates
+                  // skips it too). Nothing is sent; it leaves at the next
+                  // applied view, like every not-in-cloud project.
+                  toast.error(NOT_IN_CLOUD_SAVE_TEXT)
+                  return
+                }
+
                 const doc = projectToFirestoreDoc(
                   p,
                   s.sprints,
@@ -471,7 +585,7 @@ export function useCloudSync(user: User | null, mode: 'local' | 'cloud') {
                   })
                   .catch((err) => {
                     console.error('Cloud project creation failed:', err)
-                    toast.error('Failed to save changes to the cloud. Please check your connection.')
+                    toast.error(createFailureText(err, access))
                   })
                   .finally(() => {
                     inFlightCreatePromises.delete(projectId)
@@ -508,7 +622,8 @@ export function useCloudSync(user: User | null, mode: 'local' | 'cloud') {
                 // exists in Firestore at this point so the update rule
                 // accepts the mergeFields write.
                 if (latestExistingDoc !== undefined) docMetaRef.current.set(chainedId, doc)
-                saveProject(chainedId, doc)
+                const access = accessFromState(s, chainedId)
+                saveProject(chainedId, doc, (err) => toast.error(saveFailureText(err, access)))
               })
               .catch(() => {
                 // Create failed — skip chained update. Next project:save
@@ -527,10 +642,16 @@ export function useCloudSync(user: User | null, mode: 'local' | 'cloud') {
             state._changeLog
           )
           docMetaRef.current.set(event.projectId, doc)
-          saveProject(event.projectId, doc)
+          const access = accessFromState(state, event.projectId)
+          saveProject(event.projectId, doc, (err) => toast.error(saveFailureText(err, access)))
           break
         }
         case 'project:delete': {
+          // Brief 39: the access the user had when they deleted, for the text
+          // of a refusal. The store has dropped the project already; its role
+          // entry stays until the next cloud view.
+          const deleteAccess = accessFromState(useProjectStore.getState(), event.projectId)
+
           // ── Case 1: create timer not yet fired ────────────────────────────
           // Doc was never written to Firestore. Skip cloud delete — deleteDoc
           // against a non-existent document evaluates the delete rule against
@@ -560,7 +681,7 @@ export function useCloudSync(user: User | null, mode: 'local' | 'cloud') {
                 docMetaRef.current.delete(deleteId)
                 return deleteProject(deleteId).catch((err) => {
                   console.error('Cloud delete failed (chained after create):', err)
-                  toast.error('Failed to delete project from the cloud.')
+                  toast.error(deleteFailureText(err, deleteAccess))
                 })
               })
               .catch(() => {
@@ -579,97 +700,13 @@ export function useCloudSync(user: User | null, mode: 'local' | 'cloud') {
           deleteProject(deletedId)
             .catch((err) => {
               console.error('Cloud delete failed:', err)
-              toast.error('Failed to delete project from the cloud.')
+              toast.error(deleteFailureText(err, deleteAccess))
             })
             .finally(() => pendingDeletes.delete(deletedId))
           break
         }
         case 'project:import': {
-          // Cancel stale debounced saves so they don't overwrite imported data
-          cancelPendingSaves()
-
-          // Cancel pending first-write timers. Import replaces all projects;
-          // a pending create that fires after the import either no-ops
-          // (project absent at fire time) or writes stale pre-import data.
-          // In-flight creates (already dispatched) cannot be recalled — the
-          // delete loop below catches them via docMetaRef.keys() if their IDs
-          // are absent from the post-import project set.
-          for (const t of pendingCreateTimers.values()) clearTimeout(t)
-          pendingCreateTimers.clear()
-
-          const state = useProjectStore.getState()
-          const importedIds = new Set(state.projects.map((p) => p.id))
-          const { replacedIdMap } = event
-
-          // Pre-seed docMetaRef for name-conflict winner IDs so projectToFirestoreDoc
-          // receives the old doc's owner/members instead of defaulting to the current
-          // user with empty members (which would destroy prior sharing — pitfall #7).
-          //
-          // Owner guard: only pre-seed when currentUser IS the owner of the existing
-          // doc. Non-owner editors cannot write a Firestore doc with
-          // owner !== request.auth.uid. For non-owners the pre-seed is skipped: the
-          // new winnerId doc is created with owner: currentUser.uid (allowed), but
-          // the old existingId delete fails (rejected). After the next snapshot,
-          // both docs appear — the toast in the delete loop below explains this.
-          // TODO (v0.35.0): detect non-owned conflicts at preview time and disable
-          // 'replace' for those rows. Requires exposing ownership metadata through
-          // the Zustand store.
-          //
-          // Order rationale: pre-seed BEFORE the delete loop. The delete loop
-          // iterates docMetaRef.current.keys() after the pre-seed has called
-          // set(winnerId, oldDoc), so winnerId appears in keys() — but
-          // importedIds.has(winnerId) is true (the winner is in the post-import
-          // store), so it's not deleted. Reversing the order would call
-          // docMetaRef.current.delete(existingId) before the pre-seed could read
-          // oldDoc = docMetaRef.current.get(existingId).
-          for (const [existingId, winnerId] of replacedIdMap) {
-            const oldDoc = docMetaRef.current.get(existingId)
-            if (
-              oldDoc &&
-              oldDoc.owner === currentUser.uid &&
-              !docMetaRef.current.has(winnerId)
-            ) {
-              docMetaRef.current.set(winnerId, oldDoc)
-            }
-          }
-
-          // Delete old cloud projects not present in the import
-          for (const oldId of docMetaRef.current.keys()) {
-            if (!importedIds.has(oldId)) {
-              docMetaRef.current.delete(oldId)
-              pendingDeletes.add(oldId)
-              deleteProject(oldId)
-                .catch((err) => {
-                  console.error('Cloud delete failed:', err)
-                  // Non-owner editors cannot delete projects they don't own. The
-                  // replacement create succeeded, so the user now sees both the
-                  // old and new project with the same name. Inform them so they
-                  // can clean up manually.
-                  toast.error(
-                    'Could not remove the original project from your cloud workspace — ' +
-                    'you may see a duplicate. Delete it manually if needed.'
-                  )
-                })
-                .finally(() => pendingDeletes.delete(oldId))
-            }
-          }
-
-          // Save all imported projects (immediate, with owner/members)
-          for (const project of state.projects) {
-            const doc = projectToFirestoreDoc(
-              project,
-              state.sprints,
-              currentUser.uid,
-              docMetaRef.current.get(project.id), // pre-seeded winnerId carries old owner/members
-              state._originRef || getWorkspaceId(),
-              state._changeLog
-            )
-            docMetaRef.current.set(project.id, doc)
-            saveProjectImmediate(project.id, doc).catch((err) => {
-              console.error(`Cloud import save failed for ${project.id}:`, err)
-              toast.error(`Failed to save imported project "${project.name}" to the cloud.`)
-            })
-          }
+          handleImportEvent(event, currentUser.uid)
           break
         }
         case 'settings:save': {
@@ -678,6 +715,114 @@ export function useCloudSync(user: User | null, mode: 'local' | 'cloud') {
           saveSettings(currentUser.uid, doc)
           break
         }
+      }
+    }
+
+
+    // ── Imports (Brief 39: write hygiene) ──────────────────────────────────
+    // An import writes exactly its own footprint — the projects it saved and the
+    // projects it removed (the event carries both) — and nothing else. Until
+    // Brief 39 it re-saved EVERY project with a full setDoc (each one the user
+    // could only view was refused, with a toast), deleted every cloud project
+    // the store lacked (including ones unshared or deleted elsewhere, still in
+    // docMetaRef), and cancelled every pending save and create — which only the
+    // save-all made harmless.
+
+    /**
+     * Brief 40's first constraint: cancel only what the import itself rewrites
+     * or deletes. A pre-import save of such a project would land after the
+     * import's write and undo it; any other project's pending save or create
+     * keeps its own timer.
+     */
+    function cancelSupersededWrites(projectIds: string[]): void {
+      cancelPendingProjectSaves(projectIds)
+      for (const projectId of projectIds) {
+        const timer = pendingCreateTimers.get(projectId)
+        if (timer) clearTimeout(timer)
+        pendingCreateTimers.delete(projectId)
+      }
+    }
+
+    /**
+     * Pre-seed docMetaRef for name-conflict winner IDs so projectToFirestoreDoc
+     * receives the old doc's owner/members instead of defaulting to the current
+     * user with empty members (pitfall #7). Only an owner may write a doc whose
+     * owner is not themselves — and since Brief 39 only an owner is offered a
+     * name-conflict replace. Runs BEFORE the deletes, which drop the old entry.
+     */
+    function preseedReplacedOwnership(replacedIdMap: Map<string, string>, uid: string): Map<string, FirestoreProjectDoc> {
+      const preseeded = new Map<string, FirestoreProjectDoc>()
+      for (const [existingId, winnerId] of replacedIdMap) {
+        const oldDoc = docMetaRef.current.get(existingId)
+        if (oldDoc && oldDoc.owner === uid && latestViewIds.has(existingId) && !latestViewIds.has(winnerId)) {
+          docMetaRef.current.set(winnerId, oldDoc)
+          preseeded.set(winnerId, oldDoc)
+        }
+      }
+      return preseeded
+    }
+
+    /**
+     * Save one imported project (immediate, full document).
+     *
+     * ⚠️ owner/members come from docMetaRef ONLY for a project in the latest
+     * view, or from the pre-seed for an owner's name-conflict winner (Brief 39).
+     * docMetaRef never forgets a document that left the view: re-importing a
+     * project deleted elsewhere used to re-create it with its old members.
+     *
+     * ⚠️ "Is this a create?" is decided by the VIEW, not by docMetaRef: the
+     * pre-seed has put the winner into docMetaRef already, and a winner that
+     * is not create-unconfirmed is dropped by any raise built before the import
+     * (snapshot-merge.ts, Rule 3) and re-appended last when its own raise arrives.
+     */
+    function saveImportedProject(
+      project: Project,
+      uid: string,
+      preseeded: Map<string, FirestoreProjectDoc>
+    ): void {
+      const state = useProjectStore.getState()
+      const isCreate = !latestViewIds.has(project.id)
+      const ownership = isCreate ? preseeded.get(project.id) : docMetaRef.current.get(project.id)
+      const access = accessFromState(state, project.id)
+      const doc = projectToFirestoreDoc(
+        project,
+        state.sprints,
+        uid,
+        ownership,
+        state._originRef || getWorkspaceId(),
+        state._changeLog
+      )
+      docMetaRef.current.set(project.id, doc)
+      if (isCreate) importCreatesInFlight.add(project.id)
+      importSavesInFlight.set(project.id, (importSavesInFlight.get(project.id) ?? 0) + 1)
+      saveProjectImmediate(project.id, doc)
+        .catch((err) => {
+          console.error(`Cloud import save failed for ${project.id}:`, err)
+          toast.error(importSaveFailureText(err, project.name, access, isCreate))
+        })
+        .finally(() => {
+          const left = (importSavesInFlight.get(project.id) ?? 1) - 1
+          if (left > 0) importSavesInFlight.set(project.id, left)
+          else importSavesInFlight.delete(project.id)
+          if (left <= 0) importCreatesInFlight.delete(project.id)
+        })
+    }
+
+    function handleImportEvent(event: Extract<SyncEvent, { type: 'project:import' }>, uid: string): void {
+      cancelSupersededWrites([...event.savedIds, ...event.deletedIds])
+      const preseeded = preseedReplacedOwnership(event.replacedIdMap, uid)
+      // Brief 40's third constraint: delete only what the import removed, and
+      // only if this account's cloud holds it (the latest view) or this browser
+      // is creating it — through the ordinary delete path, with its tombstone.
+      // An id never written, or held without any cloud view (V1), is skipped.
+      for (const projectId of event.deletedIds) {
+        if (latestViewIds.has(projectId) || inFlightCreatePromises.has(projectId)) {
+          handleSyncEvent({ type: 'project:delete', projectId })
+        }
+      }
+      const saved = new Set(event.savedIds)
+      for (const project of useProjectStore.getState().projects) {
+        if (saved.has(project.id)) saveImportedProject(project, uid, preseeded)
       }
     }
 
@@ -743,6 +888,7 @@ export function useCloudSync(user: User | null, mode: 'local' | 'cloud') {
       store.setCloudDataLoaded(false)
       store.setCloudLoadRetrying(false)
       store.setCloudLoadError(null)
+      store.setProjectRoles({})
       unsubscribeSnapshot?.()
       unsubscribeSyncBus?.()
       window.removeEventListener('beforeunload', handleBeforeUnload)

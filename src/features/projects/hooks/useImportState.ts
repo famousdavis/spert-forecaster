@@ -4,9 +4,10 @@
 
 'use client'
 
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { useProjectStore } from '@/shared/state/project-store'
+import { accessFromState, replaceAllBlockedIn, type ProjectAccess } from '@/shared/state/project-access'
 import { buildImportBannerDetails } from '../lib/import-banner'
 import { getStorageMode } from '@/shared/state/storage'
 import { validateImportData, type ExportData } from '@/shared/state/import-validation'
@@ -53,6 +54,42 @@ type IngestResult = { didApply: boolean; nackReason?: string }
 
 export type { ImportMode, ImportPreviewState, ImportBannerState, ImportTransport, IngestResult }
 
+/** Brief 39 (F5): the banner when the store refused a decision because the user's access changed mid-preview. */
+export const IMPORT_ACCESS_CHANGED_TEXT =
+  'Nothing was imported: your access to a project in this file changed while the import was open. Please review your import again.'
+
+/** The banner for a merge the store refused at write time, by its reason. */
+const refusedMergeText = (reason: string): string =>
+  reason === 'access-changed' ? IMPORT_ACCESS_CHANGED_TEXT : 'The workspace changed during import. Please try again.'
+
+/**
+ * Brief 39 (F5): the decisions the user's CURRENT access allows. A decision
+ * that only the access took away — the user's role dropped while the preview
+ * was open — falls back to the shipped default (Keep for an ID conflict, Add as
+ * a copy for a name conflict), so the radiogroup never shows a vanished option
+ * as chosen and Apply never sends one. Composes `availableActions` with the
+ * sprint predicates held at their permissive values, so the two calls differ in
+ * the access alone; the sprint race keeps its own write-time veto.
+ */
+function allowedDecisions(
+  preview: ImportPreviewState,
+  accessOf: (projectId: string) => ProjectAccess,
+): ImportPreviewState {
+  let changed = false
+  const decisions = new Map(preview.decisions)
+  for (const c of preview.conflicts) {
+    const decision = decisions.get(c.incomingProject.id)
+    if (decision === undefined) continue
+    const offered = (access: ProjectAccess) =>
+      availableActions(c.type, preview.imported.exportType, false, true, access).includes(decision)
+    if (offered('owner') && !offered(accessOf(c.existingProject.id))) {
+      decisions.set(c.incomingProject.id, c.type === 'id' ? 'skip' : 'copy')
+      changed = true
+    }
+  }
+  return changed ? { ...preview, decisions } : preview
+}
+
 export function useImportState() {
   // C10/C23: No projects/sprints/viewingProjectId subscriptions. All async
   // handlers read via useProjectStore.getState() at call time to avoid
@@ -65,7 +102,17 @@ export function useImportState() {
   // event-callback case where a reactive subscription isn't appropriate.
   const cloudDataLoaded = useProjectStore((s) => s.cloudDataLoaded)
 
-  const [importPreview, setImportPreview] = useState<ImportPreviewState | null>(null)
+  const [storedPreview, setImportPreview] = useState<ImportPreviewState | null>(null)
+  // Brief 39 (F5): what the preview shows AND applies is the stored preview with
+  // only the decisions the user's current access allows. Re-derived when a role
+  // or the first-load state changes; the user's own choices stay in
+  // `storedPreview`, so a role restored mid-preview restores them.
+  const projectRoles = useProjectStore((s) => s.projectRoles)
+  const importPreview = useMemo(() => {
+    if (!storedPreview) return null
+    const state = { cloudDataLoaded, projectRoles }
+    return allowedDecisions(storedPreview, (projectId) => accessFromState(state, projectId))
+  }, [storedPreview, projectRoles, cloudDataLoaded])
   const [importBanner, setImportBanner] = useState<ImportBannerState | null>(null)
   const [replaceAllPending, setReplaceAllPending] = useState(false)
   const [applying, setApplying] = useState(false)
@@ -126,6 +173,9 @@ export function useImportState() {
             c.existingProject.id,
             c.incomingProject.id,
           ),
+          // Brief 39: a project the user can only view is offered no update,
+          // so its default falls to the shipped one below (skip, or copy).
+          accessFromState(useProjectStore.getState(), c.existingProject.id),
         )
         // Default to 'update' wherever it is offered: it is the non-destructive
         // action, and a re-import of the same project is what it exists for.
@@ -176,7 +226,7 @@ export function useImportState() {
           source: imported.exportType,
         })
         if (!outcome.ok) {
-          const text = 'The workspace changed during import. Please try again.'
+          const text = refusedMergeText(outcome.reason)
           showBanner({ kind: 'error', text })
           return { didApply: false, nackReason: text }
         }
@@ -280,7 +330,11 @@ export function useImportState() {
         return await applyReplaceAll(imported)
       }
 
-      const initialMode: ImportMode = imported.exportType === 'legacy' ? 'replace-all' : 'merge'
+      // A full backup opens on Replace all, unless Replace all is blocked — then
+      // on Merge into workspace (Brief 39, V9): the same predicate as the
+      // preview's disabled Replace all, evaluated as the preview opens.
+      const initialMode: ImportMode =
+        imported.exportType === 'legacy' && !replaceAllBlockedIn(useProjectStore.getState()) ? 'replace-all' : 'merge'
       showPreview({
         imported,
         conflicts,

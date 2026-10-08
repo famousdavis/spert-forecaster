@@ -16,6 +16,8 @@ import {
   hasUnmatchedExistingSprints,
 } from '@/shared/state/import-utils'
 import type { Sprint } from '@/shared/types'
+import { REPLACE_ALL_SHARED_TEXT, canEditProject, type ProjectAccess } from '@/shared/state/project-access'
+import { importEditorReplaceNote, importNotInCloudNote, importViewerNote } from '@/features/auth/lib/access-texts'
 
 interface ImportPreviewSectionProps {
   imported: ParsedImportData
@@ -28,6 +30,11 @@ interface ImportPreviewSectionProps {
   existingSprints: Sprint[]
   // useId() from ProjectsTab — stable, SSR-safe.
   idPrefix: string
+  // Brief 39: the user's access to each EXISTING project, which decides what a
+  // conflict with it may offer; and whether Replace all would delete a project
+  // only its owner may delete.
+  accessOf: (projectId: string) => ProjectAccess
+  replaceAllBlocked: boolean
   onModeChange: (mode: 'merge' | 'replace-all') => void
   onDecisionChange: (projectId: string, action: ConflictAction) => void
   onConfirm: () => void
@@ -44,12 +51,26 @@ interface ImportPreviewSectionProps {
 // [x] Conditionally-absent option carries an accessible reason — the radiogroup
 //     gets aria-describedby pointing at the "why no Update" text, so the
 //     explanation reaches assistive tech rather than sitting beside it as prose
+// [x] Brief 39: an option the user's ACCESS removes is explained the same way —
+//     the access note (`${idPrefix}-conflict-${id}-access-note`) joins the
+//     radiogroup's aria-describedby beside the update reason
+// [x] Brief 39 (V9): a blocked Replace all is disabled with its reason as
+//     visible text (`${idPrefix}-replace-all-blocked`), referenced by the
+//     button's aria-describedby and repeated in its title
 
 const ACTION_LABELS: Record<ConflictAction, string> = {
   skip: 'Keep existing, ignore imported',
   copy: 'Add as a copy',
   replace: 'Replace existing with imported',
   update: 'Update with new progress, keep my forecast setup',
+}
+
+/** Why the user's access took actions away from this conflict (Brief 39), or null. */
+function accessNote(conflict: ImportConflict, access: ProjectAccess): string | null {
+  if (access === 'viewer') return importViewerNote(conflict.existingProject.name)
+  if (access === 'not-in-cloud') return importNotInCloudNote(conflict.existingProject.name)
+  if (access === 'editor' && conflict.type === 'name') return importEditorReplaceNote(conflict.existingProject.name)
+  return null
 }
 
 export function ImportPreviewSection({
@@ -60,6 +81,8 @@ export function ImportPreviewSection({
   applying,
   existingSprints,
   idPrefix,
+  accessOf,
+  replaceAllBlocked,
   onModeChange,
   onDecisionChange,
   onConfirm,
@@ -171,6 +194,7 @@ export function ImportPreviewSection({
             // ONE predicate, shared with computeDefaultDecisions (§5.1). Two
             // independent conditionals is how the availability rule becomes
             // untestable.
+            const access = accessOf(conflict.existingProject.id)
             const actions = availableActions(
               conflict.type,
               imported.exportType,
@@ -186,11 +210,15 @@ export function ImportPreviewSection({
                 conflict.existingProject.id,
                 incomingId,
               ),
+              access,
             )
+            const note = accessNote(conflict, access)
+            const noteId = `${idPrefix}-conflict-${incomingId}-access-note`
             // `update` withheld only because of §4.1 — not because of the
             // payload type or the conflict kind. That is the case worth
             // explaining, and the explanation names its exits.
             const updateWithheldForSprints =
+              canEditProject(access) &&
               conflict.type === 'id' &&
               imported.exportType === 'spert-story-map' &&
               !actions.includes('update')
@@ -227,7 +255,7 @@ export function ImportPreviewSection({
                 <div
                   role="radiogroup"
                   aria-labelledby={labelId}
-                  aria-describedby={updateWithheldForSprints ? reasonId : undefined}
+                  aria-describedby={[updateWithheldForSprints && reasonId, note && noteId].filter(Boolean).join(' ') || undefined}
                   className="space-y-1"
                 >
                   {actions.map((opt) => {
@@ -253,6 +281,12 @@ export function ImportPreviewSection({
                     )
                   })}
                 </div>
+
+                {note && (
+                  <p id={noteId} className="text-xs text-spert-text-muted dark:text-gray-400">
+                    {note}
+                  </p>
+                )}
 
                 {updateWithheldForSprints && (
                   <p id={reasonId} className="text-xs text-spert-text-muted dark:text-gray-400">
@@ -289,6 +323,12 @@ export function ImportPreviewSection({
         </div>
       )}
 
+      {showReplaceAllControls && replaceAllBlocked && (
+        <p id={`${idPrefix}-replace-all-blocked`} className="text-sm text-spert-text dark:text-gray-100">
+          {REPLACE_ALL_SHARED_TEXT}
+        </p>
+      )}
+
       <div className="flex flex-wrap justify-end gap-3 pt-2">
         <button
           type="button"
@@ -302,7 +342,9 @@ export function ImportPreviewSection({
           <button
             type="button"
             onClick={onRequestReplaceAll}
-            disabled={applying}
+            disabled={applying || replaceAllBlocked}
+            aria-describedby={replaceAllBlocked ? `${idPrefix}-replace-all-blocked` : undefined}
+            title={replaceAllBlocked ? REPLACE_ALL_SHARED_TEXT : undefined}
             className="px-4 py-2 text-sm font-medium rounded text-white bg-red-600 hover:bg-red-700 transition-colors disabled:opacity-50"
           >
             Replace all data

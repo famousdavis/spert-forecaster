@@ -2,7 +2,7 @@
 // Licensed under the GNU General Public License v3.0.
 // See LICENSE file in the project root for full license text.
 
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
 
 // Mock getStorageMode to control fast-path suppression behavior.
@@ -787,5 +787,67 @@ describe('useImportState — assertIngestReady returns its verdict', () => {
       'Cloud projects are still loading — please try again in a moment.',
     )
     expect(result.current.importBanner).toBeNull()
+  })
+})
+
+describe('Brief 39 (F5) — a role drop while the preview is open', () => {
+  const p = makeProject({ id: 'e', name: 'Shared' })
+  const incoming = {
+    exportType: 'spert-forecaster-project-export',
+    projects: [{ ...p, name: 'Shared' }],
+    sprints: [],
+  } as unknown as ParsedImportData
+  const conflicts: ImportConflict[] = [{ type: 'id', incomingProject: incoming.projects[0], existingProject: p }]
+  beforeEach(async () => {
+    const { useStorageModeStore } = await import('@/shared/state/storage-mode-store')
+    useStorageModeStore.setState({ mode: 'cloud' })
+    useProjectStore.setState({ projects: [p], sprints: [], cloudDataLoaded: true, projectRoles: { e: 'editor' } } as never)
+  })
+
+  it('F5-U1 a Replace the user chose falls back to Keep when they become a viewer; their choice returns with the role (known-bad: the stored decision shown and applied)', () => {
+    const { result } = renderHook(() => useImportState())
+    act(() => { result.current.showPreview({ imported: incoming, conflicts, decisions: new Map<string, ConflictAction>([['e', 'replace']]), mode: 'merge' }) })
+    expect(result.current.importPreview?.decisions.get('e')).toBe('replace')
+    act(() => { useProjectStore.setState({ projectRoles: { e: 'viewer' } } as never) })
+    expect(result.current.importPreview?.decisions.get('e')).toBe('skip')
+    act(() => { useProjectStore.setState({ projectRoles: { e: 'editor' } } as never) })
+    expect(result.current.importPreview?.decisions.get('e')).toBe('replace')
+  })
+
+  it('F5-U2 the store\'s access veto reaches the user as the access banner, not "workspace changed" (known-bad: one text for both)', async () => {
+    const { result } = renderHook(() => useImportState())
+    act(() => { result.current.showPreview({ imported: incoming, conflicts, decisions: new Map<string, ConflictAction>([['e', 'replace']]), mode: 'merge' }) })
+    // The role drops between the last render and the click: the hook still holds 'replace'.
+    useProjectStore.setState({ projectRoles: { e: 'viewer' } } as never)
+    await act(async () => { result.current.handleConfirmMerge() })
+    expect(result.current.importBanner?.text).toBe(
+      'Nothing was imported: your access to a project in this file changed while the import was open. Please review your import again.',
+    )
+  })
+})
+
+describe('Brief 39 (V9) — a full backup opens on Merge into workspace while Replace all is blocked', () => {
+  const backup = JSON.stringify({ version: '0.30.0', exportedAt: '2026-05-14', projects: [{ id: 'a', name: 'A', unitOfMeasure: 'pts', createdAt: 't', updatedAt: 't' }], sprints: [] })
+  beforeEach(async () => {
+    hoisted.mode = 'cloud'
+    const { useStorageModeStore } = await import('@/shared/state/storage-mode-store')
+    useStorageModeStore.setState({ mode: 'cloud' })
+  })
+  afterEach(async () => {
+    const { useStorageModeStore } = await import('@/shared/state/storage-mode-store')
+    useStorageModeStore.setState({ mode: 'local' })
+    useProjectStore.setState({ projectRoles: {} } as never)
+  })
+
+  it.each([
+    ['viewer', 'merge'], // known-bad K-INITIAL-MODE: the initial mode ignores the block
+    ['editor', 'merge'],
+    ['owner', 'replace-all'], // control: nothing blocks Replace all
+    ['not-in-cloud', 'replace-all'], // no delete is ever sent for it, so it does not block
+  ] as const)('holding a %s project, a full backup opens in %s mode', async (role, mode) => {
+    useProjectStore.setState({ projects: [makeProject({ id: 'held', name: 'Held' })], cloudDataLoaded: true, projectRoles: { held: role } } as never)
+    const { result } = renderHook(() => useImportState())
+    await act(async () => { await result.current.ingestPayload(backup, 'file') })
+    expect(result.current.importPreview?.mode).toBe(mode)
   })
 })

@@ -22,6 +22,7 @@ vi.mock('@/shared/firebase/firestore-driver', () => ({
   saveProjectImmediate: vi.fn(),
   deleteProject: vi.fn(),
   cancelPendingSaves: vi.fn(),
+  cancelPendingProjectSaves: vi.fn(),
   subscribeToUserProjects: vi.fn(),
   loadSettings: vi.fn(),
   saveSettings: vi.fn(),
@@ -271,6 +272,8 @@ describe('useCloudSync — project:import owner pre-seed (pitfall #7)', () => {
       capturedSyncBusHandler!({
         type: 'project:import',
         replacedIdMap: new Map([[existingId, winnerId]]),
+        savedIds: [winnerId],
+        deletedIds: [existingId],
       })
     })
 
@@ -300,6 +303,8 @@ describe('useCloudSync — project:import owner pre-seed (pitfall #7)', () => {
       capturedSyncBusHandler!({
         type: 'project:import',
         replacedIdMap: new Map([[existingId, winnerId]]),
+        savedIds: [winnerId],
+        deletedIds: [existingId],
       })
     })
 
@@ -765,6 +770,8 @@ describe('useCloudSync — new-project create path (v0.35.1)', () => {
       capturedSyncBusHandler!({
         type: 'project:import',
         replacedIdMap: new Map(),
+        savedIds: ['p1', 'p2'],
+        deletedIds: [],
       })
     })
 

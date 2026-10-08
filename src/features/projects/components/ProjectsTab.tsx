@@ -13,6 +13,8 @@ import { useIsClient } from '@/shared/hooks'
 import { ConfirmDialog } from '@/shared/components/ConfirmDialog'
 import { useStorageMode } from '@/shared/hooks/useStorageMode'
 import { SharingSection } from '@/features/auth/components/SharingSection'
+import { useProjectAccessOf } from '@/features/auth/hooks/useProjectAccess'
+import { blocksReplaceAll } from '@/shared/state/project-access'
 import { ProjectList } from './ProjectList'
 import { ProjectForm, type ProjectFormHandle } from './ProjectForm'
 import { ImportPreviewSection } from './ImportPreviewSection'
@@ -57,6 +59,9 @@ export function ProjectsTab({ onViewHistory, importState }: ProjectsTabProps) {
   const sprints = useProjectStore((state) => state.sprints)
   const originRef = useProjectStore((state) => state._originRef)
   const changeLog = useProjectStore((state) => state._changeLog)
+  // Brief 39: what the user may do to each project, for the import preview.
+  const accessOf = useProjectAccessOf()
+  const replaceAllBlocked = projects.some((p) => blocksReplaceAll(accessOf(p.id)))
 
   const {
     importPreview,
@@ -353,6 +358,8 @@ export function ProjectsTab({ onViewHistory, importState }: ProjectsTabProps) {
           applying={applying}
           existingSprints={sprints}
           idPrefix={idPrefix}
+          accessOf={accessOf}
+          replaceAllBlocked={replaceAllBlocked}
           onModeChange={onModeChange}
           onDecisionChange={onDecisionChange}
           onConfirm={handleConfirmMerge}

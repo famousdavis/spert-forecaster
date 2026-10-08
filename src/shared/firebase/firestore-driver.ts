@@ -26,6 +26,7 @@ import { toast } from 'sonner'
 import { db } from './config'
 import { COLLECTIONS, type FirestoreProjectDoc, type FirestoreSettingsDoc } from './types'
 import { sanitizeForFirestore, stripFirestoreFields } from './firestore-sanitize'
+import { SAVE_FAILED_TEXT } from './firestore-errors'
 
 // --- mergeFields constants (C1/C2) ---
 //
@@ -135,7 +136,17 @@ export function isProjectSaveOutstanding(projectId: string): boolean {
   return pendingSaveTimers.has(key) || inFlightSaves.has(key)
 }
 
-function debouncedSave(key: string, saveFn: () => Promise<void>, delayMs = SAVE_DEBOUNCE_MS): void {
+/**
+ * `onError` (Brief 39): the caller's own report of a failed write. A project
+ * save's refusal text depends on the user's access to that project, which only
+ * useCloudSync knows; without one, the generic text.
+ */
+function debouncedSave(
+  key: string,
+  saveFn: () => Promise<void>,
+  delayMs = SAVE_DEBOUNCE_MS,
+  onError?: (err: unknown) => void,
+): void {
   const existingTimer = pendingSaveTimers.get(key)
   if (existingTimer) clearTimeout(existingTimer)
 
@@ -149,7 +160,8 @@ function debouncedSave(key: string, saveFn: () => Promise<void>, delayMs = SAVE_
         await runSave(key, saveFn)
       } catch (err) {
         console.error(`Firestore save failed for ${key}:`, err)
-        toast.error('Failed to save changes to the cloud. Please check your connection.')
+        if (onError) onError(err)
+        else toast.error(SAVE_FAILED_TEXT)
       }
     }, delayMs)
   )
@@ -162,6 +174,22 @@ export function cancelPendingSaves(): void {
     pendingSaveTimers.delete(key)
   }
   pendingSaveFns.clear()
+}
+
+/**
+ * Cancel the pending debounced saves of these projects only (Brief 39). An
+ * import cancels the saves of the projects it is about to rewrite or delete —
+ * a pre-import save firing after the import's own write would overwrite it —
+ * and leaves every other project's pending save to fire on its own timer.
+ */
+export function cancelPendingProjectSaves(projectIds: Iterable<string>): void {
+  for (const projectId of projectIds) {
+    const key = `project:${projectId}`
+    const timer = pendingSaveTimers.get(key)
+    if (timer) clearTimeout(timer)
+    pendingSaveTimers.delete(key)
+    pendingSaveFns.delete(key)
+  }
 }
 
 /** Flush all pending debounced writes immediately (call on beforeunload). */
@@ -298,7 +326,11 @@ export async function loadOwnedProjectIds(uid: string): Promise<Set<string>> {
  * belt-and-braces against accidentally writing ACL fields from the debounced
  * save path.
  */
-export function saveProject(projectId: string, data: FirestoreProjectDoc): void {
+export function saveProject(
+  projectId: string,
+  data: FirestoreProjectDoc,
+  onError?: (err: unknown) => void,
+): void {
   debouncedSave(`project:${projectId}`, async () => {
     if (!db) return
     const ref = doc(db, COLLECTIONS.projects, projectId)
@@ -309,7 +341,7 @@ export function saveProject(projectId: string, data: FirestoreProjectDoc): void 
       CLEARABLE_PROJECT_FIELDS,
     )
     await setDoc(ref, payload, { mergeFields: mask })
-  })
+  }, SAVE_DEBOUNCE_MS, onError)
 }
 
 /** Save a project document immediately (no debounce). For creation and migration. */
