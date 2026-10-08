@@ -41,6 +41,7 @@ vi.mock('firebase/firestore', () => ({
 }))
 
 import { getDocs, getDocsFromServer } from 'firebase/firestore'
+import { toast } from 'sonner'
 import {
   subscribeToUserProjects,
   saveProject,
@@ -258,6 +259,32 @@ describe('isProjectSaveOutstanding — debounce timer, then write in flight (Bri
     write.resolve()
     await vi.advanceTimersByTimeAsync(0)
     expect(isProjectSaveOutstanding('p-flush')).toBe(false)
+  })
+})
+
+describe('saveProject — who reports a failed save (Brief 39)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    H.setDoc.mockReset()
+    vi.mocked(toast.error).mockClear()
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
+
+  it('U-D8 the caller\'s onError reports it, and only a save without one gets the generic text (known-bad K-DRV: onError ignored)', async () => {
+    H.setDoc
+      .mockRejectedValueOnce(Object.assign(new Error('refused'), { code: 'permission-denied' }))
+      .mockRejectedValueOnce(Object.assign(new Error('refused'), { code: 'permission-denied' }))
+    const onError = vi.fn()
+    saveProject('p-own', projectDoc('n'), onError)
+    await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS)
+    saveProject('p-generic', projectDoc('n'))
+    await vi.advanceTimersByTimeAsync(SAVE_DEBOUNCE_MS)
+    expect([onError.mock.calls.length, vi.mocked(toast.error).mock.calls.map(([t]) => t)])
+      .toEqual([1, ['Failed to save changes to the cloud. Please check your connection.']])
   })
 })
 
