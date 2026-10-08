@@ -23,6 +23,7 @@ vi.mock('@/shared/firebase/firestore-driver', () => ({
   saveProjectImmediate: vi.fn(),
   deleteProject: vi.fn(),
   cancelPendingSaves: vi.fn(),
+  cancelPendingProjectSaves: vi.fn(),
   subscribeToUserProjects: vi.fn(),
   loadSettings: vi.fn(),
   saveSettings: vi.fn(),

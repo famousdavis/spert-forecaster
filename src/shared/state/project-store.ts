@@ -13,6 +13,13 @@ import { validateImportData, type ExportData } from './import-validation'
 import { MAX_STRING_LENGTH } from './import-limits'
 import { useForecastResultsStore } from './forecast-results-store'
 import { useSettingsStore } from './settings-store'
+import {
+  accessFromState,
+  replaceAllBlockedIn,
+  sameRoles,
+  REPLACE_ALL_SHARED_TEXT,
+  type ProjectAccess,
+} from './project-access'
 import { syncBus } from '@/shared/firebase/sync-bus'
 import {
   applyImportDecisions,
@@ -23,6 +30,7 @@ import {
   type SmartImportOutcome,
   type ImportConflict,
   type ConflictAction,
+  type ImportDecisionResult,
   type ParsedImportData,
   availableActions,
   hasMatchingExistingSprintId,
@@ -77,6 +85,23 @@ interface ProjectState {
   // its first-load loop is in; while an attempt is in flight it does nothing.
   cloudLoadRetryRequests: number
   requestCloudLoadRetry: () => void
+  // The signed-in user's access to each cloud project, by project id (Brief 39;
+  // transient: not persisted, not exported, never written to the cloud).
+  // Derived by useCloudSync from each document's owner and members on the
+  // first load and on EVERY snapshot — a role change alters only `members`, so
+  // it arrives in a snapshot that changes no project at all — plus
+  // `not-in-cloud` for a project Brief 40's zero-project guard keeps (V1).
+  projectRoles: Record<string, ProjectAccess>
+  setProjectRoles: (roles: Record<string, ProjectAccess>) => void
+
+  // The account whose first cloud load last succeeded in this browser (Brief
+  // 39, V1; persisted with the projects it describes, never exported or
+  // written). '' when the stored projects are not a cloud view — local mode, or
+  // a copy from before this field existed. useCloudSync clears the stored
+  // projects before a different account's first load.
+  cloudAccountId: string
+  setCloudAccountId: (uid: string) => void
+  clearProjectsOnAccountChange: () => void
 
   // Project actions
   addProject: (project: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>) => void
@@ -123,7 +148,9 @@ interface ProjectState {
   applySmartImport: (args: ApplySmartImportArgs) => SmartImportOutcome
 
   // Cloud sync actions
-  replaceProjectsFromCloud: (projects: Project[], sprints: Sprint[]) => void
+  // `roles`, when given, lands in the SAME set() as the projects: a project
+  // newly shared with the user must never render before its role does.
+  replaceProjectsFromCloud: (projects: Project[], sprints: Sprint[], roles?: Record<string, ProjectAccess>) => void
 
   // Sign-out action — zeros user-scoped data, preserves workspace identity tokens
   clearProjectsOnSignOut: () => void
@@ -208,32 +235,48 @@ function emitProjectSave(projectId: string, isCloudUpdate: boolean): void {
  * ⚠️ Re-open this if a milestone ever feeds `availableActions`, or if the preview
  * starts showing milestone figures — either makes the mid-preview timing matter.
  */
-function anyUpdateNowRefused(
+//
+// ⚠️ BRIEF 39: IT ALSO VETOES `replace`, AND READS THE ROLE. `availableActions`
+// now takes the user's access to the EXISTING project: a viewer is offered
+// neither `update` nor `replace` (both write that project), and only an owner
+// a name-conflict `replace` (it deletes the original). The preview, the
+// defaults and this write-time veto all compose the same predicate, so a
+// crafted decision cannot get past a role the radiogroup would never offer.
+function anyDecisionNowRefused(
   conflicts: ImportConflict[],
   decisions: Map<string, ConflictAction>,
   currentSprints: Sprint[],
   incoming: ParsedImportData,
+  accessOf: (projectId: string) => ProjectAccess,
 ): boolean {
-  return conflicts.some(
-    (c) =>
-      decisions.get(c.incomingProject.id) === 'update' &&
-      !availableActions(
-        c.type,
-        incoming.exportType,
-        hasUnmatchedExistingSprints(
-          currentSprints,
-          incoming.sprints,
-          c.existingProject.id,
-          c.incomingProject.id,
-        ),
-        hasMatchingExistingSprintId(
-          currentSprints,
-          incoming.sprints,
-          c.existingProject.id,
-          c.incomingProject.id,
-        ),
-      ).includes('update'),
-  )
+  return conflicts.some((c) => {
+    const decision = decisions.get(c.incomingProject.id)
+    if (decision !== 'update' && decision !== 'replace') return false
+    return !availableActions(
+      c.type,
+      incoming.exportType,
+      hasUnmatchedExistingSprints(currentSprints, incoming.sprints, c.existingProject.id, c.incomingProject.id),
+      hasMatchingExistingSprintId(currentSprints, incoming.sprints, c.existingProject.id, c.incomingProject.id),
+      accessOf(c.existingProject.id),
+    ).includes(decision)
+  })
+}
+
+/**
+ * What a merge import writes to the cloud and deletes from it (Brief 39) —
+ * nothing else. Saved: each project the import added, copied, replaced or
+ * updated (a name-conflict replace's winner has a new id). Deleted: the
+ * original of each name-conflict replace, whose place the winner took.
+ */
+function importWriteSet(
+  mergedProjects: Project[],
+  existingIds: Set<string>,
+  result: ImportDecisionResult,
+): { savedIds: string[]; deletedIds: string[] } {
+  const savedIds = mergedProjects
+    .map((p) => p.id)
+    .filter((id) => !existingIds.has(id) || result.replacedExistingIds.has(id) || result.updatedExistingIds.has(id))
+  return { savedIds, deletedIds: [...result.replacedIdMap.keys()] }
 }
 
 export const useProjectStore = create<ProjectState>()(
@@ -252,11 +295,20 @@ export const useProjectStore = create<ProjectState>()(
       cloudLoadRetrying: false,
       cloudLoadError: null,
       cloudLoadRetryRequests: 0,
+      projectRoles: {} as Record<string, ProjectAccess>,
+      cloudAccountId: '' as string,
 
       setCloudDataLoaded: (value) => set({ cloudDataLoaded: value }),
       setCloudLoadRetrying: (value) => set({ cloudLoadRetrying: value }),
       setCloudLoadError: (value) => set({ cloudLoadError: value }),
       requestCloudLoadRetry: () => set((state) => ({ cloudLoadRetryRequests: state.cloudLoadRetryRequests + 1 })),
+      // A no-op when nothing changed: every set() rewrites the persisted dataset.
+      setProjectRoles: (roles) => {
+        if (!sameRoles(get().projectRoles, roles)) set({ projectRoles: roles })
+      },
+      setCloudAccountId: (uid) => {
+        if (get().cloudAccountId !== uid) set({ cloudAccountId: uid })
+      },
 
       addProject: (projectData) => {
         const id = generateId()
@@ -588,6 +640,17 @@ export const useProjectStore = create<ProjectState>()(
 
       importDataAndSelectFirst: (data, firstProjectId) => {
         validateImportData(data)
+        // Brief 39: Replace all deletes every project the file lacks, and only
+        // a project's owner can delete it. While one shared with this user is
+        // held, the cloud would refuse those deletes and the projects would
+        // come back — so it is refused here (the preview disables it). A
+        // `not-in-cloud` project does not block it: no delete is sent for it.
+        const before = get()
+        if (replaceAllBlockedIn(before)) {
+          throw new Error(REPLACE_ALL_SHARED_TEXT)
+        }
+        const fileIds = new Set(data.projects.map((p) => p.id))
+        const deletedIds = before.projects.map((p) => p.id).filter((id) => !fileIds.has(id))
         const originRef = data._originRef || getWorkspaceId()
         const importedLog = Array.isArray(data._changeLog) ? data._changeLog : []
         const newLog = appendChangeLogEntry(importedLog, {
@@ -610,7 +673,7 @@ export const useProjectStore = create<ProjectState>()(
         // Replace-All discards old owner/members (the user explicitly chose to
         // wipe the workspace). No name-conflict replaces occur in this path —
         // replacedIdMap is empty.
-        syncBus.emit({ type: 'project:import', replacedIdMap: new Map() })
+        syncBus.emit({ type: 'project:import', replacedIdMap: new Map(), savedIds: [...fileIds], deletedIds })
       },
 
       applySmartImport: ({ incoming, decisions, freshConflicts, source }) => {
@@ -637,6 +700,7 @@ export const useProjectStore = create<ProjectState>()(
         // type to { ok: false } and cannot see the closure reassignment below,
         // which would prevent .result access in the success branch.
         let outcome = { ok: false, reason: 'workspace-changed' } as SmartImportOutcome
+        let writes: { savedIds: string[]; deletedIds: string[] } = { savedIds: [], deletedIds: [] }
         set((state) => {
           // C28/H1: Re-detect conflicts against state.projects AT WRITE TIME.
           // Closes the concurrent-delete drift window between the hook's
@@ -646,10 +710,15 @@ export const useProjectStore = create<ProjectState>()(
             // Workspace changed between hook's guard and this write. No-op.
             return state
           }
-          // ⚠️ SECOND, SEPARATE GUARD — see anyUpdateNowRefused below.
-          if (anyUpdateNowRefused(currentConflicts, decisions, state.sprints, incoming)) {
+          // ⚠️ SECOND, SEPARATE GUARD — see anyDecisionNowRefused above.
+          if (anyDecisionNowRefused(currentConflicts, decisions, state.sprints, incoming, (id) => accessFromState(state, id))) {
             // Same downgrade as tuple drift: the hook resets the file input,
-            // so nobody is stranded.
+            // so nobody is stranded. Brief 39: when the decision would pass
+            // with full access, it was the user's access that changed (a role
+            // dropped while the preview was open), and the hook says so.
+            if (!anyDecisionNowRefused(currentConflicts, decisions, state.sprints, incoming, () => 'owner')) {
+              outcome = { ok: false, reason: 'access-changed' }
+            }
             return state
           }
           const { mergedProjects, mergedSprints, result } = applyImportDecisions(
@@ -662,6 +731,7 @@ export const useProjectStore = create<ProjectState>()(
           outcome = { ok: true, result }
 
           const existingIds = new Set(state.projects.map((p) => p.id))
+          writes = importWriteSet(mergedProjects, existingIds, result)
           const forecastInputs = { ...state.forecastInputs }
           const burnUpConfigs = { ...state.burnUpConfigs }
 
@@ -742,15 +812,17 @@ export const useProjectStore = create<ProjectState>()(
           syncBus.emit({
             type: 'project:import',
             replacedIdMap: outcome.result.replacedIdMap,
+            ...writes,
           })
         }
         return outcome
       },
 
-      replaceProjectsFromCloud: (projects, sprints) => {
+      replaceProjectsFromCloud: (projects, sprints, roles) => {
         set({
           projects,
           sprints,
+          ...(roles === undefined ? {} : { projectRoles: roles }),
           _isCloudUpdate: true,
         })
         // Defer reset so all synchronous Zustand subscribers see the flag
@@ -778,13 +850,24 @@ export const useProjectStore = create<ProjectState>()(
           cloudDataLoaded: false,
           cloudLoadRetrying: false,
           cloudLoadError: null,
+          projectRoles: {},
+          cloudAccountId: '',
         })
         // Same rationale, one store over: the run record holds a previous
         // user's raw trial arrays, and the view-state map holds their target
         // dates and percentile selections. Called from all three of this
-        // action's call sites — sign-out and both cloud→local switches.
+        // action's call sites — sign-out and both cloud→local switches — and
+        // through clearProjectsOnAccountChange (Brief 39).
         useForecastResultsStore.getState().clearAll()
       },
+
+      // Brief 39, V1: another account is about to load in this browser. The
+      // project store's part of the sign-out clear — what one user may not see,
+      // the next account may not either. The caller (useCloudSync, at the start
+      // of the new account's sync) also discards the previous account's
+      // simulations and clears Export Attribution, as a sign-out does; the
+      // storage mode stays as it is (the new account is mid-load).
+      clearProjectsOnAccountChange: () => get().clearProjectsOnSignOut(),
 
       setForecastInput: (projectId, field, value) =>
         set((state) => ({
@@ -838,6 +921,8 @@ export const useProjectStore = create<ProjectState>()(
         sprints: state.sprints,
         _originRef: state._originRef,
         _changeLog: state._changeLog,
+        // Brief 39: which account the stored projects are the cloud view of.
+        cloudAccountId: state.cloudAccountId,
       } as ProjectState),
     }
   )

@@ -4,10 +4,12 @@
 
 // Module-level Monte Carlo generation counter (G1 fix).
 //
-// Bumped in performSignOutCleanup() only. handleRunForecast captures the
-// counter before each await and discards the result if the counter has
-// advanced — preventing simulation results that resolve after sign-out from
-// being published into a cleared store.
+// Bumped in performSignOutCleanup() and, since Brief 39, in useCloudSync when
+// a different account starts syncing in this browser (the account-change
+// clear). handleRunForecast captures the counter before each await and
+// discards the result if the counter has advanced — preventing simulation
+// results that resolve after a sign-out or an account change from being
+// published into a cleared store.
 //
 // Moved here from features/forecast/lib/ in v0.36.0: the run record now lives
 // in shared/state/forecast-results-store, so the discard check runs on the

@@ -45,6 +45,8 @@ interface Setup {
   mode?: 'merge' | 'replace-all'
   applying?: boolean
   existingSprints?: Sprint[]
+  accessOf?: (projectId: string) => 'owner' | 'editor' | 'viewer' | 'not-in-cloud'
+  replaceAllBlocked?: boolean
   onModeChange?: (m: 'merge' | 'replace-all') => void
   onDecisionChange?: (id: string, a: ConflictAction) => void
   onConfirm?: () => void
@@ -70,6 +72,8 @@ function renderSection(opts: Setup = {}) {
       applying={opts.applying ?? false}
       existingSprints={opts.existingSprints ?? []}
       idPrefix="t"
+      accessOf={opts.accessOf ?? (() => 'owner')}
+      replaceAllBlocked={opts.replaceAllBlocked ?? false}
       {...handlers}
     />,
   )
@@ -450,5 +454,60 @@ describe('ImportPreviewSection — the update option', () => {
       existingSprints: [],
     })
     expect(screen.queryByLabelText(/Update with new progress/i)).toBeNull()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Brief 39 — the role notes and the Replace-all gate (PR A)
+// ---------------------------------------------------------------------------
+
+describe('Brief 39 — role notes and Replace all', () => {
+  const existing = makeProject({ id: 'e1', name: 'Shared' })
+  const incoming = makeProject({ id: 'e1', name: 'Shared' })
+  const idConflict: ImportConflict = { type: 'id', incomingProject: incoming, existingProject: existing }
+  const nameIncoming = makeProject({ id: 'n1', name: 'Shared' })
+  const nameConflict: ImportConflict = { type: 'name', incomingProject: nameIncoming, existingProject: existing }
+  const radios = () => screen.queryAllByRole('radio').map((r) => (r.closest('label')?.textContent ?? '').trim())
+
+  it.each([
+    ['viewer', 'You can only view "Shared", so this file can\'t update or replace it.'], // known-bad: the note dropped
+    ['not-in-cloud', '"Shared" isn\'t in your cloud account, so this file can\'t update or replace it.'],
+  ] as const)('an ID conflict with a %s project offers Keep and Copy only, with its note', (access, note) => {
+    renderSection({ imported: projectExport([incoming]), conflicts: [idConflict], decisions: new Map([['e1', 'skip']]), accessOf: () => access })
+    expect(radios()).toEqual(['Keep existing, ignore imported', 'Add as a copy'])
+    expect(screen.getByText(note)).toBeTruthy()
+  })
+
+  it('an editor\'s name conflict offers no Replace, and says why (known-bad: name-conflict replace offered to editors)', () => {
+    renderSection({ imported: projectExport([nameIncoming]), conflicts: [nameConflict], decisions: new Map([['n1', 'copy']]), accessOf: () => 'editor' })
+    expect(radios()).toEqual(['Keep existing, ignore imported', 'Add as a copy'])
+    expect(screen.getByText('Replace isn\'t offered: it would delete "Shared", and only its owner can delete it.')).toBeTruthy()
+  })
+
+  it('an owner\'s name conflict still offers Replace, with no note (control)', () => {
+    renderSection({ imported: projectExport([nameIncoming]), conflicts: [nameConflict], decisions: new Map([['n1', 'copy']]), accessOf: () => 'owner' })
+    expect(radios()).toContain('Replace existing with imported')
+    expect(screen.queryByText(/only its owner can delete it/)).toBeNull()
+  })
+
+  it('Replace all is disabled with T8 as visible text, which the button references (known-bads: the gate dropped; UI-T8-HOVER — the visible text removed)', () => {
+    renderSection({ imported: legacyImport([makeProject({ id: 'r1', name: 'R' })]), mode: 'replace-all', replaceAllBlocked: true })
+    const t8 = "Replace all data isn't available while your list includes projects shared with you: it would delete them, and only their owners can. Choose Merge into workspace instead."
+    const button = screen.getAllByRole('button').find((b) => b.textContent === 'Replace all data') as HTMLButtonElement
+    const reason = screen.getByText(t8)
+    expect([button.disabled, button.getAttribute('aria-describedby'), reason.id, button.title]).toEqual([true, 't-replace-all-blocked', 't-replace-all-blocked', t8])
+  })
+
+  it('an unblocked Replace all is enabled, with no reason shown (control)', () => {
+    renderSection({ imported: legacyImport([makeProject({ id: 'r1', name: 'R' })]), mode: 'replace-all', replaceAllBlocked: false })
+    const button = screen.getAllByRole('button').find((b) => b.textContent === 'Replace all data') as HTMLButtonElement
+    expect([button.disabled, button.getAttribute('aria-describedby'), button.title, screen.queryByText(/isn't available while your list/)]).toEqual([false, null, '', null])
+  })
+
+  it('each access note is part of its radiogroup\'s description (form hygiene)', () => {
+    renderSection({ imported: projectExport([incoming]), conflicts: [idConflict], decisions: new Map([['e1', 'skip']]), accessOf: () => 'viewer' })
+    const group = screen.getByRole('radiogroup', { name: /Same project ID/ })
+    const note = screen.getByText('You can only view "Shared", so this file can\'t update or replace it.')
+    expect(group.getAttribute('aria-describedby')?.split(' ')).toContain(note.id)
   })
 })

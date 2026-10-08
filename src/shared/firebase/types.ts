@@ -153,17 +153,25 @@ export type SyncEvent =
       // Used by useCloudSync to pre-seed docMetaRef so projectToFirestoreDoc
       // can preserve owner/members on name-conflict replaces (pitfall #7).
       replacedIdMap: Map<string, string>
+      // Brief 39 — the import's whole cloud footprint, and nothing else:
+      // the projects it added, copied, replaced or updated (saved), and the
+      // projects it removed (deleted): a name-conflict replace's original, or,
+      // for Replace all, every project the file lacks.
+      savedIds: string[]
+      deletedIds: string[]
     }
   | { type: 'settings:save' }
   /**
    * The AI pairing must drop its uploaded snapshot.
    *
-   * Emitted from the three CALL SITES of clearProjectsOnSignOut, not from
-   * inside the action: the action itself documents that it does not emit, and
-   * it could not distinguish its callers anyway. The discriminant is what
-   * decides whether the pairing survives — a sign-out ends the session
-   * entirely, while a cloud→local switch keeps it and removes only the
-   * snapshot.
+   * Emitted from the CALL SITES that clear the projects, not from inside
+   * clearProjectsOnSignOut: the action itself documents that it does not emit,
+   * and it could not distinguish its callers anyway. There are four — sign-out,
+   * both cloud→local switches, and useCloudSync's account-change clear (Brief
+   * 39), which ends the previous account's pairing as a sign-out does. The
+   * discriminant is what decides whether the pairing survives — a sign-out
+   * ends the session entirely, while a cloud→local switch keeps it and removes
+   * only the snapshot.
    */
   | { type: 'ai:session-teardown'; reason: 'signout' | 'mode-switch' }
 

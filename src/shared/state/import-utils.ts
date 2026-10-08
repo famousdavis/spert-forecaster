@@ -4,6 +4,7 @@
 
 import type { Milestone, Project, Sprint } from '@/shared/types'
 import type { ExportData } from './import-validation'
+import { canDeleteProject, canEditProject, type ProjectAccess } from './project-access'
 import {
   MAX_STRING_LENGTH,
   declaresProjectSubsetExport,
@@ -135,13 +136,24 @@ export type ConflictAction = 'skip' | 'copy' | 'replace' | 'update'
 // mergeProjectForUpdate (`pinned-identity`). Without that pin a name-conflict
 // update writes the incoming id onto the project while every sprint is remapped
 // to the existing one — orphaning the entire sprint history.
+//
+// ⚠️ BRIEF 39 — `access` is the user's access to the EXISTING project. Both
+// `replace` and `update` write that project, so neither is offered unless the
+// user may edit it (a viewer may not, nor may anyone on a project no cloud view
+// for this account contains); and a NAME-conflict `replace` also deletes the
+// original, which only its owner may do. The radiogroup, the defaults and the
+// store's write-time veto all pass it, so none of them can offer what the
+// cloud would refuse.
 export function availableActions(
   conflictType: 'id' | 'name',
   exportType: ParsedImportData['exportType'],
   hasUnmatchedSprints: boolean,
   hasMatchingSprintId: boolean,
+  access: ProjectAccess,
 ): ConflictAction[] {
-  const base: ConflictAction[] = ['skip', 'copy', 'replace']
+  if (!canEditProject(access)) return ['skip', 'copy']
+  const base: ConflictAction[] =
+    conflictType === 'name' && !canDeleteProject(access) ? ['skip', 'copy'] : ['skip', 'copy', 'replace']
   if (exportType !== 'spert-story-map') return base
   if (hasUnmatchedSprints) return base
   if (conflictType !== 'id' && !hasMatchingSprintId) return base

@@ -364,31 +364,31 @@ describe('C15 — preserved unmatched-existing milestones are APPENDED', () => {
 
 describe('C7 — availableActions gates `update`', () => {
   it('excludes update for a non-Story-Map payload', () => {
-    expect(availableActions('id', 'spert-forecaster-project-export', false, true))
+    expect(availableActions('id', 'spert-forecaster-project-export', false, true, 'owner'))
       .not.toContain('update')
-    expect(availableActions('id', 'legacy', false, true)).not.toContain('update')
+    expect(availableActions('id', 'legacy', false, true, 'owner')).not.toContain('update')
   })
   it('excludes update for a name conflict with NO matching sprint id', () => {
-    expect(availableActions('name', 'spert-story-map', false, false)).not.toContain('update')
+    expect(availableActions('name', 'spert-story-map', false, false, 'owner')).not.toContain('update')
   })
   it('OFFERS update for a name conflict WITH a matching sprint id', () => {
     // The post-migration re-send: the project id was reassigned, so this
     // classifies as a name conflict, but a shared sprint id still proves
     // identity. Withholding `update` here left only `replace`.
-    expect(availableActions('name', 'spert-story-map', false, true)).toContain('update')
+    expect(availableActions('name', 'spert-story-map', false, true, 'owner')).toContain('update')
   })
   it('excludes update when an existing sprint is unmatched (§4.1)', () => {
-    expect(availableActions('id', 'spert-story-map', true, true)).not.toContain('update')
+    expect(availableActions('id', 'spert-story-map', true, true, 'owner')).not.toContain('update')
     // §4.1 refuses even with identity evidence — it is checked first.
-    expect(availableActions('name', 'spert-story-map', true, true)).not.toContain('update')
+    expect(availableActions('name', 'spert-story-map', true, true, 'owner')).not.toContain('update')
   })
   it('offers update for an id conflict WITHOUT a matching sprint id (§5 Q1)', () => {
     // An id conflict IS the positive evidence; a sprint-less project supplies
     // no additional evidence but does not retract it.
-    expect(availableActions('id', 'spert-story-map', false, false)).toContain('update')
+    expect(availableActions('id', 'spert-story-map', false, false, 'owner')).toContain('update')
   })
   it('offers update, in order, when the payload and evidence conditions hold', () => {
-    expect(availableActions('id', 'spert-story-map', false, false)).toEqual([
+    expect(availableActions('id', 'spert-story-map', false, false, 'owner')).toEqual([
       'skip',
       'copy',
       'replace',
