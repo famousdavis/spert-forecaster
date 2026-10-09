@@ -1,5 +1,26 @@
 # Changelog
 
+## v0.47.0 - 2026-10-08
+
+If someone shares a cloud project with you as a viewer, the app now shows it as view only. Before, every edit, add and delete was offered on it: your change appeared, the cloud refused it, a message appeared, and a moment later the change disappeared. Now those controls are greyed out and say why, and a note at the top of Sprint History and Forecast says what you can still do. A project this browser kept that is no longer in your cloud account is view only too, with its own note. Editors are no longer offered Delete, because only a project's owner can delete a project. Your own projects in your cloud account work as before. Local mode is not affected.
+
+### Changed
+- **Projects shared with you as a viewer are view only.** Sprint History and Forecast show "View only — this project is shared with you as a viewer. You can run forecasts, export and copy charts. To change it, ask its owner for edit access." Adding, editing and deleting sprints, milestones and productivity adjustments, the sprint cadence and first sprint date, and the sprint include, milestone chart and adjustment on/off checkboxes are greyed out, with the reason. The Projects list marks the project "View only", and its edit button opens the project's details read-only, so you can still see its dates.
+- **Projects no longer in your cloud account are view only.** A project this browser kept from an earlier session that isn't in your cloud account any more — unshared from you, deleted, or made while you were signed out — is marked "Not in cloud" and can't be changed. You can still export it. It leaves the list when your projects next update, and adding, copying or importing a project counts; the Projects list says so while such a project is listed.
+- **If your role changes while you are typing, what you typed stays.** It stays on screen, saving it is switched off, and the reason appears beside it. If you press save at the moment the change arrives, the form stays open and a message says why the change wasn't saved.
+- **Only a project's owner is offered Delete.** Editors and viewers used to be offered it; the cloud refused it, and the project vanished and came back. It is now greyed out with "Only the project's owner can delete it. To remove it from your list, ask the owner to stop sharing it with you."
+
+### Fixed
+- **A form no longer saves into the wrong project.** If a project was unshared from you or deleted while you had a sprint, milestone or productivity-adjustment form open for it, saving could put a new item into another of your projects. Now the form closes when its project leaves your list, and a message says your change wasn't saved.
+
+### Notes
+- **Everything that doesn't change the shared project still works:** forecasts with your own inputs, the burn-up chart and percentiles, CSV and JSON export, copying charts, the report, Connect AI, and reordering your own list.
+- **Your role updates while the app is open.** If the owner changes you from editor to viewer, the controls grey out and the note appears within a moment, without a reload.
+- **Checked against the real Firebase SDK on the Firestore emulator.** 53 cases cover the paths above. On v0.46.5, 16 of them failed; on this build all 53 pass.
+- **Each of 86 deliberate breakages of these changes turned a named test red.**
+- **No Firestore rules change.** No new field is written.
+- **Tests:** 2,540, up from 2,330.
+
 ## v0.46.5 - 2026-10-08
 
 In cloud mode, importing a file saved every project in your list to the cloud again, not just the ones the import changed. Each project you can only view was refused, and you saw one "Failed to save imported project" message for each of them even though your import had worked; your other projects were rewritten although the import had not changed them. An import could also try to delete a project that had been unshared from you, and warn that you might see a duplicate. And when the cloud refused a change, the message never said why — for an edit, it told you to check your connection. This release makes an import save only what it imported and delete only what it replaced, stops the import screen from offering what your role doesn't allow, and makes each refusal message say what happened. Local mode is not affected.

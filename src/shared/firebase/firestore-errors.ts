@@ -26,28 +26,40 @@ export const SAVE_FAILED_TEXT = 'Failed to save changes to the cloud. Please che
 export const DELETE_FAILED_TEXT = 'Failed to delete project from the cloud.'
 export const importSaveFailedText = (name: string) => `Failed to save imported project "${name}" to the cloud.`
 
+/**
+ * A viewer's change, refused. The store's guard says the same when it refuses
+ * a viewer's change before anything is sent (Brief 39 PR B): one string.
+ */
+export const VIEW_ONLY_SAVE_TEXT = "Your change wasn't saved — you can only view this project."
+
 const SAVE_REFUSED: Record<ProjectAccess, string> = {
   owner:
     "Your change wasn't saved — the cloud refused it. If this project was deleted on another device, it will leave your list.",
   editor: "Your change wasn't saved — the cloud refused it. Your access to this project may have changed.",
-  viewer: "Your change wasn't saved — you can only view this project.",
+  viewer: VIEW_ONLY_SAVE_TEXT,
   'not-in-cloud': "Your change wasn't saved — this project isn't in your cloud account.",
 }
 
 /**
  * An edit to a project no cloud view of this account contains: nothing was
  * sent (useCloudSync never creates such a project from an edit). The same
- * string as a refused save of one.
+ * string as a refused save of one, and as the store guard's refusal of one.
  */
 export const NOT_IN_CLOUD_SAVE_TEXT = SAVE_REFUSED['not-in-cloud']
 
 /** A brand-new project's first write, refused: it will not reach any cloud view, so it leaves the list. */
 export const CREATE_REFUSED_TEXT = "Your new project wasn't saved — the cloud refused it, so it will leave your list."
 
+/**
+ * A delete by anyone but the owner, refused. The store's guard says the same
+ * when it refuses one before anything is sent (Brief 39 PR B): one string.
+ */
+export const NON_OWNER_DELETE_TEXT = "The project wasn't deleted — only its owner can delete it."
+
 const DELETE_REFUSED: Record<ProjectAccess, string> = {
   owner: 'The cloud refused to delete this project. If it was already deleted on another device, there is nothing more to do.',
-  editor: "The project wasn't deleted — only its owner can delete it.",
-  viewer: "The project wasn't deleted — only its owner can delete it.",
+  editor: NON_OWNER_DELETE_TEXT,
+  viewer: NON_OWNER_DELETE_TEXT,
   'not-in-cloud': "This project isn't in your cloud account, so it was removed from this browser only.",
 }
 

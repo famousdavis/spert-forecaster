@@ -15,6 +15,7 @@ import { useStorageMode } from '@/shared/hooks/useStorageMode'
 import { SharingSection } from '@/features/auth/components/SharingSection'
 import { useProjectAccessOf } from '@/features/auth/hooks/useProjectAccess'
 import { blocksReplaceAll } from '@/shared/state/project-access'
+import { accessReason, NOT_IN_CLOUD_LIST_NOTE } from '@/features/auth/lib/access-texts'
 import { ProjectList } from './ProjectList'
 import { ProjectForm, type ProjectFormHandle } from './ProjectForm'
 import { ImportPreviewSection } from './ImportPreviewSection'
@@ -28,7 +29,6 @@ import { exportWorkspaceBackup } from '../lib/export-backup'
 import { reportExportCheck } from '@/shared/state/export-check-store'
 import { getWorkspaceId, getStorageMode } from '@/shared/state/storage'
 import { auth } from '@/shared/firebase/config'
-import { loadOwnedProjectIds } from '@/shared/firebase/firestore-driver'
 import { useAuth } from '@/shared/providers/AuthProvider'
 import type { Project } from '@/shared/types'
 
@@ -59,8 +59,11 @@ export function ProjectsTab({ onViewHistory, importState }: ProjectsTabProps) {
   const sprints = useProjectStore((state) => state.sprints)
   const originRef = useProjectStore((state) => state._originRef)
   const changeLog = useProjectStore((state) => state._changeLog)
-  // Brief 39: what the user may do to each project, for the import preview.
+  // Brief 39: what the user may do to each project — for the import preview,
+  // the list's badges and Delete, and the project form (read only for a
+  // project the user can only view).
   const accessOf = useProjectAccessOf()
+  const projectRoles = useProjectStore((state) => state.projectRoles)
   const replaceAllBlocked = projects.some((p) => blocksReplaceAll(accessOf(p.id)))
 
   const {
@@ -95,38 +98,17 @@ export function ProjectsTab({ onViewHistory, importState }: ProjectsTabProps) {
   const isCloudPending = mode === 'cloud' && !cloudDataLoaded
   const { user } = useAuth()
   const [sharingProject, setSharingProject] = useState<Project | null>(null)
-  const [ownedProjectIds, setOwnedProjectIds] = useState<Set<string>>(new Set())
 
-  // Load the set of project IDs owned by the current user. Used to gate the
-  // Share button so editors and viewers don't see an affordance they can't act
-  // on. Refresh whenever the project list changes or auth state changes.
-  // In non-cloud mode we leave any prior set in place — the Share button is
-  // already gated upstream on `mode === 'cloud'`, so a stale set is harmless
-  // and skipping the clear avoids a synchronous setState-in-effect.
-  //
-  // Dependency is the `projects` array reference, not `projects.length`. A
-  // newly-created project in cloud mode mutates the array but its first-write
-  // Firestore doc lands ~200ms + roundtrip later (see useCloudSync v0.35.1
-  // pendingCreateTimers). If we keyed on length, the query would run once
-  // (before the doc exists, returning an empty set) and never re-run — the
-  // user would have to navigate away and back to see the Share button. Keying
-  // on the array reference re-runs the query when `replaceProjectsFromCloud`
-  // delivers the post-create snapshot, which is the exact moment Firestore's
-  // owner index becomes consistent with the local state.
-  useEffect(() => {
-    if (mode !== 'cloud' || !user) return
-    let cancelled = false
-    loadOwnedProjectIds(user.uid)
-      .then((ids) => {
-        if (!cancelled) setOwnedProjectIds(ids)
-      })
-      .catch(() => {
-        if (!cancelled) setOwnedProjectIds(new Set())
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [mode, user, projects])
+  // Share is offered only to the project's owner, signed in, once the first
+  // cloud load has succeeded — and only on an EXPLICIT 'owner' role (Brief 39 PR B,
+  // OD-6). Not the resolved access: a project with no role entry is one this
+  // browser is still creating, whose cloud document may not exist yet. The
+  // roles come from every cloud snapshot, so Share appears as soon as the
+  // post-create snapshot names this user the owner (no query of its own).
+  const canShare = useCallback(
+    (projectId: string) => !!user && cloudDataLoaded && projectRoles[projectId] === 'owner',
+    [user, cloudDataLoaded, projectRoles],
+  )
 
   const [deleteConfirm, setDeleteConfirm] = useState<{
     isOpen: boolean
@@ -144,8 +126,9 @@ export function ProjectsTab({ onViewHistory, importState }: ProjectsTabProps) {
 
   const handleFormSubmit = (data: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>) => {
     if (editingProject) {
-      updateProject(editingProject.id, data)
-      setEditingProject(null)
+      // Refused — the user's access dropped as they clicked, and the store said
+      // so: the form stays open with what they typed (V2).
+      if (updateProject(editingProject.id, data)) setEditingProject(null)
     } else {
       addProject(data)
     }
@@ -337,6 +320,7 @@ export function ProjectsTab({ onViewHistory, importState }: ProjectsTabProps) {
           project={editingProject}
           onSubmit={handleFormSubmit}
           onCancel={handleFormCancel}
+          readOnlyReason={editingProject ? accessReason(accessOf(editingProject.id)) : null}
         />
       )}
 
@@ -440,6 +424,14 @@ export function ProjectsTab({ onViewHistory, importState }: ProjectsTabProps) {
         />
       </div>
 
+      {/* T4c (V6): adding, copying or importing a project — all on this tab — is
+          what drops a not-in-cloud project from the list, so the warning is here. */}
+      {projects.some((p) => accessOf(p.id) === 'not-in-cloud') && (
+        <p role="note" className="text-sm text-spert-text-secondary dark:text-gray-300">
+          {NOT_IN_CLOUD_LIST_NOTE}
+        </p>
+      )}
+
       <ProjectList
         projects={projects}
         onEdit={handleEdit}
@@ -449,8 +441,8 @@ export function ProjectsTab({ onViewHistory, importState }: ProjectsTabProps) {
         onReorder={reorderProjects}
         onViewHistory={onViewHistory ?? (() => {})}
         onShare={setSharingProject}
-        isCloudMode={mode === 'cloud'}
-        ownedProjectIds={ownedProjectIds}
+        accessOf={accessOf}
+        canShare={canShare}
         editingProjectId={editingProject?.id ?? null}
       />
 

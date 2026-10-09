@@ -11,6 +11,7 @@
 // transient `projectRoles` map, never persisted and never written.
 
 import type { StorageMode } from '@/shared/firebase/types'
+import { NON_OWNER_DELETE_TEXT, NOT_IN_CLOUD_SAVE_TEXT, VIEW_ONLY_SAVE_TEXT } from '@/shared/firebase/firestore-errors'
 import { useStorageModeStore } from './storage-mode-store'
 
 /** The signed-in user's role on one project in a cloud view. */
@@ -110,3 +111,21 @@ export function replaceAllBlockedIn(state: {
 // data is unavailable, and the store's refusal if one is attempted anyway.
 export const REPLACE_ALL_SHARED_TEXT =
   "Replace all data isn't available while your list includes projects shared with you: it would delete them, and only their owners can. Choose Merge into workspace instead."
+
+// Owner-approved wording (Brief 39 §7, G4, 2026-10-08). The one refusal the
+// store's guard has of its own: no delete is ever sent for a project no cloud
+// view of this account contains, so the cloud has no refusal text for it.
+export const NOT_IN_CLOUD_DELETE_TEXT = "The project wasn't deleted — this project isn't in your cloud account."
+
+/**
+ * What the store's guard says when it refuses a user's change (Brief 39, V2):
+ * the click raced a role change and reached a control the UI had not yet
+ * disabled. Called only for a change the access forbids.
+ *
+ * ⚠️ G1–G3 ARE the cloud-refusal texts (`firestore-errors.ts`), one string
+ * each: a refusal reads the same whether the guard or the cloud made it.
+ */
+export function guardRefusalText(change: 'edit' | 'delete', access: ProjectAccess): string {
+  if (change === 'delete') return access === 'not-in-cloud' ? NOT_IN_CLOUD_DELETE_TEXT : NON_OWNER_DELETE_TEXT
+  return access === 'not-in-cloud' ? NOT_IN_CLOUD_SAVE_TEXT : VIEW_ONLY_SAVE_TEXT
+}

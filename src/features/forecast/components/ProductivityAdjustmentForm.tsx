@@ -4,7 +4,7 @@
 
 'use client'
 
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { cn } from '@/lib/utils'
 import type { ProductivityAdjustment } from '@/shared/types'
 import { isValidDateRange } from '@/shared/lib/dates'
@@ -13,13 +13,21 @@ interface ProductivityAdjustmentFormProps {
   adjustment: ProductivityAdjustment | null
   onSubmit: (data: Omit<ProductivityAdjustment, 'id' | 'createdAt' | 'updatedAt'>) => void
   onCancel: () => void
+  /**
+   * Why the user may not change this project (Brief 39); null or absent when
+   * they may. While set, Save is disabled and the reason shows beside it; the
+   * fields stay as typed, so nothing the user typed is lost (V2).
+   */
+  readOnlyReason?: string | null
 }
 
 export function ProductivityAdjustmentForm({
   adjustment,
   onSubmit,
   onCancel,
+  readOnlyReason,
 }: ProductivityAdjustmentFormProps) {
+  const reasonId = useId()
   const [name, setName] = useState(adjustment?.name ?? '')
   const [startDate, setStartDate] = useState(adjustment?.startDate ?? '')
   const [endDate, setEndDate] = useState(adjustment?.endDate ?? '')
@@ -52,6 +60,7 @@ export function ProductivityAdjustmentForm({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    if (readOnlyReason) return
 
     onSubmit({
       name: name.trim(),
@@ -72,6 +81,7 @@ export function ProductivityAdjustmentForm({
     endDate >= startDate &&
     !startDateError &&
     !endDateError
+  const canSave = isValid && !readOnlyReason
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4 rounded-lg border border-border dark:border-gray-700 p-4 bg-white dark:bg-gray-800">
@@ -234,6 +244,12 @@ export function ProductivityAdjustmentForm({
         </div>
       </div>
 
+      {readOnlyReason && (
+        <p id={reasonId} className="text-right text-xs text-spert-text-secondary dark:text-gray-300">
+          {readOnlyReason}
+        </p>
+      )}
+
       {/* Buttons */}
       <div className="flex justify-end gap-2 pt-2">
         <button
@@ -245,10 +261,12 @@ export function ProductivityAdjustmentForm({
         </button>
         <button
           type="submit"
-          disabled={!isValid}
+          disabled={!canSave}
+          title={readOnlyReason ?? undefined}
+          aria-describedby={readOnlyReason ? reasonId : undefined}
           className={cn(
             'rounded border-none px-4 py-2 text-[0.9rem] font-semibold text-white',
-            isValid
+            canSave
               ? 'cursor-pointer bg-spert-blue'
               : 'cursor-not-allowed bg-spert-border-medium'
           )}

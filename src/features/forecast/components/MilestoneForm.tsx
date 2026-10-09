@@ -4,7 +4,7 @@
 
 'use client'
 
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { cn } from '@/lib/utils'
 import type { Milestone } from '@/shared/types'
 import { MAX_NUMERIC_VALUE } from '@/shared/state/import-limits'
@@ -16,6 +16,12 @@ interface MilestoneFormProps {
   unitOfMeasure: string
   onSubmit: (data: Omit<Milestone, 'id' | 'createdAt' | 'updatedAt'>) => void
   onCancel: () => void
+  /**
+   * Why the user may not change this project (Brief 39); null or absent when
+   * they may. While set, Save is disabled and the reason shows beside it; the
+   * fields stay as typed, so nothing the user typed is lost (V2).
+   */
+  readOnlyReason?: string | null
 }
 
 export function MilestoneForm({
@@ -24,7 +30,9 @@ export function MilestoneForm({
   unitOfMeasure,
   onSubmit,
   onCancel,
+  readOnlyReason,
 }: MilestoneFormProps) {
+  const reasonId = useId()
   const defaultColor = DEFAULT_MILESTONE_COLORS[existingCount % DEFAULT_MILESTONE_COLORS.length]
   const [name, setName] = useState(milestone?.name ?? '')
   const [backlogSize, setBacklogSize] = useState(milestone ? String(milestone.backlogSize) : '')
@@ -32,6 +40,7 @@ export function MilestoneForm({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    if (readOnlyReason) return
 
     onSubmit({
       name: name.trim(),
@@ -49,6 +58,7 @@ export function MilestoneForm({
     !isNaN(parsedBacklog) &&
     parsedBacklog >= 0 &&
     parsedBacklog <= MAX_NUMERIC_VALUE
+  const canSave = isValid && !readOnlyReason
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4 rounded-lg border border-border dark:border-gray-700 p-4 bg-white dark:bg-gray-800">
@@ -147,6 +157,7 @@ export function MilestoneForm({
               <input
                 type="color"
                 name="milestoneCustomColor"
+                aria-label="Custom color"
                 value={color}
                 onChange={(e) => setColor(e.target.value)}
                 className="absolute inset-0 opacity-0 cursor-pointer"
@@ -159,6 +170,12 @@ export function MilestoneForm({
         </div>
       </div>
 
+      {readOnlyReason && (
+        <p id={reasonId} className="text-right text-xs text-spert-text-secondary dark:text-gray-300">
+          {readOnlyReason}
+        </p>
+      )}
+
       {/* Buttons */}
       <div className="flex justify-end gap-2 pt-2">
         <button
@@ -170,10 +187,12 @@ export function MilestoneForm({
         </button>
         <button
           type="submit"
-          disabled={!isValid}
+          disabled={!canSave}
+          title={readOnlyReason ?? undefined}
+          aria-describedby={readOnlyReason ? reasonId : undefined}
           className={cn(
             'rounded border-none px-4 py-2 text-[0.9rem] font-semibold text-white',
-            isValid
+            canSave
               ? 'cursor-pointer bg-spert-blue'
               : 'cursor-not-allowed bg-spert-border-medium'
           )}

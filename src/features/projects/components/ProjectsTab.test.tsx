@@ -3,7 +3,7 @@
 // See LICENSE file in the project root for full license text.
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { act, render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { act, render, screen, fireEvent } from '@testing-library/react'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
@@ -81,6 +81,8 @@ function resetStore() {
     shouldFocusNewProjectForm: false,
     _originRef: '',
     _changeLog: [],
+    cloudDataLoaded: false,
+    projectRoles: {},
   })
 }
 
@@ -221,103 +223,41 @@ describe('ProjectsTab — import wiring', () => {
   })
 })
 
-// v0.35.2 — Share button refresh-after-snapshot
+// Brief 39 PR B (OD-6) — replaces the v0.35.2 "share-button refresh after cloud
+// snapshot" suite, whose mechanism is gone.
 //
-// In cloud mode, the Share button visibility depends on `ownedProjectIds`,
-// populated by a one-shot `loadOwnedProjectIds(uid)` Firestore query. Before
-// v0.35.2, the useEffect that drives that query keyed on `projects.length`,
-// which produced a stale-empty result for newly-created projects:
-// `addProject` mutates the array (length grows), the query fires immediately,
-// but the v0.35.1 `pendingCreateTimers` 200ms debounce + Firestore roundtrip
-// means the doc isn't yet visible to the `where('owner', '==', uid)` index —
-// so the query returns an empty set and the Share button stays hidden until
-// the user navigates away and back.
-//
-// Fix: key the effect on the `projects` array reference, not its length, so
-// the query re-runs when `replaceProjectsFromCloud` delivers the post-create
-// snapshot — the exact moment Firestore's owner index becomes consistent.
-describe('ProjectsTab — share-button refresh after cloud snapshot (v0.35.2)', () => {
-  it('re-runs loadOwnedProjectIds when the projects array reference changes (snapshot delivery)', async () => {
+// Share used to be gated on `ownedProjectIds`, from a one-shot
+// `loadOwnedProjectIds(uid)` Firestore query that v0.35.2 re-ran on every
+// `projects` array change so a newly created project's Share button appeared
+// once the post-create snapshot landed. Brief 39 retires the query: every
+// cloud snapshot now carries the user's role per project (`projectRoles`), and
+// Share shows only on an explicit 'owner' entry, signed in, with the first
+// cloud load done. The v0.35.2 property is kept and asserted here: the
+// post-create snapshot makes Share appear with no navigation.
+describe('ProjectsTab — the Share button follows the role map (Brief 39 PR B, OD-6; was v0.35.2)', () => {
+  const p1 = { id: 'p1', name: 'Sample', unitOfMeasure: 'points', createdAt: 't', updatedAt: 't' }
+  const shareButton = () => screen.queryByRole('button', { name: 'Share project' })
+
+  it('appears once a snapshot names the user owner of a project created here, with no query and no navigation (known-bad: gate still on a one-shot query)', () => {
     mockAuthMode.user = { uid: 'user-1' }
     mockAuthMode.mode = 'cloud'
-
-    // Initial render: no projects. loadOwnedProjectIds called once with empty result.
+    useProjectStore.setState({ projects: [p1], cloudDataLoaded: true, projectRoles: {} })
     renderProjectsTab()
-    await waitFor(() => {
-      expect(vi.mocked(loadOwnedProjectIds)).toHaveBeenCalledTimes(1)
-    })
-
-    // Simulate replaceProjectsFromCloud delivering a freshly-confirmed project
-    // (this is the post-Firestore-create snapshot that v0.35.1 unblocked).
-    // Stub the query to now return the project's ID.
-    vi.mocked(loadOwnedProjectIds).mockResolvedValueOnce(new Set(['p1']))
+    expect(shareButton()).toBeNull() // still being created here: no role entry yet
 
     act(() => {
-      useProjectStore.setState({
-        projects: [
-          {
-            id: 'p1',
-            name: 'Sample',
-            unitOfMeasure: 'points',
-            createdAt: 't',
-            updatedAt: 't',
-          },
-        ],
-      })
+      useProjectStore.setState({ projectRoles: { p1: 'owner' } })
     })
 
-    // The new array reference triggers the effect; query re-runs.
-    await waitFor(() => {
-      expect(vi.mocked(loadOwnedProjectIds)).toHaveBeenCalledTimes(2)
-    })
-
-    // And a second snapshot for the SAME project (e.g. co-editor edit) — array
-    // reference changes again, query re-runs. Confirms we're not keyed on a
-    // length check that would skip this case.
-    act(() => {
-      useProjectStore.setState({
-        projects: [
-          {
-            id: 'p1',
-            name: 'Sample (edited)',
-            unitOfMeasure: 'points',
-            createdAt: 't',
-            updatedAt: 't2',
-          },
-        ],
-      })
-    })
-
-    await waitFor(() => {
-      expect(vi.mocked(loadOwnedProjectIds)).toHaveBeenCalledTimes(3)
-    })
+    expect(shareButton()).not.toBeNull()
+    expect(vi.mocked(loadOwnedProjectIds)).not.toHaveBeenCalled()
   })
 
-  it('does NOT call loadOwnedProjectIds in local mode (gating preserved)', async () => {
+  it('is not offered in local mode, even signed in (known-bad: gate ignores the cloud load)', () => {
     mockAuthMode.user = { uid: 'user-1' }
     mockAuthMode.mode = 'local'
-
+    useProjectStore.setState({ projects: [p1], cloudDataLoaded: false, projectRoles: {} })
     renderProjectsTab()
-
-    // Give the effect a tick to no-op.
-    await new Promise((r) => setTimeout(r, 0))
-    expect(vi.mocked(loadOwnedProjectIds)).not.toHaveBeenCalled()
-
-    act(() => {
-      useProjectStore.setState({
-        projects: [
-          {
-            id: 'p1',
-            name: 'Sample',
-            unitOfMeasure: 'points',
-            createdAt: 't',
-            updatedAt: 't',
-          },
-        ],
-      })
-    })
-
-    await new Promise((r) => setTimeout(r, 0))
-    expect(vi.mocked(loadOwnedProjectIds)).not.toHaveBeenCalled()
+    expect(shareButton()).toBeNull()
   })
 })

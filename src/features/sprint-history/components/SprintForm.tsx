@@ -4,7 +4,7 @@
 
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useId, useState, useMemo } from 'react'
 import { cn } from '@/lib/utils'
 import type { Sprint, Project } from '@/shared/types'
 import { isValidIsoDate, MAX_ISO_DATE } from '@/shared/lib/dates'
@@ -29,6 +29,12 @@ interface SprintFormProps {
   allSprints: Sprint[]
   onSubmit: (data: Omit<Sprint, 'id' | 'projectId' | 'createdAt' | 'updatedAt'>) => void
   onCancel: () => void
+  /**
+   * Why the user may not change this project (Brief 39 PR B); null or absent
+   * when they may. While set, Save is disabled and the reason shows beside it;
+   * the fields stay as typed, so nothing the user typed is lost (V2).
+   */
+  readOnlyReason?: string | null
 }
 
 export function SprintForm({
@@ -38,7 +44,9 @@ export function SprintForm({
   allSprints,
   onSubmit,
   onCancel,
+  readOnlyReason,
 }: SprintFormProps) {
+  const reasonId = useId()
   const [doneValue, setDoneValue] = useState(sprint?.doneValue?.toString() ?? '')
   const [backlogAtSprintEnd, setBacklogAtSprintEnd] = useState(
     sprint?.backlogAtSprintEnd?.toString() ?? ''
@@ -65,7 +73,7 @@ export function SprintForm({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!sprintStartDate || !effectiveFinishDate) return
+    if (readOnlyReason || !sprintStartDate || !effectiveFinishDate) return
 
     onSubmit({
       sprintNumber,
@@ -99,6 +107,7 @@ export function SprintForm({
     isFigureInRange(doneValue) &&
     isOptionalFigureInRange(backlogAtSprintEnd) &&
     isFinishDateValid
+  const canSave = isValid && !readOnlyReason
 
   const needsFirstSprintDate = !project.firstSprintStartDate && !sprint
 
@@ -230,6 +239,12 @@ export function SprintForm({
       )}
       {dateIssue && <p className="text-xs text-spert-error">{dateIssue}</p>}
 
+      {readOnlyReason && (
+        <p id={reasonId} className="text-right text-xs text-spert-text-secondary dark:text-gray-300">
+          {readOnlyReason}
+        </p>
+      )}
+
       <div className="flex justify-end gap-2 pt-2">
         <button
           type="button"
@@ -240,10 +255,12 @@ export function SprintForm({
         </button>
         <button
           type="submit"
-          disabled={!isValid}
+          disabled={!canSave}
+          title={readOnlyReason ?? undefined}
+          aria-describedby={readOnlyReason ? reasonId : undefined}
           className={cn(
             'px-4 py-2 border-none rounded text-[0.9rem] font-semibold text-white',
-            isValid
+            canSave
               ? 'bg-spert-blue cursor-pointer'
               : 'bg-gray-400 dark:bg-gray-600 cursor-not-allowed'
           )}

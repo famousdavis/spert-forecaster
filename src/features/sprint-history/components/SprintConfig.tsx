@@ -16,6 +16,18 @@ interface SprintConfigProps {
   canEdit: boolean
   onCadenceChange: (cadence: SprintCadence) => void
   onFirstSprintDateChange: (date: string) => void
+  /** The note beside the locked controls, while `canEdit` is false. */
+  lockNote?: string
+  /**
+   * Why the user may not change this project (Brief 39 PR B): the locked
+   * controls' tooltip, and the id of the element holding the same text, which
+   * they name as their description. Both absent when only the sprints lock them.
+   *
+   * ⚠️ Used as given, never tested here: this component is at the complexity
+   * limit, so the caller decides (SprintHistoryTab).
+   */
+  lockReason?: string
+  lockReasonId?: string
 }
 
 export function SprintConfig({
@@ -23,6 +35,9 @@ export function SprintConfig({
   canEdit,
   onCadenceChange,
   onFirstSprintDateChange,
+  lockNote = '(Delete all sprints to change)',
+  lockReason,
+  lockReasonId,
 }: SprintConfigProps) {
   const [firstSprintDateError, setFirstSprintDateError] = useState('')
 
@@ -71,6 +86,8 @@ export function SprintConfig({
             value={project.sprintCadenceWeeks ?? ''}
             onChange={(e) => onCadenceChange(Number(e.target.value) as SprintCadence)}
             disabled={!canEdit}
+            title={lockReason}
+            aria-describedby={lockReasonId}
             className={cn(
               'p-2 text-[0.9rem] rounded w-[90px] dark:text-gray-100',
               canEdit && !project.sprintCadenceWeeks
@@ -126,6 +143,8 @@ export function SprintConfig({
             onChange={(e) => handleFirstSprintDateChange(e.target.value)}
             onBlur={(e) => validateFirstSprintDate(e.target.value)}
             disabled={!canEdit}
+            title={lockReason}
+            aria-describedby={lockReasonId}
             min="2000-01-01"
             max="2050-12-31"
           />
@@ -138,7 +157,7 @@ export function SprintConfig({
 
         {!canEdit && (
           <span className="text-xs text-spert-text-muted">
-            (Delete all sprints to change)
+            {lockNote}
           </span>
         )}
       </div>

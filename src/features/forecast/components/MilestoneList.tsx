@@ -17,8 +17,122 @@ interface MilestoneListProps {
   onDelete: (id: string) => void
   onToggleChart?: (id: string, showOnChart: boolean) => void
   onReorder?: (milestoneIds: string[]) => void
-  onRename?: (id: string, newName: string) => void
+  /** Returns whether the rename saved. Only an explicit `false` keeps the editor open. */
+  onRename?: (id: string, newName: string) => boolean
   editingId?: string | null
+  /**
+   * Why the user may not change this project (Brief 39); null or absent when
+   * they may. While set, every control that would change a milestone stays in
+   * place, disabled, and says why, and the rows cannot be dragged. An inline
+   * rename already open stays open, read only, with what was typed (V2).
+   */
+  readOnlyReason?: string | null
+}
+
+type NameCellMode = 'rename' | 'button' | 'text'
+
+/** What the Name cell shows: the inline editor, the click-to-rename button, or the name. */
+function nameCellMode(canRename: boolean, renaming: boolean, inFullEdit: boolean): NameCellMode {
+  if (!canRename) return 'text'
+  if (renaming) return 'rename'
+  return inFullEdit ? 'text' : 'button'
+}
+
+interface NameCellProps {
+  milestone: Milestone
+  mode: NameCellMode
+  inputId: string
+  draftName: string
+  readOnlyReason: string | null | undefined
+  /** The list's screen-reader-only reason, for the disabled rename button. */
+  reasonId: string
+  onDraftChange: (value: string) => void
+  onStartRename: () => void
+  onCommit: () => void
+  /** Closes the editor and discards the draft (the read-only editor's Close). */
+  onCancel: () => void
+  onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void
+}
+
+function MilestoneNameCell({
+  milestone: m,
+  mode,
+  inputId,
+  draftName,
+  readOnlyReason,
+  reasonId,
+  onDraftChange,
+  onStartRename,
+  onCommit,
+  onCancel,
+  onKeyDown,
+}: NameCellProps) {
+  // The visible reason under an open editor that the user's access made read only.
+  const editorReasonId = useId()
+  if (mode === 'rename') {
+    // The wrapper is there in both modes, so a role drop never remounts the
+    // input: it keeps focus, and the read-only editor's Close sits beside it.
+    return (
+      <>
+        <div className="flex items-center gap-1">
+          <input
+            id={inputId}
+            name="milestoneName"
+            type="text"
+            value={draftName}
+            onChange={(e) => onDraftChange(e.target.value)}
+            onBlur={onCommit}
+            onKeyDown={onKeyDown}
+            // Read only, never disabled: it keeps focus and what was typed (V2).
+            readOnly={!!readOnlyReason}
+            aria-describedby={readOnlyReason ? editorReasonId : undefined}
+            maxLength={50}
+            // size=1 keeps the input's intrinsic min-content width tiny so the
+            // table's auto-layout algorithm doesn't grow the Name column to fit
+            // the input's default size=20 preference (~200px). w-full then stretches
+            // the input to fill whatever width the column has settled on from the
+            // rest of the rows' plain-text content — preventing the layout shift
+            // the user reported in v0.33.5.
+            size={1}
+            autoFocus
+            aria-label={`Rename ${m.name}`}
+            className="w-full rounded border border-spert-blue bg-spert-bg-highlight p-[0.2rem] font-medium text-[0.875rem] dark:bg-gray-700 dark:text-gray-100"
+          />
+          {readOnlyReason && (
+            <button
+              type="button"
+              onClick={onCancel}
+              aria-label="Close rename"
+              className="shrink-0 cursor-pointer rounded border border-spert-border bg-white px-2 py-[0.15rem] text-xs font-normal text-spert-text-secondary hover:bg-spert-bg-disabled dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300"
+            >
+              Close
+            </button>
+          )}
+        </div>
+        {readOnlyReason && (
+          <p id={editorReasonId} className="mt-1 text-xs font-normal text-spert-text-secondary dark:text-gray-300">
+            {readOnlyReason}
+          </p>
+        )}
+      </>
+    )
+  }
+  if (mode === 'button') {
+    return (
+      <button
+        type="button"
+        onClick={onStartRename}
+        disabled={!!readOnlyReason}
+        title={readOnlyReason ?? 'Click to rename'}
+        aria-describedby={readOnlyReason ? reasonId : undefined}
+        draggable={false}
+        className="cursor-text rounded text-left font-medium decoration-spert-text-muted decoration-dotted underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-spert-blue disabled:cursor-not-allowed disabled:no-underline dark:text-gray-100"
+      >
+        {m.name}
+      </button>
+    )
+  }
+  return <>{m.name}</>
 }
 
 export function MilestoneList({
@@ -30,6 +144,7 @@ export function MilestoneList({
   onReorder,
   onRename,
   editingId,
+  readOnlyReason,
 }: MilestoneListProps) {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   // The gap the insertion line is drawn in, 0..milestones.length. Purely
@@ -47,6 +162,9 @@ export function MilestoneList({
   // Stable id base for the inline-rename input; parametrized per-milestone
   // below so list-rendered inputs don't collide on `id` (form-hygiene rule 5).
   const renameInputIdBase = useId()
+  // One screen-reader-only reason for the whole list; the controls it disables name it.
+  const reasonId = useId()
+  const describedBy = readOnlyReason ? reasonId : undefined
 
   const startRename = (m: Milestone) => {
     setRenamingId(m.id)
@@ -54,10 +172,14 @@ export function MilestoneList({
   }
 
   const commitRename = (m: Milestone) => {
+    // Read only (the user's access dropped while renaming): no attempt at all,
+    // so nothing for the store to refuse, and the editor keeps the draft until
+    // Close or Escape discards it (V2).
+    if (readOnlyReason) return
     const trimmed = draftName.trim()
-    if (trimmed && trimmed !== m.name) {
-      onRename?.(m.id, trimmed)
-    }
+    // A refused rename (a click that raced the drop; the store said why) keeps
+    // the editor and the draft (V2).
+    if (trimmed && trimmed !== m.name && onRename?.(m.id, trimmed) === false) return
     setRenamingId(null)
     setDraftName('')
   }
@@ -140,6 +262,7 @@ export function MilestoneList({
 
   return (
     <div className="overflow-x-auto">
+      {readOnlyReason && <span id={reasonId} className="sr-only">{readOnlyReason}</span>}
       <table className="w-full border-collapse text-sm">
         <thead>
           <tr className="border-b-2 border-spert-border-light">
@@ -171,7 +294,7 @@ export function MilestoneList({
           {rows.map(({ milestone: m, index, cumulative: cum }, rowIdx) => (
             <tr
               key={m.id}
-              draggable={!!onReorder}
+              draggable={!!onReorder && !readOnlyReason}
               onDragStart={(e) => handleDragStart(e, rowIdx)}
               onDragOver={(e) => handleDragOver(e, rowIdx)}
               onDragLeave={handleDragLeave}
@@ -192,8 +315,11 @@ export function MilestoneList({
               {onReorder && (
                 <td className="p-1 text-center">
                   <span
-                    className="inline-flex cursor-grab active:cursor-grabbing text-spert-text-light"
-                    title="Drag to reorder"
+                    className={cn(
+                      'inline-flex text-spert-text-light',
+                      readOnlyReason ? 'cursor-not-allowed opacity-50' : 'cursor-grab active:cursor-grabbing'
+                    )}
+                    title={readOnlyReason ?? 'Drag to reorder'}
                   >
                     <svg
                       xmlns="http://www.w3.org/2000/svg"
@@ -214,40 +340,19 @@ export function MilestoneList({
               )}
               <td className="p-2 text-center text-spert-text-muted">{index}</td>
               <td className="p-2 font-medium dark:text-gray-100">
-                {onRename && renamingId === m.id ? (
-                  <input
-                    id={`${renameInputIdBase}-${m.id}`}
-                    name="milestoneName"
-                    type="text"
-                    value={draftName}
-                    onChange={(e) => setDraftName(e.target.value)}
-                    onBlur={() => commitRename(m)}
-                    onKeyDown={(e) => handleRenameKeyDown(e, m)}
-                    maxLength={50}
-                    // size=1 keeps the input's intrinsic min-content width tiny so the
-                    // table's auto-layout algorithm doesn't grow the Name column to fit
-                    // the input's default size=20 preference (~200px). w-full then stretches
-                    // the input to fill whatever width the column has settled on from the
-                    // rest of the rows' plain-text content — preventing the layout shift
-                    // the user reported in v0.33.5.
-                    size={1}
-                    autoFocus
-                    aria-label={`Rename ${m.name}`}
-                    className="w-full rounded border border-spert-blue bg-spert-bg-highlight p-[0.2rem] font-medium text-[0.875rem] dark:bg-gray-700 dark:text-gray-100"
-                  />
-                ) : onRename && m.id !== editingId ? (
-                  <button
-                    type="button"
-                    onClick={() => startRename(m)}
-                    title="Click to rename"
-                    draggable={false}
-                    className="cursor-text rounded text-left font-medium decoration-spert-text-muted decoration-dotted underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-spert-blue dark:text-gray-100"
-                  >
-                    {m.name}
-                  </button>
-                ) : (
-                  m.name
-                )}
+                <MilestoneNameCell
+                  milestone={m}
+                  mode={nameCellMode(!!onRename, renamingId === m.id, m.id === editingId)}
+                  inputId={`${renameInputIdBase}-${m.id}`}
+                  draftName={draftName}
+                  readOnlyReason={readOnlyReason}
+                  reasonId={reasonId}
+                  onDraftChange={setDraftName}
+                  onStartRename={() => startRename(m)}
+                  onCommit={() => commitRename(m)}
+                  onCancel={cancelRename}
+                  onKeyDown={(e) => handleRenameKeyDown(e, m)}
+                />
               </td>
               <td className="whitespace-nowrap p-2 text-right dark:text-gray-100">
                 {m.backlogSize.toLocaleString()} {unitOfMeasure}
@@ -268,8 +373,10 @@ export function MilestoneList({
                   name="showMilestoneOnChart"
                   checked={m.showOnChart !== false}
                   onChange={(e) => onToggleChart?.(m.id, e.target.checked)}
-                  className="cursor-pointer accent-blue-600"
-                  title={m.showOnChart !== false ? 'Shown on burn-up chart' : 'Hidden from burn-up chart'}
+                  disabled={!!readOnlyReason}
+                  className="cursor-pointer accent-blue-600 disabled:cursor-not-allowed"
+                  title={readOnlyReason ?? (m.showOnChart !== false ? 'Shown on burn-up chart' : 'Hidden from burn-up chart')}
+                  aria-describedby={describedBy}
                   aria-label={`Show ${m.name} on chart`}
                 />
               </td>
@@ -279,6 +386,8 @@ export function MilestoneList({
                 isEditing={m.id === editingId}
                 editLabel={`Edit ${m.name}`}
                 deleteLabel={`Delete ${m.name}`}
+                disabled={!!readOnlyReason}
+                reason={readOnlyReason}
               />
             </tr>
           ))}

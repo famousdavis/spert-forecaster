@@ -4,6 +4,7 @@
 
 'use client'
 
+import { useId } from 'react'
 import { cn } from '@/lib/utils'
 import type { ProductivityAdjustment } from '@/shared/types'
 import { formatDate } from '@/shared/lib/dates'
@@ -15,6 +16,12 @@ interface ProductivityAdjustmentListProps {
   onDelete: (id: string) => void
   onToggleEnabled: (id: string) => void
   editingId?: string | null
+  /**
+   * Why the user may not change this project (Brief 39); null or absent when
+   * they may. While set, every row's On, Edit and Delete stay in place,
+   * disabled, and say why.
+   */
+  readOnlyReason?: string | null
 }
 
 export function ProductivityAdjustmentList({
@@ -23,7 +30,12 @@ export function ProductivityAdjustmentList({
   onDelete,
   onToggleEnabled,
   editingId,
+  readOnlyReason,
 }: ProductivityAdjustmentListProps) {
+  // One screen-reader-only reason for the whole list; the On checkboxes name it.
+  const reasonId = useId()
+  const describedBy = readOnlyReason ? reasonId : undefined
+
   if (adjustments.length === 0) {
     return (
       <p className="text-sm italic text-spert-text-muted">
@@ -39,6 +51,7 @@ export function ProductivityAdjustmentList({
 
   return (
     <div className="overflow-x-auto">
+      {readOnlyReason && <span id={reasonId} className="sr-only">{readOnlyReason}</span>}
       <table className="w-full border-collapse text-sm">
         <thead>
           <tr className="border-b-2 border-spert-border-light">
@@ -79,8 +92,10 @@ export function ProductivityAdjustmentList({
                     name="adjustmentEnabled"
                     checked={isEnabled}
                     onChange={() => onToggleEnabled(adj.id)}
-                    className="size-4 cursor-pointer"
-                    title={isEnabled ? 'Click to disable' : 'Click to enable'}
+                    disabled={!!readOnlyReason}
+                    className="size-4 cursor-pointer disabled:cursor-not-allowed"
+                    title={readOnlyReason ?? (isEnabled ? 'Click to disable' : 'Click to enable')}
+                    aria-describedby={describedBy}
                     aria-label={`${isEnabled ? 'Disable' : 'Enable'} ${adj.name}`}
                   />
                 </td>
@@ -111,6 +126,8 @@ export function ProductivityAdjustmentList({
                   isEditing={adj.id === editingId}
                   editLabel={`Edit ${adj.name}`}
                   deleteLabel={`Delete ${adj.name}`}
+                  disabled={!!readOnlyReason}
+                  reason={readOnlyReason}
                 />
               </tr>
             )

@@ -4,7 +4,7 @@
 
 'use client'
 
-import { useState, useCallback, type ReactNode } from 'react'
+import { useId, useState, useCallback, type ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 import { ConfirmDialog } from './ConfirmDialog'
 
@@ -13,21 +13,30 @@ interface CrudItem {
   name?: string
 }
 
+/** The form the panel shows: null for none; `editingItem` null for an add form. */
+export type CrudPanelForm<T> = { editingItem: T | null } | null
+
 interface CollapsibleCrudPanelProps<T extends CrudItem> {
   title: string
   description?: string
   items: T[]
   onDelete: (id: string) => void
+  /**
+   * `onSubmitDone` closes the form: call it only once the save succeeded. A
+   * refused save leaves the form open with what the user typed (Brief 39, V2).
+   */
   renderForm: (props: {
     editingItem: T | null
     onSubmitDone: () => void
     onCancel: () => void
+    readOnlyReason: string | null
   }) => ReactNode
   renderList: (props: {
     items: T[]
     onEdit: (item: T) => void
     onDelete: (id: string) => void
     editingItem: T | null
+    readOnlyReason: string | null
   }) => ReactNode
   addButtonLabel?: string
   deleteDialogTitle?: string
@@ -42,6 +51,20 @@ interface CollapsibleCrudPanelProps<T extends CrudItem> {
   panelId: string
   /** Extra content rendered between description and add button */
   headerExtra?: ReactNode
+  /**
+   * Why the user may not change these items; null or absent when they may.
+   * While set, the add button stays in place, disabled, and says why, and the
+   * list and form are given the reason to do the same (Brief 39 PR B).
+   */
+  readOnlyReason?: string | null
+  /**
+   * The open form, when the caller owns it (Brief 39, V10: Forecast ties each
+   * form to the project it was opened for). With `onFormStateChange` given, the
+   * panel shows `formState` and asks for every change; without it, the panel
+   * keeps its own.
+   */
+  formState?: CrudPanelForm<T>
+  onFormStateChange?: (next: CrudPanelForm<T>) => void
 }
 
 export function CollapsibleCrudPanel<T extends CrudItem>({
@@ -59,35 +82,30 @@ export function CollapsibleCrudPanel<T extends CrudItem>({
   capNotice,
   panelId,
   headerExtra,
+  readOnlyReason = null,
+  formState,
+  onFormStateChange,
 }: CollapsibleCrudPanelProps<T>) {
+  const addReasonId = useId()
   const [isExpanded, setIsExpanded] = useState(false)
-  const [isAdding, setIsAdding] = useState(false)
-  const [editingItem, setEditingItem] = useState<T | null>(null)
+  const [ownForm, setOwnForm] = useState<CrudPanelForm<T>>(null)
+  const form = onFormStateChange ? (formState ?? null) : ownForm
+  const setForm: (next: CrudPanelForm<T>) => void = onFormStateChange ?? setOwnForm
+  const editingItem = form?.editingItem ?? null
   const [deleteConfirm, setDeleteConfirm] = useState<{
     isOpen: boolean
     itemId: string | null
     itemName: string
   }>({ isOpen: false, itemId: null, itemName: '' })
 
-  const showForm = isAdding || editingItem !== null
+  const showForm = form !== null
   const canAdd = maxItems === undefined || items.length < maxItems
   // Not gated on canAdd: the readability advice matters MOST past the cap.
   const showSoftWarning = softLimit !== undefined && items.length >= softLimit
 
-  const handleEdit = (item: T) => {
-    setEditingItem(item)
-    setIsAdding(false)
-  }
-
-  const handleSubmitDone = () => {
-    setIsAdding(false)
-    setEditingItem(null)
-  }
-
-  const handleCancel = () => {
-    setIsAdding(false)
-    setEditingItem(null)
-  }
+  const handleEdit = (item: T) => setForm({ editingItem: item })
+  const handleSubmitDone = () => setForm(null)
+  const handleCancel = () => setForm(null)
 
   const handleDeleteRequest = useCallback(
     (id: string) => {
@@ -152,16 +170,23 @@ export function CollapsibleCrudPanel<T extends CrudItem>({
             onEdit: handleEdit,
             onDelete: handleDeleteRequest,
             editingItem,
+            readOnlyReason,
           })}
 
           {/* Add button — below list */}
           {!showForm && canAdd && (
-            <button
-              onClick={() => setIsAdding(true)}
-              className="mt-4 cursor-pointer rounded border-none dark:border dark:border-blue-600 bg-spert-blue dark:bg-blue-900/30 px-4 py-2 text-sm font-medium text-white dark:text-blue-400"
-            >
-              {addButtonLabel}
-            </button>
+            <>
+              {readOnlyReason && <span id={addReasonId} className="sr-only">{readOnlyReason}</span>}
+              <button
+                onClick={() => setForm({ editingItem: null })}
+                disabled={readOnlyReason !== null}
+                title={readOnlyReason ?? undefined}
+                aria-describedby={readOnlyReason ? addReasonId : undefined}
+                className="mt-4 cursor-pointer rounded border-none dark:border dark:border-blue-600 bg-spert-blue dark:bg-blue-900/30 px-4 py-2 text-sm font-medium text-white dark:text-blue-400 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {addButtonLabel}
+              </button>
+            </>
           )}
 
           {maxItems !== undefined && !canAdd && !showForm && (
@@ -187,6 +212,7 @@ export function CollapsibleCrudPanel<T extends CrudItem>({
                 editingItem,
                 onSubmitDone: handleSubmitDone,
                 onCancel: handleCancel,
+                readOnlyReason,
               })}
             </div>
           )}

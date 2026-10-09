@@ -4,7 +4,7 @@
 
 'use client'
 
-import { useMemo } from 'react'
+import { useId, useMemo } from 'react'
 import { PencilIconButton } from '@/shared/components/PencilIconButton'
 import { TrashIconButton } from '@/shared/components/TrashIconButton'
 import type { Sprint } from '@/shared/types'
@@ -23,6 +23,12 @@ interface SprintListProps {
   onEdit: (sprint: Sprint) => void
   onDelete: (id: string) => void
   onToggleIncluded: (id: string) => void
+  /**
+   * Why the user may not change this project (Brief 39 PR B); null or absent
+   * when they may. While set, every row's Include, Edit and Delete stay in
+   * place, disabled, and say why — the reason wins over any other tooltip.
+   */
+  readOnlyReason?: string | null
 }
 
 export function SprintList({
@@ -36,7 +42,11 @@ export function SprintList({
   onEdit,
   onDelete,
   onToggleIncluded,
+  readOnlyReason,
 }: SprintListProps) {
+  // One screen-reader-only reason for the whole list; every control it disables names it.
+  const reasonId = useId()
+  const describedBy = readOnlyReason ? reasonId : undefined
   // Resolve all sprint dates with cascade-forward logic. A refused first date counts as missing (D14).
   const resolvedDates = useMemo(() => {
     if (!isValidIsoDate(firstSprintStartDate) || !sprintCadenceWeeks) return null
@@ -76,6 +86,7 @@ export function SprintList({
 
   return (
     <div className="overflow-x-auto">
+      {readOnlyReason && <span id={reasonId} className="sr-only">{readOnlyReason}</span>}
       <table className="w-full border-collapse">
         <thead>
           <tr className="border-b border-border">
@@ -133,7 +144,10 @@ export function SprintList({
                     name="sprintIncludedInForecast"
                     checked={sprint.includedInForecast}
                     onChange={() => onToggleIncluded(sprint.id)}
-                    className="h-4 w-4 rounded border-input"
+                    disabled={!!readOnlyReason}
+                    title={readOnlyReason ?? undefined}
+                    aria-describedby={describedBy}
+                    className="h-4 w-4 rounded border-input disabled:cursor-not-allowed"
                     aria-label={`Include Sprint ${sprint.sprintNumber} in forecast`}
                   />
                 </td>
@@ -163,14 +177,17 @@ export function SprintList({
                     <PencilIconButton
                       onClick={() => onEdit(sprint)}
                       ariaLabel={`Edit Sprint ${sprint.sprintNumber}`}
-                      title="Edit sprint"
+                      title={readOnlyReason ?? 'Edit sprint'}
                       active={sprint.id === editingSprintId}
+                      disabled={!!readOnlyReason}
+                      describedBy={describedBy}
                     />
                     <TrashIconButton
                       onClick={() => onDelete(sprint.id)}
                       ariaLabel={`Delete Sprint ${sprint.sprintNumber}`}
-                      title={canDelete ? 'Delete sprint' : 'Only the most recent sprint can be deleted'}
-                      disabled={!canDelete}
+                      title={readOnlyReason ?? (canDelete ? 'Delete sprint' : 'Only the most recent sprint can be deleted')}
+                      disabled={!canDelete || !!readOnlyReason}
+                      describedBy={describedBy}
                     />
                   </div>
                 </td>
