@@ -106,7 +106,10 @@ describe('the adjustment form when the access drops mid-edit, or a click races t
   ] as const)('%s: open as editor, type, drop to viewer → the typed value stays, Save disabled, the reason visible beside it (known-bads: typed text cleared; Save enabled; reason not visible)', (save, open) => {
     setup('editor')
     open()
+    // A valid form, so Save is disabled by the reason alone, never by validation.
     fireEvent.change(nameInput()!, { target: { value: 'Offsite' } })
+    fireEvent.change(document.getElementById('adjStartDate')!, { target: { value: '2026-03-02' } })
+    fireEvent.change(document.getElementById('adjEndDate')!, { target: { value: '2026-03-06' } })
     dropTo('viewer')
     const form = document.querySelector('form')!
     const submit = within(form).getByRole('button', { name: save }) as HTMLButtonElement

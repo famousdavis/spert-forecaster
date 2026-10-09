@@ -116,7 +116,9 @@ describe('the Milestone form when the access drops mid-edit, or a click races th
   ] as const)('%s: open as editor, type, drop to viewer → the typed value stays, Save disabled, the reason visible beside it (known-bads: typed text cleared; Save enabled; reason not visible)', (save, open) => {
     setup('editor')
     open()
+    // A valid form, so Save is disabled by the reason alone, never by validation.
     fireEvent.change(nameInput()!, { target: { value: 'Beta' } })
+    fireEvent.change(document.getElementById('milestoneBacklog')!, { target: { value: '5' } })
     dropTo('viewer')
     const form = document.querySelector('form')!
     const submit = within(form).getByRole('button', { name: save }) as HTMLButtonElement
