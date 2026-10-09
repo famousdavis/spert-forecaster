@@ -13,8 +13,12 @@ import { validateImportData, type ExportData } from './import-validation'
 import { MAX_STRING_LENGTH } from './import-limits'
 import { useForecastResultsStore } from './forecast-results-store'
 import { useSettingsStore } from './settings-store'
+import { toast } from 'sonner'
 import {
   accessFromState,
+  canDeleteProject,
+  canEditProject,
+  guardRefusalText,
   replaceAllBlockedIn,
   sameRoles,
   REPLACE_ALL_SHARED_TEXT,
@@ -105,42 +109,42 @@ interface ProjectState {
 
   // Project actions
   addProject: (project: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>) => void
-  updateProject: (id: string, updates: Partial<Omit<Project, 'id' | 'createdAt'>>) => void
-  deleteProject: (id: string) => void
+  updateProject: (id: string, updates: Partial<Omit<Project, 'id' | 'createdAt'>>) => boolean
+  deleteProject: (id: string) => boolean
   cloneProject: (sourceId: string) => string | null
   reorderProjects: (projectIds: string[]) => void
   setViewingProjectId: (id: string | null) => void
 
   // Sprint actions
-  addSprint: (sprint: Omit<Sprint, 'id' | 'createdAt' | 'updatedAt'>) => void
-  updateSprint: (id: string, updates: Partial<Omit<Sprint, 'id' | 'projectId' | 'createdAt'>>) => void
-  deleteSprint: (id: string) => void
-  toggleSprintIncluded: (id: string) => void
+  addSprint: (sprint: Omit<Sprint, 'id' | 'createdAt' | 'updatedAt'>) => boolean
+  updateSprint: (id: string, updates: Partial<Omit<Sprint, 'id' | 'projectId' | 'createdAt'>>) => boolean
+  deleteSprint: (id: string) => boolean
+  toggleSprintIncluded: (id: string) => boolean
 
   // Productivity Adjustment actions
   addProductivityAdjustment: (
     projectId: string,
     adjustment: Omit<ProductivityAdjustment, 'id' | 'createdAt' | 'updatedAt'>
-  ) => void
+  ) => boolean
   updateProductivityAdjustment: (
     projectId: string,
     adjustmentId: string,
     updates: Partial<Omit<ProductivityAdjustment, 'id' | 'createdAt'>>
-  ) => void
-  deleteProductivityAdjustment: (projectId: string, adjustmentId: string) => void
+  ) => boolean
+  deleteProductivityAdjustment: (projectId: string, adjustmentId: string) => boolean
 
   // Milestone actions
   addMilestone: (
     projectId: string,
     milestone: Omit<Milestone, 'id' | 'createdAt' | 'updatedAt'>
-  ) => void
+  ) => boolean
   updateMilestone: (
     projectId: string,
     milestoneId: string,
     updates: Partial<Omit<Milestone, 'id' | 'createdAt'>>
-  ) => void
-  deleteMilestone: (projectId: string, milestoneId: string) => void
-  reorderMilestones: (projectId: string, milestoneIds: string[]) => void
+  ) => boolean
+  deleteMilestone: (projectId: string, milestoneId: string) => boolean
+  reorderMilestones: (projectId: string, milestoneIds: string[]) => boolean
 
   // Import/Export actions
   exportData: () => ExportData
@@ -182,6 +186,31 @@ const DEFAULT_FORECAST_INPUTS: ForecastInputs = {
 // Lazily ensure _originRef is set (first structural mutation or export)
 const ensureOriginRef = (state: { _originRef: string }): string =>
   state._originRef || getWorkspaceId()
+
+/**
+ * TRUE when this user may not make this change to this project — a change the
+ * cloud would refuse (Brief 39 PR B). The UI never offers it; this is the
+ * guarantee behind the UI. A refused change touches nothing and emits nothing.
+ *
+ * ⚠️ It SAYS so (V2). Every caller of a guarded mutator is the user's own action
+ * — a form, a checkbox, a drag, a confirm dialog (the census, v3 §3.8) — and a
+ * refusal of the user's own action is never silent. It lands here only when
+ * the click raced a role change and reached a control the UI had not yet
+ * disabled; the caller learns of it from the mutator's `false` and keeps
+ * whatever the user typed.
+ */
+function refuses(
+  state: { cloudDataLoaded: boolean; projectRoles: Record<string, ProjectAccess> },
+  projectId: string | undefined,
+  change: 'edit' | 'delete',
+): boolean {
+  if (projectId === undefined) return false
+  const access = accessFromState(state, projectId)
+  if (change === 'delete' ? canDeleteProject(access) : canEditProject(access)) return false
+  console.warn(`Refused to ${change} project ${projectId}: this user's access is ${access}.`)
+  toast.error(guardRefusalText(change, access))
+  return true
+}
 
 // Emit sync bus event for a project change (skipped during cloud updates)
 function emitProjectSave(projectId: string, isCloudUpdate: boolean): void {
@@ -324,12 +353,14 @@ export const useProjectStore = create<ProjectState>()(
       },
 
       updateProject: (id, updates) => {
+        if (refuses(get(), id, 'edit')) return false
         set((state) => ({
           projects: state.projects.map((p) =>
             p.id === id ? { ...p, ...updates, updatedAt: now() } : p
           ),
         }))
         emitProjectSave(id, get()._isCloudUpdate)
+        return true
       },
 
       cloneProject: (sourceId) => {
@@ -401,6 +432,7 @@ export const useProjectStore = create<ProjectState>()(
       },
 
       deleteProject: (id) => {
+        if (refuses(get(), id, 'delete')) return false
         set((state) => {
           const { [id]: _forecastInputs, ...remainingForecastInputs } = state.forecastInputs
           const { [id]: _burnUpConfig, ...remainingBurnUpConfigs } = state.burnUpConfigs
@@ -424,6 +456,7 @@ export const useProjectStore = create<ProjectState>()(
         if (!get()._isCloudUpdate) {
           syncBus.emit({ type: 'project:delete', projectId: id })
         }
+        return true
       },
 
       reorderProjects: (projectIds) => {
@@ -445,6 +478,7 @@ export const useProjectStore = create<ProjectState>()(
       setViewingProjectId: (id) => set({ viewingProjectId: id }),
 
       addSprint: (sprintData) => {
+        if (refuses(get(), sprintData.projectId, 'edit')) return false
         const id = generateId()
         set((state) => ({
           sprints: [
@@ -454,10 +488,12 @@ export const useProjectStore = create<ProjectState>()(
           _changeLog: appendChangeLogEntry(state._changeLog, { op: 'add', entity: 'sprint', id }),
         }))
         emitProjectSave(sprintData.projectId, get()._isCloudUpdate)
+        return true
       },
 
       updateSprint: (id, updates) => {
         const sprint = get().sprints.find((s) => s.id === id)
+        if (refuses(get(), sprint?.projectId, 'edit')) return false
         const hasDateChange = 'customFinishDate' in updates && updates.customFinishDate !== sprint?.customFinishDate
         set((state) => ({
           sprints: state.sprints.map((s) =>
@@ -468,19 +504,23 @@ export const useProjectStore = create<ProjectState>()(
           } : {}),
         }))
         if (sprint) emitProjectSave(sprint.projectId, get()._isCloudUpdate)
+        return true
       },
 
       deleteSprint: (id) => {
         const sprint = get().sprints.find((s) => s.id === id)
+        if (refuses(get(), sprint?.projectId, 'edit')) return false
         set((state) => ({
           sprints: state.sprints.filter((s) => s.id !== id),
           _changeLog: appendChangeLogEntry(state._changeLog, { op: 'delete', entity: 'sprint', id }),
         }))
         if (sprint) emitProjectSave(sprint.projectId, get()._isCloudUpdate)
+        return true
       },
 
       toggleSprintIncluded: (id) => {
         const sprint = get().sprints.find((s) => s.id === id)
+        if (refuses(get(), sprint?.projectId, 'edit')) return false
         set((state) => ({
           sprints: state.sprints.map((s) =>
             s.id === id
@@ -489,9 +529,11 @@ export const useProjectStore = create<ProjectState>()(
           ),
         }))
         if (sprint) emitProjectSave(sprint.projectId, get()._isCloudUpdate)
+        return true
       },
 
       addProductivityAdjustment: (projectId, adjustmentData) => {
+        if (refuses(get(), projectId, 'edit')) return false
         const id = generateId()
         set((state) => ({
           projects: state.projects.map((p) =>
@@ -509,9 +551,11 @@ export const useProjectStore = create<ProjectState>()(
           _changeLog: appendChangeLogEntry(state._changeLog, { op: 'add', entity: 'adjustment', id }),
         }))
         emitProjectSave(projectId, get()._isCloudUpdate)
+        return true
       },
 
       updateProductivityAdjustment: (projectId, adjustmentId, updates) => {
+        if (refuses(get(), projectId, 'edit')) return false
         set((state) => ({
           projects: state.projects.map((p) =>
             p.id === projectId
@@ -528,9 +572,11 @@ export const useProjectStore = create<ProjectState>()(
           ),
         }))
         emitProjectSave(projectId, get()._isCloudUpdate)
+        return true
       },
 
       deleteProductivityAdjustment: (projectId, adjustmentId) => {
+        if (refuses(get(), projectId, 'edit')) return false
         set((state) => ({
           projects: state.projects.map((p) =>
             p.id === projectId
@@ -546,9 +592,11 @@ export const useProjectStore = create<ProjectState>()(
           _changeLog: appendChangeLogEntry(state._changeLog, { op: 'delete', entity: 'adjustment', id: adjustmentId }),
         }))
         emitProjectSave(projectId, get()._isCloudUpdate)
+        return true
       },
 
       addMilestone: (projectId, milestoneData) => {
+        if (refuses(get(), projectId, 'edit')) return false
         const id = generateId()
         set((state) => ({
           projects: state.projects.map((p) =>
@@ -566,9 +614,11 @@ export const useProjectStore = create<ProjectState>()(
           _changeLog: appendChangeLogEntry(state._changeLog, { op: 'add', entity: 'milestone', id }),
         }))
         emitProjectSave(projectId, get()._isCloudUpdate)
+        return true
       },
 
       updateMilestone: (projectId, milestoneId, updates) => {
+        if (refuses(get(), projectId, 'edit')) return false
         set((state) => ({
           projects: state.projects.map((p) =>
             p.id === projectId
@@ -585,9 +635,11 @@ export const useProjectStore = create<ProjectState>()(
           ),
         }))
         emitProjectSave(projectId, get()._isCloudUpdate)
+        return true
       },
 
       deleteMilestone: (projectId, milestoneId) => {
+        if (refuses(get(), projectId, 'edit')) return false
         set((state) => ({
           projects: state.projects.map((p) =>
             p.id === projectId
@@ -603,9 +655,11 @@ export const useProjectStore = create<ProjectState>()(
           _changeLog: appendChangeLogEntry(state._changeLog, { op: 'delete', entity: 'milestone', id: milestoneId }),
         }))
         emitProjectSave(projectId, get()._isCloudUpdate)
+        return true
       },
 
       reorderMilestones: (projectId, milestoneIds) => {
+        if (refuses(get(), projectId, 'edit')) return false
         set((state) => ({
           projects: state.projects.map((p) => {
             if (p.id !== projectId) return p
@@ -620,6 +674,7 @@ export const useProjectStore = create<ProjectState>()(
           }),
         }))
         emitProjectSave(projectId, get()._isCloudUpdate)
+        return true
       },
 
       exportData: (): ExportData => {

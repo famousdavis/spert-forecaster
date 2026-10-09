@@ -9,6 +9,8 @@ interface PencilIconButtonProps {
   ariaLabel?: string
   title?: string
   disabled?: boolean
+  /** The id of an element that says why the button is disabled (aria-describedby). */
+  describedBy?: string
   active?: boolean
 }
 
@@ -21,6 +23,7 @@ export function PencilIconButton({
   title = 'Edit',
   disabled = false,
   active = false,
+  describedBy,
 }: PencilIconButtonProps) {
   const isActive = !!active && !disabled
   const activeClasses = isActive
@@ -33,6 +36,7 @@ export function PencilIconButton({
       aria-label={ariaLabel}
       title={title}
       disabled={disabled}
+      aria-describedby={describedBy}
       className={`inline-flex items-center justify-center p-1.5 rounded-md leading-none bg-transparent border-none cursor-pointer transition-[color,background-color,box-shadow] duration-150 text-gray-400 hover:text-[#0070f3] hover:bg-blue-50 dark:hover:bg-blue-500/15 focus:outline-none focus:text-[#0070f3] focus:bg-blue-50 dark:focus:bg-blue-500/15 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-gray-400 hover:[box-shadow:0_0_0_1.5px_rgba(0,112,243,0.5)] focus:[box-shadow:0_0_0_1.5px_rgba(0,112,243,0.5)] disabled:[box-shadow:none] disabled:bg-transparent disabled:text-gray-400${activeClasses}`}
     >
       <svg

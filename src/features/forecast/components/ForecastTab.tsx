@@ -23,6 +23,8 @@ import { useCallback, useMemo, useState } from 'react'
 import type { DistributionType } from '@/shared/types/burn-up'
 import { ProjectsEmptyState } from '@/shared/components/ProjectsEmptyState'
 import { ForecastDateBlockNotice } from './ForecastDateBlockNotice'
+import { useProjectAccess } from '@/features/auth/hooks/useProjectAccess'
+import { ViewOnlyNotice } from '@/features/auth/components/ViewOnlyNotice'
 import { loadSampleProject } from '@/features/projects/lib/sample-project'
 import type { TabId } from '@/shell/components/TabNavigation'
 
@@ -115,6 +117,8 @@ export function ForecastTab({ onTabChange }: ForecastTabProps = {}) {
   } = useForecastState()
 
   const distributionsEnabled = useSettingsStore((s) => s.distributionsEnabled)
+  // Brief 39: the read-only banner for the project shown (nothing when the user may change it).
+  const access = useProjectAccess(selectedProject?.id)
 
   // Custom Percentile section is collapsed by default in v0.31.1 — one fewer wall of controls
   // on first load. Inline pattern (no shared Collapsible component, no Radix) — matches the
@@ -192,6 +196,8 @@ export function ForecastTab({ onTabChange }: ForecastTabProps = {}) {
           ))}
         </select>
       </h2>
+
+      <ViewOnlyNotice access={access} />
 
       {/* Milestones - show when project is selected */}
       {selectedProject && (

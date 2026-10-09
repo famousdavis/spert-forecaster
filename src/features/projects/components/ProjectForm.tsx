@@ -4,7 +4,7 @@
 
 'use client'
 
-import { forwardRef, useImperativeHandle, useRef, useState } from 'react'
+import { forwardRef, useId, useImperativeHandle, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
 import type { Project } from '@/shared/types'
 import { DEFAULT_UNIT_OF_MEASURE } from '../constants'
@@ -21,6 +21,14 @@ interface ProjectFormProps {
   project: Project | null
   onSubmit: (data: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>) => void
   onCancel: () => void
+  /**
+   * Why the user may only view this project (Brief 39 PR B, OD-8); null or absent when
+   * they may change it. While set, the form shows the project read only:
+   * every field disabled (the dates stay readable), no Save, Cancel reads
+   * Close, and the reason shows above the fields. Set while the form is open
+   * (the user's access dropped), the fields keep what was typed (V2).
+   */
+  readOnlyReason?: string | null
 }
 
 /**
@@ -33,10 +41,12 @@ export interface ProjectFormHandle {
 }
 
 export const ProjectForm = forwardRef<ProjectFormHandle, ProjectFormProps>(function ProjectForm(
-  { project, onSubmit, onCancel },
+  { project, onSubmit, onCancel, readOnlyReason },
   ref,
 ) {
   const nameInputRef = useRef<HTMLInputElement | null>(null)
+  const reasonId = useId()
+  const readOnly = !!readOnlyReason
 
   useImperativeHandle(ref, () => ({
     focusNameInput: () => {
@@ -88,6 +98,7 @@ export const ProjectForm = forwardRef<ProjectFormHandle, ProjectFormProps>(funct
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    if (readOnly) return
     setSubmitError('')
 
     // Validate date comparison only on submit
@@ -131,6 +142,7 @@ export const ProjectForm = forwardRef<ProjectFormHandle, ProjectFormProps>(funct
   return (
     <form
       onSubmit={handleSubmit}
+      aria-describedby={readOnly ? reasonId : undefined}
       className="rounded-lg border border-border dark:border-gray-700 p-4 bg-spert-bg-input dark:bg-gray-800"
     >
       <style jsx>{`
@@ -160,6 +172,12 @@ export const ProjectForm = forwardRef<ProjectFormHandle, ProjectFormProps>(funct
         }
       `}</style>
 
+      {readOnlyReason && (
+        <p id={reasonId} className="mb-3 text-sm text-spert-text-secondary dark:text-gray-300">
+          {readOnlyReason}
+        </p>
+      )}
+
       <div className="flex gap-4 items-start flex-wrap">
         {/* Project Name - wider */}
         <div className="flex-[1_1_300px] min-w-[250px]">
@@ -172,7 +190,8 @@ export const ProjectForm = forwardRef<ProjectFormHandle, ProjectFormProps>(funct
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="p-2 text-[0.9rem] border border-spert-border dark:border-gray-600 rounded w-full bg-white dark:bg-gray-700 dark:text-gray-100"
+            disabled={readOnly}
+            className="p-2 text-[0.9rem] border border-spert-border dark:border-gray-600 rounded w-full bg-white dark:bg-gray-700 dark:text-gray-100 disabled:cursor-not-allowed disabled:bg-spert-bg-disabled dark:disabled:bg-gray-700"
             placeholder="Project name"
             maxLength={MAX_STRING_LENGTH}
             required
@@ -189,7 +208,8 @@ export const ProjectForm = forwardRef<ProjectFormHandle, ProjectFormProps>(funct
             type="text"
             value={unitOfMeasure}
             onChange={(e) => setUnitOfMeasure(e.target.value)}
-            className="p-2 text-[0.9rem] border border-spert-border dark:border-gray-600 rounded w-full bg-white dark:bg-gray-700 dark:text-gray-100"
+            disabled={readOnly}
+            className="p-2 text-[0.9rem] border border-spert-border dark:border-gray-600 rounded w-full bg-white dark:bg-gray-700 dark:text-gray-100 disabled:cursor-not-allowed disabled:bg-spert-bg-disabled dark:disabled:bg-gray-700"
             placeholder="story points"
             maxLength={MAX_STRING_LENGTH}
             required
@@ -205,8 +225,9 @@ export const ProjectForm = forwardRef<ProjectFormHandle, ProjectFormProps>(funct
             id="projectStartDate"
             type="date"
             value={projectStartDate}
+            disabled={readOnly}
             className={cn(
-              'p-2 text-[0.9rem] rounded w-[150px] text-spert-text dark:text-gray-100 bg-white dark:bg-gray-700',
+              'p-2 text-[0.9rem] rounded w-[150px] text-spert-text dark:text-gray-100 bg-white dark:bg-gray-700 disabled:cursor-not-allowed disabled:bg-spert-bg-disabled dark:disabled:bg-gray-700',
               projectStartDate ? 'has-value' : '',
               startDateError ? 'border border-spert-error' : 'border border-spert-border dark:border-gray-600'
             )}
@@ -235,8 +256,9 @@ export const ProjectForm = forwardRef<ProjectFormHandle, ProjectFormProps>(funct
             id="projectFinishDate"
             type="date"
             value={projectFinishDate}
+            disabled={readOnly}
             className={cn(
-              'p-2 text-[0.9rem] rounded w-[150px] text-spert-text dark:text-gray-100 bg-white dark:bg-gray-700',
+              'p-2 text-[0.9rem] rounded w-[150px] text-spert-text dark:text-gray-100 bg-white dark:bg-gray-700 disabled:cursor-not-allowed disabled:bg-spert-bg-disabled dark:disabled:bg-gray-700',
               projectFinishDate ? 'has-value' : '',
               finishDateError ? 'border border-spert-error' : 'border border-spert-border dark:border-gray-600'
             )}
@@ -256,20 +278,22 @@ export const ProjectForm = forwardRef<ProjectFormHandle, ProjectFormProps>(funct
           )}
         </div>
 
-        {/* Buttons */}
+        {/* Buttons — read only, Save is not offered at all (OD-8) */}
         <div className="flex-[0_0_auto] self-end flex gap-2">
-          <button
-            type="submit"
-            disabled={!isValid}
-            className={cn(
-              'px-4 py-2 border-none rounded text-[0.9rem] font-semibold text-white h-[38px]',
-              isValid
-                ? 'bg-spert-blue cursor-pointer opacity-100'
-                : 'bg-gray-400 dark:bg-gray-600 cursor-not-allowed opacity-60'
-            )}
-          >
-            {isEditing ? 'Update Project' : 'Add Project'}
-          </button>
+          {!readOnly && (
+            <button
+              type="submit"
+              disabled={!isValid}
+              className={cn(
+                'px-4 py-2 border-none rounded text-[0.9rem] font-semibold text-white h-[38px]',
+                isValid
+                  ? 'bg-spert-blue cursor-pointer opacity-100'
+                  : 'bg-gray-400 dark:bg-gray-600 cursor-not-allowed opacity-60'
+              )}
+            >
+              {isEditing ? 'Update Project' : 'Add Project'}
+            </button>
+          )}
 
           {isEditing && (
             <button
@@ -277,7 +301,7 @@ export const ProjectForm = forwardRef<ProjectFormHandle, ProjectFormProps>(funct
               onClick={onCancel}
               className="px-4 py-2 bg-gray-500 dark:bg-gray-600 text-white border-none rounded cursor-pointer text-[0.9rem] h-[38px]"
             >
-              Cancel
+              {readOnly ? 'Close' : 'Cancel'}
             </button>
           )}
         </div>

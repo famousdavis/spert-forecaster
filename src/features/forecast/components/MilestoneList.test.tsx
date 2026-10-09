@@ -21,6 +21,8 @@ function makeMilestone(overrides: Partial<Milestone> = {}): Milestone {
 }
 
 const NOOP = () => {}
+/** An onRename that saved (Brief 39: onRename reports whether the rename saved). */
+const RENAMED = () => true
 
 /**
  * Every row is 40px tall and stacked from y=0, so row N spans 40N..40N+40 and
@@ -189,7 +191,7 @@ describe('MilestoneList — inline rename (v0.33.5)', () => {
         unitOfMeasure="story points"
         onEdit={NOOP}
         onDelete={NOOP}
-        onRename={NOOP}
+        onRename={RENAMED}
       />,
     )
     const trigger = screen.getByRole('button', { name: 'MVP Release' })
@@ -217,7 +219,7 @@ describe('MilestoneList — inline rename (v0.33.5)', () => {
         unitOfMeasure="story points"
         onEdit={NOOP}
         onDelete={NOOP}
-        onRename={NOOP}
+        onRename={RENAMED}
       />,
     )
     fireEvent.click(screen.getByRole('button', { name: 'MVP Release' }))
@@ -240,7 +242,7 @@ describe('MilestoneList — inline rename (v0.33.5)', () => {
         unitOfMeasure="story points"
         onEdit={NOOP}
         onDelete={NOOP}
-        onRename={NOOP}
+        onRename={RENAMED}
       />,
     )
     fireEvent.click(screen.getByRole('button', { name: 'MVP Release' }))
@@ -353,7 +355,7 @@ describe('MilestoneList — inline rename (v0.33.5)', () => {
         unitOfMeasure="story points"
         onEdit={NOOP}
         onDelete={NOOP}
-        onRename={NOOP}
+        onRename={RENAMED}
         editingId="m-1"
       />,
     )
@@ -372,7 +374,7 @@ describe('MilestoneList — inline rename (v0.33.5)', () => {
         unitOfMeasure="story points"
         onEdit={NOOP}
         onDelete={NOOP}
-        onRename={NOOP}
+        onRename={RENAMED}
       />,
     )
     fireEvent.click(screen.getByRole('button', { name: 'MVP Release' }))

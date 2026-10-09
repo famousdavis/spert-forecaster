@@ -44,6 +44,8 @@ function renderList(onReorder: (ids: string[]) => void) {
       onClone={NOOP}
       onReorder={onReorder}
       onViewHistory={NOOP}
+      accessOf={() => 'owner'}
+      canShare={() => false}
     />,
   )
   return Array.from(container.querySelectorAll('[data-tile="true"]'))

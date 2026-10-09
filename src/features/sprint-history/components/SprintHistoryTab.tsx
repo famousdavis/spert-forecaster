@@ -4,7 +4,7 @@
 
 'use client'
 
-import { useState, useMemo, useCallback } from 'react'
+import { useId, useState, useMemo, useCallback } from 'react'
 import { cn } from '@/lib/utils'
 import {
   useProjectStore,
@@ -12,6 +12,10 @@ import {
 } from '@/shared/state/project-store'
 import { useIsClient } from '@/shared/hooks'
 import { ConfirmDialog } from '@/shared/components/ConfirmDialog'
+import { useProjectAccess } from '@/features/auth/hooks/useProjectAccess'
+import { accessReason, VIEW_ONLY_LOCK_NOTE } from '@/features/auth/lib/access-texts'
+import { ViewOnlyNotice } from '@/features/auth/components/ViewOnlyNotice'
+import { useProjectBoundForm } from '@/features/projects/hooks/useProjectBoundForm'
 import { SprintList } from './SprintList'
 import { SprintForm } from './SprintForm'
 import { RecentSprintsSummary } from './RecentSprintsSummary'
@@ -47,6 +51,18 @@ export function SprintHistoryTab() {
   const updateProject = useProjectStore((state) => state.updateProject)
   const setViewingProjectId = useProjectStore((state) => state.setViewingProjectId)
 
+  // Brief 39 PR B: a project the user may not change — every control that would
+  // change it stays in place, disabled, and says why (`reason`).
+  const access = useProjectAccess(selectedProject?.id)
+  const reason = accessReason(access)
+  const reasonId = useId()
+
+  // The sprint form, tied to the project it was opened for (V10): it closes when
+  // that project leaves the list, and every save targets that project.
+  const sprintForm = useProjectBoundForm<Sprint>(selectedProject?.id)
+  const isFormOpen = sprintForm.form !== null
+  const editingSprint = sprintForm.form?.item ?? null
+
   const sprints = useMemo(
     () => (selectedProject ? allSprints.filter((s) => s.projectId === selectedProject.id) : []),
     [allSprints, selectedProject]
@@ -55,8 +71,6 @@ export function SprintHistoryTab() {
   // Every bad stored date, the schedule's state and any spill past 9999, for the notice
   const dateData = useMemo(() => deriveSprintData(selectedProject, allSprints), [selectedProject, allSprints])
 
-  const [isFormOpen, setIsFormOpen] = useState(false)
-  const [editingSprint, setEditingSprint] = useState<Sprint | null>(null)
   const [sortAscending, setSortAscending] = useState(false) // Default: descending (most recent first)
   const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean; sprintId: string | null }>({
     isOpen: false,
@@ -66,36 +80,33 @@ export function SprintHistoryTab() {
   const handleProjectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newProjectId = e.target.value
     setViewingProjectId(newProjectId)
-    // Close form if open when switching projects
-    setIsFormOpen(false)
-    setEditingSprint(null)
+    // Close form if open when switching projects (no message: the user chose it)
+    sprintForm.close()
   }
 
   const handleCreate = () => {
-    setEditingSprint(null)
-    setIsFormOpen(true)
+    if (selectedProject) sprintForm.open(selectedProject, null)
   }
 
   const handleEdit = (sprint: Sprint) => {
-    setEditingSprint(sprint)
-    setIsFormOpen(true)
+    if (selectedProject) sprintForm.open(selectedProject, sprint)
   }
 
   const handleFormSubmit = (
     data: Omit<Sprint, 'id' | 'projectId' | 'createdAt' | 'updatedAt'>
   ) => {
-    if (editingSprint) {
-      updateSprint(editingSprint.id, data)
-    } else if (selectedProject) {
-      addSprint({ ...data, projectId: selectedProject.id })
-    }
-    setIsFormOpen(false)
-    setEditingSprint(null)
+    // The form's own project, never the one on screen (V10). Gone: nothing is
+    // written, and the close and its message follow on the next render.
+    const projectId = sprintForm.targetId()
+    if (projectId === null) return
+    const saved = editingSprint ? updateSprint(editingSprint.id, data) : addSprint({ ...data, projectId })
+    // Refused — the role dropped as the user clicked, and the store said so:
+    // the form stays open with what they typed (V2).
+    if (saved) sprintForm.close()
   }
 
   const handleFormCancel = () => {
-    setIsFormOpen(false)
-    setEditingSprint(null)
+    sprintForm.close()
   }
 
   const handleCadenceChange = (value: SprintCadence) => {
@@ -137,6 +148,7 @@ export function SprintHistoryTab() {
   const isSprintConfigComplete =
     selectedProject?.sprintCadenceWeeks !== undefined &&
     isValidIsoDate(selectedProject?.firstSprintStartDate)
+  const canAddSprint = isSprintConfigComplete && !reason
 
   if (!isClient) {
     return <div className="text-muted-foreground">Loading...</div>
@@ -171,14 +183,16 @@ export function SprintHistoryTab() {
             ))}
           </select>
         </h2>
+        {reason && <span id={reasonId} className="sr-only">{reason}</span>}
         {!isFormOpen && (
           <button
             onClick={handleCreate}
-            disabled={!isSprintConfigComplete}
-            title={addSprintTitle(selectedProject, isSprintConfigComplete)}
+            disabled={!canAddSprint}
+            title={reason ?? addSprintTitle(selectedProject, isSprintConfigComplete)}
+            aria-describedby={reason ? reasonId : undefined}
             className={cn(
               'px-4 py-2 border-none rounded text-[0.9rem] font-semibold text-white',
-              isSprintConfigComplete
+              canAddSprint
                 ? 'bg-spert-blue dark:bg-blue-700 cursor-pointer opacity-100'
                 : 'bg-[#ccc] cursor-not-allowed opacity-60'
             )}
@@ -187,6 +201,8 @@ export function SprintHistoryTab() {
           </button>
         )}
       </div>
+
+      <ViewOnlyNotice access={access} />
 
       {selectedProject && <SprintDateNotice project={selectedProject} data={dateData} />}
 
@@ -207,15 +223,20 @@ export function SprintHistoryTab() {
             allSprints={sprints}
             onSubmit={handleFormSubmit}
             onCancel={handleFormCancel}
+            readOnlyReason={reason}
           />
         </>
       )}
 
       {selectedProject && (
         <>
+          {/* Locked by the user's access first, else by the sprints recorded (the default note). */}
           <SprintConfig
             project={selectedProject}
-            canEdit={canEditFirstSprintDate}
+            canEdit={canEditFirstSprintDate && !reason}
+            lockNote={reason ? VIEW_ONLY_LOCK_NOTE : undefined}
+            lockReason={reason ?? undefined}
+            lockReasonId={reason ? reasonId : undefined}
             onCadenceChange={handleCadenceChange}
             onFirstSprintDateChange={handleFirstSprintDateChange}
           />
@@ -238,6 +259,7 @@ export function SprintHistoryTab() {
               onEdit={handleEdit}
               onDelete={handleDeleteRequest}
               onToggleIncluded={toggleSprintIncluded}
+              readOnlyReason={reason}
             />
           )}
         </>
