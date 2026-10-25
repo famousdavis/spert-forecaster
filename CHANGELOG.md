@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.47.3 - 2026-10-25
+
+Security hardening for Connect AI sign-out.
+
+### Security
+- If signing out can't reach the server to end your Connect AI session (for example, you are offline), Forecaster now tells you instead of failing silently, keeps trying on its own whenever you are back online, and lets you retry. Before, a failed teardown was only logged to the developer console, and the session would linger on the server until it expired on its own within seven days — which still happens as a fallback.
+- Signing out now reliably ends the session in a timing case where it could previously be skipped, and the sign-out can no longer wait on an unreachable server.
+
 ## v0.47.2 - 2026-10-25
 
 Security hardening. Nothing changes in how the app works for a single user.

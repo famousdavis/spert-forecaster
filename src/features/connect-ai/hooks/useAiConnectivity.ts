@@ -21,8 +21,7 @@ import {
   doc, deleteDoc, getDoc, onSnapshot, serverTimestamp, setDoc, updateDoc,
 } from 'firebase/firestore'
 import type { DocumentSnapshot, FirestoreError } from 'firebase/firestore'
-import { httpsCallable } from 'firebase/functions'
-import { db, functionsInstance, isFirebaseAvailable } from '@/shared/firebase/config'
+import { db, isFirebaseAvailable } from '@/shared/firebase/config'
 import { sanitizeForFirestore } from '@/shared/firebase/firestore-sanitize'
 import { syncBus } from '@/shared/firebase/sync-bus'
 import { APP_VERSION } from '@/shared/constants'
@@ -31,6 +30,7 @@ import { useSettingsStore } from '@/shared/state/settings-store'
 import { useForecastResultsStore, selectRecordFor } from '@/shared/state/forecast-results-store'
 import { readForecastInputSnapshot } from '@/shared/state/forecast-snapshot-source'
 import { buildSnapshot } from '../lib/build-snapshot'
+import { endServerSession, runServerTeardown } from '../lib/ai-session-teardown'
 import {
   AI_CONSENT_KEY, AI_CONSENT_VERSION, AI_SESSION_ID_KEY,
   HEARTBEAT_INTERVAL_MS, SESSION_TTL_MS, SNAPSHOT_DEBOUNCE_MS,
@@ -266,22 +266,25 @@ export function useAiConnectivity(): UseAiConnectivityResult {
   }, [localTeardown])
 
   // ── Teardown ──────────────────────────────────────────────────────────────
-  // deleteDoc runs FIRST and is load-bearing: the snapshot subcollection is
-  // `allow write: if true`, so the delete succeeds even after sign-out
-  // revokes credentials, and teardownAiSession is an onCall that never reads
-  // request.auth.
+  // The server side lives in ../lib/ai-session-teardown (bounded + failure-aware,
+  // reused by AiTeardownBanner's retry). There the snapshot delete runs FIRST and
+  // is load-bearing: the snapshot subcollection is `allow write: if true`, so the
+  // delete succeeds even after sign-out revokes credentials, and teardownAiSession
+  // is an onCall that never reads request.auth.
   const teardown = useCallback(async (sessionId: string, deleteSession: boolean) => {
     tearingDownRef.current = true
     if (snapshotTimerRef.current) { clearTimeout(snapshotTimerRef.current); snapshotTimerRef.current = null }
-    if (db) {
-      await deleteDoc(doc(db, SESSIONS_COL, sessionId, 'snapshot', 'current')).catch(() => {})
-    }
     if (deleteSession) {
+      // Sign-out / Disconnect: forget the session in memory, then end it on the
+      // server (bounded). On failure endServerSession parks the session id so
+      // AiTeardownBanner warns the user and the teardown is retried, instead of
+      // the old console-only log; on success it clears any parked marker.
       localTeardown()
-      if (functionsInstance) {
-        httpsCallable(functionsInstance, 'teardownAiSession')({ sessionId })
-          .catch((err) => console.error('[AI] Teardown callable failed — data TTL-expires in 7 days:', err))
-      }
+      await endServerSession(sessionId)
+    } else {
+      // Read-mode off: delete the snapshot only, keep the pairing — bounded too,
+      // so an unreachable backend cannot hang the toggle.
+      await runServerTeardown(sessionId, false)
     }
     tearingDownRef.current = false
   }, [localTeardown])
@@ -406,14 +409,18 @@ export function useAiConnectivity(): UseAiConnectivityResult {
   useEffect(() => {
     const unsubscribe = syncBus.subscribe((event) => {
       if (event.type !== 'ai:session-teardown') return
+      if (event.reason === 'signout') {
+        // Call stopSession unconditionally — it reads the session id from
+        // localStorage when none is active in memory, so a sign-out that races
+        // resume-on-mount still ends the session (closes the early-return gap).
+        void stopSession()
+        return
+      }
+      // A storage-mode switch preserves the pairing; only the snapshot goes. This
+      // still needs an in-memory session (it passes the id to teardown).
       const sessionId = activeSessionIdRef.current
       if (!sessionId) return
-      if (event.reason === 'signout') {
-        void stopSession()
-      } else {
-        // A storage-mode switch preserves the pairing; only the snapshot goes.
-        void teardown(sessionId, false)
-      }
+      void teardown(sessionId, false)
     })
     return unsubscribe
   }, [stopSession, teardown])
