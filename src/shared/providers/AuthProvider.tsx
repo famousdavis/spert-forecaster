@@ -106,6 +106,17 @@ function performSignOutCleanup(): void {
   useProjectStore.getState().clearProjectsOnSignOut()     // zero in-memory project state
   useSettingsStore.getState().clearSettingsOnSignOut()    // F2/F3 — clear attribution fields
   useStorageModeStore.getState().setMode('local')         // reset storage mode for next session
+  // Drop any pending invite token (sessionStorage) so the next user on this
+  // tab is not shown a spurious "you've been added" banner. Only a real
+  // sign-out funnels through here, so a token captured from a cold-load
+  // ?invite= link survives until the user actually signs out.
+  if (typeof window !== 'undefined') {
+    try {
+      sessionStorage.removeItem(INVITE_SESSION_KEY)
+    } catch {
+      // sessionStorage unavailable (e.g. private mode) — nothing to clear.
+    }
+  }
   // Ends the AI pairing outright: deletes the uploaded snapshot, then the
   // session. Emitted from the call site rather than from
   // clearProjectsOnSignOut, which cannot tell a sign-out from a mode switch.

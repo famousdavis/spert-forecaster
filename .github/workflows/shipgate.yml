@@ -19,6 +19,13 @@ on:
   push:
     branches: [main]
 
+# Least privilege: the gate only reads the repository. The repository's default
+# token is already read-only; stating it here keeps the gate least-privilege
+# even if that setting changes, and closes CodeQL's
+# actions/missing-workflow-permissions alert (security review A-11, 2026-10-25).
+permissions:
+  contents: read
+
 jobs:
   shipgate:
     runs-on: ubuntu-latest
