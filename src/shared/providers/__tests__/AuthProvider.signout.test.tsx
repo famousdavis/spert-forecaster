@@ -290,3 +290,56 @@ describe('AuthProvider clears the pending invite token on sign-out', () => {
     expect(sessionStorage.getItem(INVITE_SESSION_KEY)).toBe('tok-pending')
   })
 })
+
+// The Terms-acceptance flag is a per-browser localStorage value the sign-in
+// gate (SignInButtons) trusts. Preserved across sign-out, it lets the next
+// person on a shared computer be treated as having accepted Terms they never
+// saw. performSignOutCleanup must reset it (clearTosCache) on a real sign-out,
+// while leaving a returning user's cached acceptance intact on a cold load.
+describe('AuthProvider clears the Terms-acceptance flag on sign-out', () => {
+  beforeEach(() => {
+    hoisted.capturedCallback = null
+    sessionStorage.clear()
+    hoisted.mutableAuth.currentUser = fakeUser
+    vi.mocked(tosModule.isTosCached).mockReturnValue(true)
+    vi.mocked(tosModule.hasPendingWrite).mockReturnValue(false)
+    vi.mocked(tosModule.checkFirestoreTos).mockResolvedValue('current')
+    vi.mocked(tosModule.clearTosCache).mockClear()
+    vi.mocked(firebaseAuthModule.signOut).mockClear()
+    vi.mocked(firebaseAuthModule.signOut).mockResolvedValue(undefined)
+  })
+
+  it('user-initiated sign-out (path 1) resets the Terms flag via clearTosCache', async () => {
+    const signOutRef: { current: (() => Promise<void>) | null } = { current: null }
+    function Consumer() {
+      const { signOut } = useAuth()
+      useEffect(() => { signOutRef.current = signOut }, [signOut])
+      return null
+    }
+    render(<AuthProvider><Consumer /></AuthProvider>)
+    await act(async () => { fire(fakeUser) })
+    // Control: a returning user's acceptance is not reset while still signed in.
+    expect(vi.mocked(tosModule.clearTosCache)).not.toHaveBeenCalled()
+
+    await act(async () => { await signOutRef.current!() })
+
+    expect(vi.mocked(tosModule.clearTosCache)).toHaveBeenCalledTimes(1)
+  })
+
+  it('externally-revoked sign-out (path 3, User → null) resets the Terms flag', async () => {
+    render(<AuthProvider><div /></AuthProvider>)
+    await act(async () => { fire(fakeUser) })
+    vi.mocked(tosModule.clearTosCache).mockClear()
+
+    await act(async () => { fire(null) })
+
+    expect(vi.mocked(tosModule.clearTosCache)).toHaveBeenCalledTimes(1)
+  })
+
+  it('does NOT reset the Terms flag on a cold-load null (returning user keeps cached acceptance)', async () => {
+    render(<AuthProvider><div /></AuthProvider>)
+    await act(async () => { fire(null) })
+
+    expect(vi.mocked(tosModule.clearTosCache)).not.toHaveBeenCalled()
+  })
+})

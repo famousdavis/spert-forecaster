@@ -117,6 +117,11 @@ function performSignOutCleanup(): void {
       // sessionStorage unavailable (e.g. private mode) — nothing to clear.
     }
   }
+  // Reset Terms acceptance on this browser so the next person to sign in is
+  // asked to accept the Terms, instead of being treated as having accepted
+  // them because the previous user did. Only a real sign-out reaches this
+  // function, so a returning user's cached acceptance survives a page reload.
+  clearTosCache()
   // Ends the AI pairing outright: deletes the uploaded snapshot, then the
   // session. Emitted from the call site rather than from
   // clearProjectsOnSignOut, which cannot tell a sign-out from a mode switch.
