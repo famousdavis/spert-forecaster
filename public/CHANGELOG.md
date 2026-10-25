@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.47.4 - 2026-10-25
+
+The SPERT® Suite Terms of Service and Privacy Policy have new editions — version 1.4 of each, effective October 26, 2026 — published at the same spertsuite.com addresses the app already links to. The AI Privacy Notice that covers Connect AI is now version 2.3.
+
+### Changed
+- **When you sign in, SPERT® Forecaster asks you to accept the new Terms of Service and Privacy Policy.** If you are already signed in, it signs you out first, so that you can accept them the next time you sign in. The acceptance it had recorded was for the October 5, 2026 editions (`TOS_VERSION` and `PRIVACY_VERSION` were `'10-05-2026'`); both are now `'10-26-2026'`, so the record names the edition you actually accept.
+- **What the new editions change.** They replace a personal contact address with the SPERT® Suite's own addresses (privacy@, security@ and contact@spertsuite.com), name Microsoft as the provider for email to those addresses, and clarify several disclosures.
+- **The copies kept in this repository,** `legal/TOS.pdf` and `legal/PRIVACY.pdf`, are now byte-identical to the October 26 editions.
+
+### Notes
+- **Five new tests run the real sign-in against a stored acceptance.** One that names the October 5 editions is signed out to accept again, whether it is cached in this browser or only on record; one that names the October 26 editions is let through, both ways; and accepting over an October 5 record writes the October 26 Terms and Privacy Policy versions. All five fail on the previous version.
+
 ## v0.47.3 - 2026-10-25
 
 Security hardening for Connect AI sign-out.
