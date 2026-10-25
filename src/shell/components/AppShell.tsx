@@ -29,6 +29,7 @@ import { LocalStorageWarningBanner } from './LocalStorageWarningBanner'
 import { ExportCheckWarning } from './ExportCheckWarning'
 import { AiConnectivityProvider } from '@/features/connect-ai/AiConnectivityProvider'
 import { ConnectAiLauncher } from '@/features/connect-ai/components/ConnectAiLauncher'
+import { AiTeardownBanner } from '@/features/connect-ai/components/AiTeardownBanner'
 // Deep imports rather than widening `@/features/projects`' barrel, which deliberately exports
 // only `ProjectsTab`. The precedent is two lines above; no lint rule enforces either choice.
 import { useImportState } from '@/features/projects/hooks/useImportState'
@@ -143,6 +144,7 @@ export function AppShell() {
         </header>
 
         <InvitationBanner />
+        <AiTeardownBanner />
         <FirstRunBanner />
         <LocalStorageWarningBanner />
         <ExportCheckWarning />

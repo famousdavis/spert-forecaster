@@ -11,6 +11,14 @@ export const AI_SESSION_ID_KEY = 'spert_forecaster_ai_session_id'
 /** Recorded consent, so a returning browser can resume without re-prompting. */
 export const AI_CONSENT_KEY = 'spert_forecaster_ai_consent'
 
+/**
+ * When sign-out cannot reach the server to end the session (e.g. offline), the
+ * session id is parked here so the teardown can be retried on the next load /
+ * when back online, and so the user can be told the AI may still have access
+ * until then. Holds the session id string.
+ */
+export const AI_TEARDOWN_PENDING_KEY = 'spert_forecaster_ai_teardown_pending'
+
 /** Bump when the consent copy changes materially enough to need re-acceptance. */
 export const AI_CONSENT_VERSION = 1
 

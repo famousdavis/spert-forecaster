@@ -74,6 +74,7 @@ import { renderHook, act, waitFor } from '@testing-library/react'
 import { useProjectStore } from '@/shared/state/project-store'
 import { useForecastResultsStore } from '@/shared/state/forecast-results-store'
 import { useAiConnectivity } from './useAiConnectivity'
+import { syncBus } from '@/shared/firebase/sync-bus'
 import { AI_SESSION_ID_KEY, AI_CONSENT_KEY } from '../constants'
 
 const PROJECT_ID = 'p1'
@@ -283,6 +284,25 @@ describe('teardown', () => {
     expect(localStorage.getItem(AI_SESSION_ID_KEY)).toBeNull()
     expect(localStorage.getItem(AI_CONSENT_KEY)).toBeNull()
     expect(result.current.sessionState.sessionActive).toBe(false)
+  })
+
+  it('B-04: a signout event with a stored id but no in-memory session still ends it (race fix)', async () => {
+    // Do NOT startSession: resume-on-mount sees the default getDoc (exists:false)
+    // and returns, so activeSessionIdRef stays null — the resume-on-mount race.
+    localStorage.setItem(AI_SESSION_ID_KEY, 'stored-sess')
+    localStorage.setItem(AI_CONSENT_KEY, JSON.stringify({ version: 1, read: true }))
+    renderHook(() => useAiConnectivity())
+
+    await act(async () => {
+      syncBus.emit({ type: 'ai:session-teardown', reason: 'signout' })
+      await Promise.resolve()
+    })
+
+    // stopSession read the id from localStorage and ran the teardown, so the
+    // session is ended rather than skipped by the old `if (!sessionId) return`.
+    await waitFor(() => expect(localStorage.getItem(AI_SESSION_ID_KEY)).toBeNull())
+    expect(localStorage.getItem(AI_CONSENT_KEY)).toBeNull()
+    expect(hoisted.deleteDoc).toHaveBeenCalled()
   })
 })
 
