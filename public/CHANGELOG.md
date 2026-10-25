@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.47.2 - 2026-10-25
+
+Security hardening. Nothing changes in how the app works for a single user.
+
+### Security
+- **Signing out now resets Terms acceptance on this browser.** After you sign out, the next person to sign in on the same browser is asked to accept the Terms, instead of being treated as having accepted them because you did. Your own acceptance is unaffected while you stay signed in and across page reloads.
+
 ## v0.47.1 - 2026-10-25
 
 Security hardening. Nothing changes in how the app works.
