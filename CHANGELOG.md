@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.47.1 - 2026-10-25
+
+Security hardening. Nothing changes in how the app works.
+
+### Security
+- **Signing out now clears a leftover invitation token.** A pending "you've been added" invitation token is removed from this browser tab when you sign out, so the next person to use the same tab is not shown a banner meant for you.
+- **The release workflow declares least-privilege permissions.** Its automation can only read the repository.
+
 ## v0.47.0 - 2026-10-08
 
 If someone shares a cloud project with you as a viewer, the app now shows it as view only. Before, every edit, add and delete was offered on it: your change appeared, the cloud refused it, a message appeared, and a moment later the change disappeared. Now those controls are greyed out and say why, and a note at the top of Sprint History and Forecast says what you can still do. A project this browser kept that is no longer in your cloud account is view only too, with its own note. Editors are no longer offered Delete, because only a project's owner can delete a project. Your own projects in your cloud account work as before. Local mode is not affected.

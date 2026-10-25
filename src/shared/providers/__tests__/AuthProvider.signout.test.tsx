@@ -110,6 +110,7 @@ function fire(user: User | null) {
 describe('AuthProvider sign-out guard', () => {
   beforeEach(() => {
     hoisted.capturedCallback = null
+    sessionStorage.clear()
     hoisted.mutableAuth.currentUser = fakeUser  // default authenticated state
     hoisted.clearProjectsOnSignOut.mockClear()
     hoisted.setMode.mockClear()
@@ -233,5 +234,59 @@ describe('AuthProvider sign-out guard', () => {
     const cancelOrder = hoisted.cancelPendingSaves.mock.invocationCallOrder[0]
     const signOutOrder = vi.mocked(firebaseAuthModule.signOut).mock.invocationCallOrder[0]
     expect(cancelOrder).toBeLessThan(signOutOrder)
+  })
+})
+
+// A leftover invite token in sessionStorage would show the next user on this
+// tab a spurious "you've been added" banner. performSignOutCleanup must drop
+// it on a real sign-out, while leaving a cold-load ?invite= token in place.
+const INVITE_SESSION_KEY = 'spert_invite_token'
+
+describe('AuthProvider clears the pending invite token on sign-out', () => {
+  beforeEach(() => {
+    hoisted.capturedCallback = null
+    sessionStorage.clear()
+    hoisted.mutableAuth.currentUser = fakeUser
+    vi.mocked(tosModule.isTosCached).mockReturnValue(true)
+    vi.mocked(tosModule.hasPendingWrite).mockReturnValue(false)
+    vi.mocked(firebaseAuthModule.signOut).mockClear()
+    vi.mocked(firebaseAuthModule.signOut).mockResolvedValue(undefined)
+  })
+
+  it('user-initiated sign-out (path 1) removes the invite token', async () => {
+    const signOutRef: { current: (() => Promise<void>) | null } = { current: null }
+    function Consumer() {
+      const { signOut } = useAuth()
+      useEffect(() => { signOutRef.current = signOut }, [signOut])
+      return null
+    }
+    sessionStorage.setItem(INVITE_SESSION_KEY, 'tok-stale')
+    render(<AuthProvider><Consumer /></AuthProvider>)
+    await act(async () => { fire(fakeUser) })
+    // Control: the token is still present while the user is signed in.
+    expect(sessionStorage.getItem(INVITE_SESSION_KEY)).toBe('tok-stale')
+
+    await act(async () => { await signOutRef.current!() })
+
+    expect(sessionStorage.getItem(INVITE_SESSION_KEY)).toBeNull()
+  })
+
+  it('externally-revoked sign-out (path 3, User → null) removes the invite token', async () => {
+    sessionStorage.setItem(INVITE_SESSION_KEY, 'tok-stale')
+    render(<AuthProvider><div /></AuthProvider>)
+    await act(async () => { fire(fakeUser) })
+    await act(async () => { fire(null) })
+
+    expect(sessionStorage.getItem(INVITE_SESSION_KEY)).toBeNull()
+  })
+
+  it('preserves a pending invite token on a cold-load null (before first sign-in)', async () => {
+    // A user who arrived via an ?invite= link has the token in sessionStorage
+    // before signing in; the initial onAuthStateChanged(null) must NOT clear it.
+    sessionStorage.setItem(INVITE_SESSION_KEY, 'tok-pending')
+    render(<AuthProvider><div /></AuthProvider>)
+    await act(async () => { fire(null) })
+
+    expect(sessionStorage.getItem(INVITE_SESSION_KEY)).toBe('tok-pending')
   })
 })
