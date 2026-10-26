@@ -1,0 +1,9 @@
+# Security contact for SPERT Forecaster (https://forecaster.spertsuite.com), part of the SPERT Suite, operated by famousdavis, LLC.
+# Please report vulnerabilities privately. Do not open a public issue.
+
+Contact: mailto:security@spertsuite.com
+Contact: https://github.com/famousdavis/spert-forecaster/security/advisories/new
+Expires: 2027-09-25T00:00:00.000Z
+Preferred-Languages: en
+Canonical: https://forecaster.spertsuite.com/.well-known/security.txt
+Policy: https://spertsuite.com/security

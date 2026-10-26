@@ -1,6 +1,6 @@
 {
   "name": "spert-forecaster",
-  "version": "0.47.4",
+  "version": "0.47.5",
   "private": true,
   "engines": {
     "node": "24.x"
