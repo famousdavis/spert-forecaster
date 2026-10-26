@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.47.5 - 2026-10-25
+
+### Added
+- **A security.txt file (RFC 9116)**, so a security researcher can find where to report a vulnerability: by email to security@spertsuite.com, or privately through SPERT® Forecaster’s GitHub repository.
+
+### Notes
+- Nothing about how the app works, looks or stores data changed. A new test checks the file on every release, and fails a month before the file expires, as a reminder to renew it.
+
 ## v0.47.4 - 2026-10-25
 
 The SPERT® Suite Terms of Service and Privacy Policy have new editions — version 1.4 of each, effective October 26, 2026 — published at the same spertsuite.com addresses the app already links to. The AI Privacy Notice that covers Connect AI is now version 2.3.
