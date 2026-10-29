@@ -300,3 +300,31 @@ describe('getProjectMembers — suite profile fallback', () => {
     expect(m?.displayName).toBe('')
   })
 })
+
+describe('getProjectMembers — W4: profiles and roles are shown as text only', () => {
+  it('a profile field that is not text shows as empty, and a role that is neither editor nor viewer shows as viewer (known-bad: an object reached the member row)', async () => {
+    dispatch.set(PROJECT_KEY, {
+      kind: 'fulfilled',
+      snap: fulfilled({ owner: 'owner-uid', members: { 'mem-a': { role: 'editor' }, 'mem-b': 'editor', 'mem-c': 'owner' } }),
+    })
+    dispatch.set(profileKey('owner-uid'), { kind: 'fulfilled', snap: fulfilled({ displayName: { $: 1 }, email: ['x'] }) })
+    dispatch.set(profileKey('mem-a'), { kind: 'fulfilled', snap: fulfilled({ displayName: 42, email: 'a@x.com' }) })
+    dispatch.set(profileKey('mem-b'), { kind: 'fulfilled', snap: fulfilled({ displayName: 'B Member', email: null }) })
+    dispatch.set(profileKey('mem-c'), { kind: 'fulfilled', snap: fulfilled({ displayName: 'C', email: 'c@x.com' }) })
+
+    const result = await getProjectMembers(PROJECT_ID)
+
+    expect(result).toEqual([
+      { uid: 'owner-uid', email: '', displayName: '', role: 'owner' },
+      { uid: 'mem-a', email: 'a@x.com', displayName: '', role: 'viewer' },
+      { uid: 'mem-b', email: '', displayName: 'B Member', role: 'editor' },
+      { uid: 'mem-c', email: 'c@x.com', displayName: 'C', role: 'viewer' },
+    ])
+  })
+
+  it('a members field that is not a map lists the owner alone', async () => {
+    dispatch.set(PROJECT_KEY, { kind: 'fulfilled', snap: fulfilled({ owner: 'owner-uid', members: 'abc' }) })
+    dispatch.set(profileKey('owner-uid'), { kind: 'fulfilled', snap: fulfilled({ displayName: 'Owner', email: 'o@x.com' }) })
+    expect(await getProjectMembers(PROJECT_ID)).toEqual([{ uid: 'owner-uid', email: 'o@x.com', displayName: 'Owner', role: 'owner' }])
+  })
+})

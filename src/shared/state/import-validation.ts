@@ -31,7 +31,8 @@ export interface ExportData {
 // Validation constants. MAX_STRING_LENGTH and MAX_NUMERIC_VALUE live in
 // import-limits.ts, where the forms and the export check read them too.
 const MIN_SPRINT_NUMBER = 1
-const MAX_SPRINT_NUMBER = 10000
+/** Also the cloud load's sprint-number rule (cloud-load-guard.ts). */
+export const MAX_SPRINT_NUMBER = 10000
 // The date rule (DATE_REGEX, MAX_ISO_DATE, isValidIsoDate) lives in
 // src/shared/lib/dates.ts, where the sprint-date guard applies it too.
 

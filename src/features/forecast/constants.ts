@@ -37,6 +37,17 @@ export const MAX_TRIAL_SPRINTS = 1000
 
 // Milestone limits
 export const MAX_MILESTONES = 10
+
+/**
+ * The most milestones a forecast runs on (W4). The simulation keeps one array
+ * of trial results per milestone, per distribution: 1,000 milestones at the
+ * default 10,000 trials took 2.9 s and about 390 MB, and 7,000 ran past 15 s.
+ * Above it the forecast does not run, and says why; no milestone is changed.
+ * Ten times MILESTONE_CEILING: the panel adds up to MAX_MILESTONES and a file
+ * carries at most MILESTONE_CEILING, so only many Story Map updates, each adding
+ * new releases, could carry a project past 100, let alone to this.
+ */
+export const MAX_FORECAST_MILESTONES = 1000
 export const MILESTONE_SOFT_LIMIT = 5
 
 // Default colors for milestones (cycled through on creation)

@@ -5,7 +5,8 @@
 import {
   calculateSprintStartDate,
   calculateSprintFinishDate,
-  calculateSprintProductivityFactor,
+  countWorkingDays,
+  getWorkingDaysInRange,
 } from '@/shared/lib/dates'
 import type { ProductivityAdjustment } from '@/shared/types'
 import { MAX_TRIAL_SPRINTS } from '../constants'
@@ -63,6 +64,7 @@ export function preCalculateSprintFactors(
     (latest, adj) => (adj.endDate > latest ? adj.endDate : latest),
     relevantAdjustments[0].endDate
   )
+  const ranked = rankAdjustments(relevantAdjustments)
 
   // Calculate factor for each sprint, but stop early once past all adjustments
   for (let i = 0; i < maxSprintsToCalculate; i++) {
@@ -83,12 +85,71 @@ export function preCalculateSprintFactors(
     }
 
     const sprintEnd = calculateSprintFinishDate(sprintStart, sprintCadenceWeeks)
-    const factor = calculateSprintProductivityFactor(sprintStart, sprintEnd, relevantAdjustments)
+    const factor = rankedSprintFactor(sprintStart, sprintEnd, ranked)
 
     factors.push(factor)
   }
 
   return { factors }
+}
+
+// ── The sprint factor, with work bounded by the sprint, not by the adjustments ──
+//
+// ⚠️ Equal to `calculateSprintProductivityFactor` (dates.ts) for every input:
+// productivity.factors.test.ts compares the two over random and malformed
+// adjustment lists. That function asks, for every working day, which of the
+// sprint's overlapping adjustments cover it, and takes their minimum. With many
+// adjustments that is days × adjustments per sprint. A 1 MiB project can carry
+// thousands, and the forecast walks up to MAX_TRIAL_SPRINTS sprints, on the main
+// thread: 5,000 adjustments at a 52-week cadence ran past 15 s (W4).
+//
+// Here the adjustments are ranked once, in the order `Math.min` would decide
+// between their factors. A day's factor is then the FIRST covering adjustment
+// in that order, and the scan stops there. An adjustment passed over without
+// covering the day must start or end inside this sprint (one that spans the
+// sprint covers every day of it), and each adjustment has only two ends, so a
+// forecast's scans stay within a few times (sprints × days + adjustments).
+
+interface RankedAdjustment {
+  startDate: unknown
+  endDate: unknown
+  /** The factor as `Math.min` reads it: ToNumber, so NaN for anything unreadable. */
+  rank: number
+}
+
+/**
+ * NaN first (`Math.min` returns NaN when any argument is NaN), then ascending.
+ * A stable sort, so equal factors keep their order; +0 and -0 give the same
+ * day total either way, because the total starts at +0.
+ */
+function rankAdjustments(adjustments: ProductivityAdjustment[]): RankedAdjustment[] {
+  return adjustments
+    .map((adj) => ({ startDate: adj.startDate, endDate: adj.endDate, rank: Number(adj.factor) }))
+    .sort((a, b) => {
+      if (Number.isNaN(a.rank) || Number.isNaN(b.rank)) return Number(!Number.isNaN(a.rank)) - Number(!Number.isNaN(b.rank))
+      if (a.rank < b.rank) return -1
+      return a.rank > b.rank ? 1 : 0
+    })
+}
+
+/** `calculateSprintProductivityFactor`, given adjustments already ranked. */
+function rankedSprintFactor(sprintStart: string, sprintEnd: string, ranked: RankedAdjustment[]): number {
+  if (countWorkingDays(sprintStart, sprintEnd) === 0) return 1.0
+
+  // The comparisons are the original's, operand for operand, so a malformed
+  // date compares exactly as it did there.
+  const overlapping = ranked.filter(
+    (adj) => (adj.endDate as string) >= sprintStart && (adj.startDate as string) <= sprintEnd
+  )
+  if (overlapping.length === 0) return 1.0
+
+  const workingDays = getWorkingDaysInRange(sprintStart, sprintEnd)
+  let totalFactor = 0
+  for (const day of workingDays) {
+    const first = overlapping.find((adj) => day >= (adj.startDate as string) && day <= (adj.endDate as string))
+    totalFactor += first ? first.rank : 1.0
+  }
+  return totalFactor / workingDays.length
 }
 
 /**

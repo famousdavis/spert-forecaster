@@ -94,3 +94,28 @@ describe('handleRunForecast — generation guard (G1)', () => {
     expect(result.current.results).toBeNull()
   })
 })
+
+describe('W4 — a project with more milestones than a forecast runs on', () => {
+  const milestones = (n: number) => Array.from({ length: n }, (_, i) => ({
+    id: `m${i}`, name: `M${i}`, backlogSize: 1, color: '#000000', createdAt: '', updatedAt: '',
+  }))
+
+  it('is refused with the reason under the Run button, and Run starts no simulation (known-bad: 7,000 ran the worker past 15 s)', async () => {
+    const runMilestoneSimulation = vi.fn()
+    vi.mocked(useSimulationWorker).mockReturnValue({ runSimulation: vi.fn(), runMilestoneSimulation })
+    useProjectStore.setState((s) => ({ projects: s.projects.map((p) => ({ ...p, milestones: milestones(1001) })) }))
+
+    const { result } = renderHook(() => useForecastState())
+    await waitFor(() => expect(result.current.runForecastBlockedReason).toBe('This project has 1,001 milestones. A forecast runs on at most 1,000.'))
+    expect(result.current.canRun).toBe(false)
+    await act(async () => { await result.current.handleRunForecast() })
+    expect(runMilestoneSimulation).not.toHaveBeenCalled()
+  })
+
+  it('runs at the bound', async () => {
+    vi.mocked(useSimulationWorker).mockReturnValue({ runSimulation: vi.fn(), runMilestoneSimulation: vi.fn() })
+    useProjectStore.setState((s) => ({ projects: s.projects.map((p) => ({ ...p, milestones: milestones(1000) })) }))
+    const { result } = renderHook(() => useForecastState())
+    await waitFor(() => expect(result.current.canRun).toBe(true))
+  })
+})

@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.47.6 - 2026-10-29
+
+### Changed
+- **Projects loaded from the cloud are now checked before they are shown, one project at a time.** Before, a single project the app could not read stopped the whole project list from loading in cloud mode: the loading panel showed an error, and Try again failed the same way every time. Now that project loads without the parts that could not be read, or is left out when none of it can be, and every other project loads as usual. A notice names the project. Loading never changes anything in the cloud; the parts that were not shown are simply not kept the next time someone saves that project.
+- **Each project's sprints now come only from that project's own record**, so one project's sprint history can never appear in another project, or be saved into it.
+- **A forecast with many productivity adjustments now runs in a fraction of the time, with exactly the same results.** Before, a project with thousands of adjustments could keep the page busy for many seconds after you pressed Run Forecast. The factors are now worked out sprint by sprint without re-checking every adjustment on every working day.
+- **A forecast now runs on at most 1,000 milestones.** Above that, the text under the Run Forecast button says why the forecast cannot run, and no milestone is changed. A file the app saves holds at most 100.
+- **Project sharing now shows member names and email addresses as text only**, and shows any member whose role it does not recognise as a viewer.
+
+### Notes
+- The checks accept everything the app has ever saved to the cloud: a sprint length of 1 to 52 weeks, sprint numbers from 1 to 10,000, and lists of sprints, milestones and productivity adjustments. A project the app saved loads exactly as before. New tests cover each check, and compare the faster forecast calculation with the previous one across tens of thousands of generated projects.
+
 ## v0.47.5 - 2026-10-25
 
 ### Added

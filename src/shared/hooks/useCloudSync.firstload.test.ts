@@ -33,7 +33,7 @@ vi.mock('@/shared/firebase/firestore-driver', () => ({
 }))
 vi.mock('@/shared/firebase/sync-bus', () => ({ syncBus: { subscribe: vi.fn(() => () => {}), emit: vi.fn() } }))
 vi.mock('@/shared/firebase/config', () => ({ auth: mutableAuth }))
-vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }))
+vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn(), warning: vi.fn() } }))
 
 import { loadProjects, loadSettings, subscribeToUserProjects, isProjectSaveOutstanding } from '@/shared/firebase/firestore-driver'
 import { syncBus } from '@/shared/firebase/sync-bus'
@@ -123,19 +123,27 @@ describe('any other first-load failure waits for Try again (known-bad: retry eve
     expect(vi.mocked(toast.error)).toHaveBeenCalledTimes(1)
   })
 
-  it('P-PERM a malformed project (a data error while applying the baseline) shows the error with the exception\'s name, and is not retried', async () => {
-    const malformed = {
-      name: 'p', unitOfMeasure: 'pts', createdAt: TS, updatedAt: TS, owner: 'user-1', members: {}, schemaVersion: 1,
-      sprints: { x: 1 },
+  it('P-PERM a data error while applying the baseline shows the error with the exception\'s name, and is not retried', async () => {
+    // W4: a malformed DOCUMENT no longer throws here. It loads without what
+    // failed its checks (the next describe). So the data error is raised by
+    // the store instead, which is still a path the baseline can throw on.
+    const doc = {
+      name: 'p', unitOfMeasure: 'pts', createdAt: TS, updatedAt: TS, owner: 'user-1', members: {}, schemaVersion: 1, sprints: [],
     } as unknown as FirestoreProjectDoc
-    vi.mocked(loadProjects).mockImplementation(() => { loadTimes.push(Date.now()); return Promise.resolve(new Map([['p', malformed]])) })
-    renderHook(() => useCloudSync(user, 'cloud'))
-    await advance(0)
-    expect(state().cloudLoadError).toEqual({ code: 'TypeError' })
-    expect(state().cloudDataLoaded).toBe(false)
-    await advance(10 * 60_000)
-    await goOnline()
-    expect(loadTimes).toHaveLength(1)
+    const replace = state().replaceProjectsFromCloud
+    useProjectStore.setState({ replaceProjectsFromCloud: () => { throw new TypeError('store refused') } })
+    try {
+      vi.mocked(loadProjects).mockImplementation(() => { loadTimes.push(Date.now()); return Promise.resolve(new Map([['p', doc]])) })
+      renderHook(() => useCloudSync(user, 'cloud'))
+      await advance(0)
+      expect(state().cloudLoadError).toEqual({ code: 'TypeError' })
+      expect(state().cloudDataLoaded).toBe(false)
+      await advance(10 * 60_000)
+      await goOnline()
+      expect(loadTimes).toHaveLength(1)
+    } finally {
+      useProjectStore.setState({ replaceProjectsFromCloud: replace })
+    }
   })
 
   it('a codeless, nameless exception shows "unknown"', async () => {
@@ -183,6 +191,36 @@ describe('teardown during a first-load wait', () => {
     state().clearProjectsOnSignOut()
     expect(state().cloudLoadRetrying).toBe(false)
     expect(state().cloudLoadError).toBeNull()
+  })
+})
+
+describe('W4 — a project document another user wrote cannot block the first load', () => {
+  const good = (name: string) => ({
+    name, unitOfMeasure: 'pts', createdAt: TS, updatedAt: TS, owner: 'user-1', members: {}, schemaVersion: 1, sprints: [],
+  }) as unknown as FirestoreProjectDoc
+  const malformed = { ...good('Shared with you'), owner: 'someone-else', members: { 'user-1': 'viewer' }, sprints: { x: 1 } } as unknown as FirestoreProjectDoc
+
+  it('W4-L1 loads every project, the malformed one without its sprints, and tells the user once (known-bad: the error panel, for good)', async () => {
+    vi.mocked(loadProjects).mockImplementation(() => Promise.resolve(new Map([['a', good('Alpha')], ['b', malformed], ['c', good('Gamma')]])))
+    renderHook(() => useCloudSync(user, 'cloud'))
+    await advance(0)
+    expect(state().cloudLoadError).toBeNull()
+    expect(state().cloudDataLoaded).toBe(true)
+    expect(state().projects.map((p) => p.name)).toEqual(['Alpha', 'Shared with you', 'Gamma'])
+    expect(vi.mocked(toast.warning)).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(toast.warning).mock.calls[0]![0]).toContain('“Shared with you”')
+    expect(vi.mocked(console.warn)).toHaveBeenCalledWith('[cloud-load] project b: list-not-a-list')
+  })
+
+  it('W4-L2 a snapshot carrying the same document still applies, and the user is not told again', async () => {
+    let raise: ((docs: Map<string, FirestoreProjectDoc>) => void) | undefined
+    vi.mocked(subscribeToUserProjects).mockImplementation((_uid, cb) => { raise = cb; return () => {} })
+    vi.mocked(loadProjects).mockImplementation(() => Promise.resolve(new Map([['a', good('Alpha')], ['b', malformed]])))
+    renderHook(() => useCloudSync(user, 'cloud'))
+    await advance(0)
+    await act(async () => { raise!(new Map([['a', good('Alpha renamed')], ['b', malformed]])) })
+    expect(state().projects.map((p) => p.name)).toEqual(['Alpha renamed', 'Shared with you'])
+    expect(vi.mocked(toast.warning)).toHaveBeenCalledTimes(1)
   })
 })
 
