@@ -35,7 +35,7 @@ vi.mock('@/shared/firebase/sync-bus', () => ({ syncBus: { subscribe: vi.fn(() =>
 vi.mock('@/shared/firebase/config', () => ({ auth: mutableAuth }))
 vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn(), warning: vi.fn() } }))
 
-import { loadProjects, loadSettings, subscribeToUserProjects, isProjectSaveOutstanding } from '@/shared/firebase/firestore-driver'
+import { loadProjects, loadSettings, subscribeToUserProjects, isProjectSaveOutstanding, saveProject } from '@/shared/firebase/firestore-driver'
 import { syncBus } from '@/shared/firebase/sync-bus'
 import { toast } from 'sonner'
 import { useCloudSync, loadErrorCode } from './useCloudSync'
@@ -221,6 +221,29 @@ describe('W4 — a project document another user wrote cannot block the first lo
     await act(async () => { raise!(new Map([['a', good('Alpha renamed')], ['b', malformed]])) })
     expect(state().projects.map((p) => p.name)).toEqual(['Alpha renamed', 'Shared with you'])
     expect(vi.mocked(toast.warning)).toHaveBeenCalledTimes(1)
+  })
+
+  it('W4-B14 the next save of your own project carries only its own sprints (known-bad: a sprint another document named it in was saved into it)', async () => {
+    let handle: ((event: import('@/shared/firebase/types').SyncEvent) => void) | undefined
+    vi.mocked(syncBus.subscribe).mockImplementation((h) => { handle = h; return () => {} })
+    const sprint = (id: string, projectId: string, sprintNumber: number) => ({
+      id, projectId, sprintNumber, sprintStartDate: '2026-01-05', sprintFinishDate: '2026-01-16',
+      doneValue: 10, includedInForecast: true, createdAt: TS, updatedAt: TS,
+    })
+    const mine = { ...good('Mine'), sprints: [sprint('x1', 'x', 1)] } as unknown as FirestoreProjectDoc
+    // A document that lists you, carrying a sprint that names YOUR project.
+    const other = { ...good('Shared with you'), owner: 'someone-else', members: { 'user-1': 'viewer' }, sprints: [sprint('planted', 'x', 2)] } as unknown as FirestoreProjectDoc
+    vi.mocked(loadProjects).mockImplementation(() => Promise.resolve(new Map([['x', mine], ['y', other]])))
+    renderHook(() => useCloudSync(user, 'cloud'))
+    await advance(0)
+    expect(state().sprints.filter((s) => s.projectId === 'x').map((s) => s.id)).toEqual(['x1'])
+
+    act(() => handle!({ type: 'project:save', projectId: 'x' }))
+    expect(vi.mocked(saveProject)).toHaveBeenCalledTimes(1)
+    const [savedId, savedDoc] = vi.mocked(saveProject).mock.calls[0]!
+    expect(savedId).toBe('x')
+    expect(savedDoc.sprints.map((s) => s.id)).toEqual(['x1'])
+    expect(vi.mocked(console.warn)).toHaveBeenCalledWith('[cloud-load] project y: sprint-of-another-project')
   })
 })
 
