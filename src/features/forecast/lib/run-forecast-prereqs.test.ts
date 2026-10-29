@@ -4,6 +4,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { canRunForecast, getRunForecastBlockedReason } from './run-forecast-prereqs'
+import { MAX_FORECAST_MILESTONES } from '../constants'
 
 describe('getRunForecastBlockedReason', () => {
   const fullyValid = {
@@ -12,6 +13,7 @@ describe('getRunForecastBlockedReason', () => {
     remainingBacklog: '1000',
     effectiveMean: 100,
     dateBlock: null,
+    milestoneCount: 0,
   }
 
   it('returns null when all prereqs satisfied', () => {
@@ -43,6 +45,7 @@ describe('getRunForecastBlockedReason', () => {
       remainingBacklog: '',
       effectiveMean: 0,
       dateBlock: null,
+      milestoneCount: 0,
     })
     expect(reason).toBe('Set sprint cadence on the Sprint History tab.')
   })
@@ -77,6 +80,7 @@ describe('canRunForecast', () => {
     remainingBacklog: '1000',
     effectiveMean: 100,
     dateBlock: null,
+    milestoneCount: 0,
   }
 
   it('returns true when every prereq is satisfied', () => {
@@ -89,5 +93,24 @@ describe('canRunForecast', () => {
     expect(canRunForecast({ ...fullyValid, remainingBacklog: '' })).toBe(false)
     expect(canRunForecast({ ...fullyValid, effectiveMean: 0 })).toBe(false)
     expect(canRunForecast({ ...fullyValid, effectiveMean: -1 })).toBe(false)
+  })
+})
+
+describe('W4 — the most milestones a forecast runs on (MAX_FORECAST_MILESTONES)', () => {
+  const ready = {
+    sprintCadenceWeeks: 2, firstSprintStartDate: '2026-05-16', remainingBacklog: '1000', effectiveMean: 100, dateBlock: null,
+  }
+
+  it('runs at the bound, and the largest project a file can carry (100) is far inside it', () => {
+    for (const milestoneCount of [0, 100, MAX_FORECAST_MILESTONES]) {
+      expect(canRunForecast({ ...ready, milestoneCount })).toBe(true)
+      expect(getRunForecastBlockedReason({ ...ready, milestoneCount })).toBeNull()
+    }
+  })
+
+  it('above it the forecast does not run, and says why (known-bad: 7,000 milestones ran the worker past 15 s)', () => {
+    expect(canRunForecast({ ...ready, milestoneCount: MAX_FORECAST_MILESTONES + 1 })).toBe(false)
+    expect(getRunForecastBlockedReason({ ...ready, milestoneCount: 7000 }))
+      .toBe('This project has 7,000 milestones. A forecast runs on at most 1,000.')
   })
 })

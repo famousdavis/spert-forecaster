@@ -43,30 +43,88 @@ import {
   firestoreDocToSettings,
 } from '@/shared/firebase/firestore-converters'
 import type { FirestoreProjectDoc, SyncEvent } from '@/shared/firebase/types'
+import { guardCloudProjectDoc, type CloudLoadRule } from '@/shared/firebase/cloud-load-guard'
 import type { Project, Sprint } from '@/shared/types'
 import { getWorkspaceId } from '@/shared/state/storage'
+
+/** A document the cloud load set something aside in: its id, its name if it has one, and why. */
+export interface CloudLoadNote {
+  docId: string
+  name: string | null
+  rules: CloudLoadRule[]
+}
 
 /**
  * Convert Firestore project docs into typed arrays for the Zustand store, and
  * the signed-in user's role on each (Brief 39), from the doc's owner/members.
+ *
+ * ⚠️ ONE DOCUMENT AT A TIME (W4). Another user can write a document that lists
+ * this user, and both the first load and every snapshot come through here. A
+ * document that fails its checks (cloud-load-guard.ts) loads without the parts
+ * that failed; one that cannot be converted at all is left out of the view, and
+ * the rest load. Before this, one such document threw out of the loop: the first
+ * load showed the error panel for good, and every snapshot after it was lost.
  */
-function processProjectDocs(
+export function processProjectDocs(
   projectDocs: Iterable<[string, FirestoreProjectDoc]>,
   docMetaRef: React.MutableRefObject<Map<string, FirestoreProjectDoc>>,
-  uid: string
+  uid: string,
+  notes: CloudLoadNote[] = []
 ): { projects: Project[]; sprints: Sprint[]; roles: Record<string, ProjectAccess> } {
   const projects: Project[] = []
   const sprints: Sprint[] = []
   const roles: Record<string, ProjectAccess> = {}
 
-  for (const [docId, doc] of projectDocs) {
-    docMetaRef.current.set(docId, doc)
-    roles[docId] = roleFromDoc(doc, uid)
-    projects.push(firestoreDocToProject(docId, doc))
-    sprints.push(...firestoreDocToSprints(doc))
+  for (const [docId, raw] of projectDocs) {
+    // The server's document, unchecked: saves take owner/members from it.
+    docMetaRef.current.set(docId, raw)
+    let converted: { project: Project; sprints: Sprint[] }
+    try {
+      roles[docId] = roleFromDoc(raw, uid)
+      const guarded = guardCloudProjectDoc(docId, raw)
+      if (guarded === null) {
+        notes.push({ docId, name: null, rules: ['project-not-an-object'] })
+        continue
+      }
+      converted = { project: firestoreDocToProject(docId, guarded.doc), sprints: firestoreDocToSprints(guarded.doc) }
+      if (guarded.setAside.length > 0) notes.push({ docId, name: guarded.doc.name || null, rules: guarded.setAside })
+    } catch {
+      notes.push({ docId, name: null, rules: ['project-unreadable'] })
+      continue
+    }
+    projects.push(converted.project)
+    sprints.push(...converted.sprints)
   }
 
   return { projects, sprints, roles }
+}
+
+/** The longest project name a cloud-load notice quotes. */
+const NOTICE_NAME_LENGTH = 80
+
+/** What the user is told about a document the cloud load set something aside in. Never the value. */
+export function cloudLoadNoticeText(notes: CloudLoadNote[]): string {
+  if (notes.length > 1) {
+    return `${notes.length} projects could not be fully read from the cloud. What could not be read is not shown; the rest has loaded.`
+  }
+  const { name } = notes[0]!
+  if (name === null) return 'A project could not be read from the cloud and is not shown. Your other projects have loaded.'
+  const shown = name.length > NOTICE_NAME_LENGTH ? `${name.slice(0, NOTICE_NAME_LENGTH)}…` : name
+  return `Part of “${shown}” could not be read from the cloud and is not shown. The rest of the project has loaded.`
+}
+
+/**
+ * Tell the user, once per document per cloud session, and log a short rule id
+ * for each. `notified` belongs to one run of the sync effect.
+ */
+function reportCloudLoadNotes(notes: CloudLoadNote[], notified: Set<string>): void {
+  const fresh = notes.filter((n) => !notified.has(n.docId))
+  if (fresh.length === 0) return
+  for (const n of fresh) {
+    notified.add(n.docId)
+    console.warn(`[cloud-load] project ${n.docId}: ${n.rules.join(', ')}`)
+  }
+  toast.warning(cloudLoadNoticeText(fresh))
 }
 
 /**
@@ -295,13 +353,19 @@ export function useCloudSync(user: User | null, mode: 'local' | 'cloud') {
     // re-sign-in creates a new closure with snapshotEverReceived = false).
     let snapshotEverReceived = false
 
+    // Documents the cloud load has already told the user about (W4), so a
+    // document that fails its checks is reported once, not on every snapshot.
+    const cloudLoadNotified = new Set<string>()
+
     /**
      * The first load is the baseline every later create decision rests on. It
      * is merged into the store with the same rules as a snapshot, so the store's
      * project order survives a reload on the same device.
      */
     function applyBaseline(projectDocs: Map<string, FirestoreProjectDoc>) {
-      const { projects, sprints, roles } = processProjectDocs(projectDocs, docMetaRef, uid)
+      const notes: CloudLoadNote[] = []
+      const { projects, sprints, roles } = processProjectDocs(projectDocs, docMetaRef, uid, notes)
+      reportCloudLoadNotes(notes, cloudLoadNotified)
       latestViewIds = new Set(projectDocs.keys())
 
       // Data-loss guard: if cloud is empty but local has projects, skip
@@ -475,7 +539,9 @@ export function useCloudSync(user: User | null, mode: 'local' | 'cloud') {
         // closure variable from subscription setup, NOT a live read.
         if (auth?.currentUser?.uid !== uid) return
 
-        const { projects, sprints, roles } = processProjectDocs(projectDocs, docMetaRef, uid)
+        const notes: CloudLoadNote[] = []
+        const { projects, sprints, roles } = processProjectDocs(projectDocs, docMetaRef, uid, notes)
+        reportCloudLoadNotes(notes, cloudLoadNotified)
         latestViewIds = new Set(projectDocs.keys())
 
         // Data-loss guard (I1) — fires AT MOST ONCE per cloud session. After

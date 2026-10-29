@@ -156,6 +156,13 @@ export async function removeProjectMember(
 }
 
 /**
+ * A profile's `displayName` or `email`, as text, or '' (W4). Profiles are written
+ * by their owner, and the rules check only who writes, not what: anything that
+ * is not text would reach SharingSection's member row as a React child.
+ */
+const profileText = (value: unknown): string => (typeof value === 'string' ? value : '')
+
+/**
  * Get all members of a project (including owner).
  *
  * Profile reads run in parallel via `Promise.allSettled` (Lesson 64). A single
@@ -173,7 +180,14 @@ export async function getProjectMembers(projectId: string): Promise<ProjectMembe
 
   const projectData = projectSnap.data()
   const ownerUid: string = projectData.owner
-  const memberEntries = Object.entries(projectData.members || {}) as [string, ProjectRole][]
+  // W4: the members map is written by the project's owner, and a project can
+  // list you without your say. Only its two roles are shown; anything else
+  // shows as viewer, the role the rest of the app gives it (roleFromDoc).
+  const membersMap: unknown = projectData.members
+  const memberEntries: [string, ProjectRole][] =
+    typeof membersMap === 'object' && membersMap !== null && !Array.isArray(membersMap)
+      ? Object.entries(membersMap).map(([uid, role]) => [uid, role === 'editor' ? 'editor' : 'viewer'])
+      : []
 
   // Fan out all profile reads in parallel. Order is preserved by index alignment
   // with `uids` so the final members array stays [owner, ...members in entry order].
@@ -219,8 +233,8 @@ export async function getProjectMembers(projectId: string): Promise<ProjectMembe
   const members: ProjectMember[] = [
     {
       uid: ownerUid,
-      email: ownerProfile?.email || '',
-      displayName: ownerProfile?.displayName || '',
+      email: profileText(ownerProfile?.email),
+      displayName: profileText(ownerProfile?.displayName),
       role: 'owner',
     },
   ]
@@ -229,8 +243,8 @@ export async function getProjectMembers(projectId: string): Promise<ProjectMembe
     const profile = resolveProfile(uid, profileResults[i + 1]!, i + 1)
     members.push({
       uid,
-      email: profile?.email || '',
-      displayName: profile?.displayName || '',
+      email: profileText(profile?.email),
+      displayName: profileText(profile?.displayName),
       role,
     })
   })

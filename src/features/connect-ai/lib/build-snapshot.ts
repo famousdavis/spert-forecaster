@@ -731,6 +731,7 @@ function resolveStatus(args: {
     remainingBacklog: inputs.remainingBacklog,
     effectiveMean: inputs.effectiveMean,
     dateBlock: block,
+    milestoneCount: inputs.cumulativeThresholds.length,
   }
   const blockedReason = getRunForecastBlockedReason(prereq)
   const parsedBacklog = safeParseNumber(inputs.remainingBacklog)

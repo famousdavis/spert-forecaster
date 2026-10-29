@@ -310,6 +310,7 @@ export function useForecastState() {
       remainingBacklog: inputs.remainingBacklog,
       effectiveMean: inputs.effectiveMean,
       dateBlock: sprintData.forecastDateBlock,
+      milestoneCount: inputs.cumulativeThresholds.length,
     }),
     [
       selectedProject?.sprintCadenceWeeks,
@@ -317,6 +318,7 @@ export function useForecastState() {
       inputs.remainingBacklog,
       inputs.effectiveMean,
       sprintData.forecastDateBlock,
+      inputs.cumulativeThresholds.length,
     ]
   )
   const canRun = useMemo(() => canRunForecast(prereqInputs), [prereqInputs])

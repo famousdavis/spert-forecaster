@@ -4,6 +4,7 @@
 
 import type { ForecastDateBlock } from '@/shared/lib/forecast-derivations'
 import { forecastBlockedReason } from '@/shared/lib/sprint-date-texts'
+import { MAX_FORECAST_MILESTONES } from '../constants'
 
 /**
  * Centralized "can the forecast run?" check, paired with a user-facing reason
@@ -26,6 +27,14 @@ export interface RunForecastPrereqInputs {
   effectiveMean: number
   /** deriveSprintData's forecastDateBlock: a date the forecast uses is bad (D12, D14). Required, so no caller can forget it. */
   dateBlock: ForecastDateBlock | null
+  /** The milestones a run would simulate (MAX_FORECAST_MILESTONES). Required, for the same reason. */
+  milestoneCount: number
+}
+
+/** Why a forecast does not run on this many milestones. */
+export function tooManyMilestonesText(milestoneCount: number): string {
+  return `This project has ${milestoneCount.toLocaleString('en-US')} milestones. ` +
+    `A forecast runs on at most ${MAX_FORECAST_MILESTONES.toLocaleString('en-US')}.`
 }
 
 /**
@@ -43,10 +52,12 @@ export function getRunForecastBlockedReason({
   remainingBacklog,
   effectiveMean,
   dateBlock,
+  milestoneCount,
 }: RunForecastPrereqInputs): string | null {
   if (!sprintCadenceWeeks) return 'Set sprint cadence on the Sprint History tab.'
   if (!firstSprintStartDate) return 'Set the first sprint start date on the Sprint History tab.'
   if (dateBlock) return forecastBlockedReason(dateBlock)
+  if (milestoneCount > MAX_FORECAST_MILESTONES) return tooManyMilestonesText(milestoneCount)
   if (remainingBacklog && effectiveMean <= 0) return 'Velocity must be greater than 0.'
   return null
 }
@@ -62,11 +73,13 @@ export function canRunForecast({
   remainingBacklog,
   effectiveMean,
   dateBlock,
+  milestoneCount,
 }: RunForecastPrereqInputs): boolean {
   return (
     !!sprintCadenceWeeks &&
     !!firstSprintStartDate &&
     dateBlock === null &&
+    milestoneCount <= MAX_FORECAST_MILESTONES &&
     !!remainingBacklog &&
     effectiveMean > 0
   )
