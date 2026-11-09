@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.48.1 - 2026-11-09
+
+The app's header and tabs now have the same height, corners and colours as in the other SPERT® apps, and the number keys no longer switch tabs behind an open dialog.
+
+### Changed
+- **The header is shorter.** The app's title and the line beneath it ("Agile Release Forecasting with Monte Carlo Simulation") now use the browser's normal line spacing. In a window 768 pixels wide or wider, the header is now 60 pixels tall instead of about 69, the same as GanttApp's. On a 375-pixel phone screen, where the title wraps onto two lines, it is 94 pixels tall instead of 108. The title's size, colours and icon are unchanged, and so are the buttons on the right of the header.
+- **The tabs are shorter, with smaller corners, and the row is no longer indented.** In a window 768 pixels wide or wider, each tab is now 37 pixels tall instead of 43; on a 375-pixel phone screen, where "Sprint History" wraps onto two lines, 55 instead of 67. The labels now use the normal line spacing too; their font, size and weight are unchanged. The rounded top corners are 8 pixels instead of 10. The first tab, Projects, now starts at the left edge of the page content, in line with the app's icon above it; before, the whole row was indented by 8 pixels.
+- **The line under the tabs is a slightly different grey.** In the light theme it is now `#eee`; before, it was a very slightly lighter, blue-tinted grey (Tailwind's gray-100). In the dark theme it is now a dark slate, `#2d3748`; before, it was a slightly lighter grey (gray-700).
+- **In the dark theme, the tabs now have dark-theme colours.** The tabs you are not on now have light grey-blue labels (`#a0aec0`); before, they kept the light theme's mid-grey (`#666`), which was hard to read on the dark page. Pointing at one of them now shades it dark slate (`#2d3748`); before, it turned near-white (`#f5f5f5`) behind its mid-grey label. The tab you are on is now a brighter blue (`#3b82f6`) instead of a deep blue (blue-700). **In the light theme the tab colours are unchanged:** mid-grey labels, a light grey (`#f5f5f5`) when you point at one, and blue (`#0070f3`) for the tab you are on.
+- **? no longer closes the keyboard shortcuts help.** It waits while the help is open, like the number keys. Close the help with Esc, its close button (x) or a click outside it, as before.
+
+### Fixed
+- **The number keys 1–5 now wait while a dialog is open.** Before, pressing one of them with a dialog open switched to that tab behind the dialog, which closed the dialog and left the keyboard focus on the page. With the Delete Project dialog open and its Cancel button focused, for example, pressing 3 opened the Forecast tab and closed the dialog, deleting nothing. Now the key does nothing: you stay where you were, the dialog stays open and the focus stays on Cancel. This holds in every dialog: the confirmation dialogs (Delete Project and the others), the keyboard shortcuts help, the Cloud Storage dialog, the cloud storage terms agreement, the Connect AI agreement and the Connect AI panel. Once the dialog is closed the keys work as before, and, as before, they do nothing while you are typing in a field.
+
+### Notes
+- Checked in Google Chrome on macOS at 375, 768, 1024 and 1280 pixels wide, in both themes, against GanttApp v0.32.1 measured the same way. The tab labels in GanttApp render in Arial and Forecaster's in the system font; at these sizes the tabs still measure the same height. For the same reason, the tabs both apps share (Projects, Settings, About) differ in width by less than a pixel. The space at the left and right of the page is unchanged, so at 1024 pixels and narrower the page's content starts closer to the window's edge than GanttApp's.
+- Pressing the keys was checked in five of the six dialogs: Delete Project, the keyboard shortcuts help and the Cloud Storage dialog in a real browser, and the confirmation dialog, the shortcuts help and the two agreements in automated tests. The Connect AI panel opens only with a cloud connection, so no key was pressed in it; it carries the same setting as the others, and a new test fails if any dialog lacks that setting, including one added later.
+- New tests are the first for the keyboard shortcuts: a shortcut works with no dialog open, waits while one is open and works again once it closes, and never fires while you are typing in a field. Each test was checked by breaking the behaviour it guards and confirming that it fails.
+
 ## v0.48.0 - 2026-11-08
 
 The Projects tab's buttons, and the two notices at the top of the app, now sit in the same places, in the same order and with the same words as in the other SPERT® apps.
