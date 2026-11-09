@@ -6,6 +6,7 @@
 
 import { useEffect, useRef } from 'react'
 import { formatShortcut, type KeyboardShortcut } from '@/shared/hooks/useKeyboardShortcuts'
+import { modalSurfaceProps } from '@/shared/lib/modal-surface'
 
 interface KeyboardShortcutsHelpProps {
   isOpen: boolean
@@ -51,6 +52,7 @@ export function KeyboardShortcutsHelp({ isOpen, onClose, shortcuts }: KeyboardSh
 
   return (
     <div
+      {...modalSurfaceProps}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
       role="dialog"
       aria-modal="true"
@@ -91,7 +93,9 @@ export function KeyboardShortcutsHelp({ isOpen, onClose, shortcuts }: KeyboardSh
         </div>
 
         <p className="mt-4 text-xs text-gray-500 dark:text-gray-400">
-          Press <kbd className="px-1 py-0.5 text-xs font-mono bg-gray-100 dark:bg-gray-700 rounded">?</kbd> to toggle this help
+          {/* Not "toggle" since v0.48.1: page shortcuts, `?` included, wait while this
+              dialog is open, so only Escape, the close button or a click outside closes it. */}
+          Press <kbd className="px-1 py-0.5 text-xs font-mono bg-gray-100 dark:bg-gray-700 rounded">?</kbd> to open this help and <kbd className="px-1 py-0.5 text-xs font-mono bg-gray-100 dark:bg-gray-700 rounded">Esc</kbd> to close it
         </p>
       </div>
     </div>

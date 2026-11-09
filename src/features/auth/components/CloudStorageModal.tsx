@@ -16,6 +16,7 @@ import { useFirstCloudLoadWindow } from '../hooks/useFirstCloudLoadWindow'
 import { EXPORT_BACKUP_LABEL, SIGN_OUT_WARNING, SWITCH_TO_LOCAL_WARNING } from '../lib/first-load-warnings'
 import { SignInButtons } from './SignInButtons'
 import { UploadConfirmPanel } from './UploadConfirmPanel'
+import { modalSurfaceProps } from '@/shared/lib/modal-surface'
 
 interface CloudStorageModalProps {
   isOpen: boolean
@@ -149,7 +150,7 @@ export function CloudStorageModal({ isOpen, onClose }: CloudStorageModalProps) {
   const displayName = normalizeDisplayName(user?.displayName) || user?.email || 'Signed in'
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center" role="presentation">
+    <div {...modalSurfaceProps} className="fixed inset-0 z-50 flex items-center justify-center" role="presentation">
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/50"

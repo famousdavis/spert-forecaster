@@ -5,6 +5,7 @@
 'use client'
 
 import { useEffect, useCallback } from 'react'
+import { isModalSurfaceOpen } from '@/shared/lib/modal-surface'
 
 export interface KeyboardShortcut {
   key: string
@@ -33,6 +34,11 @@ export function useKeyboardShortcuts(shortcuts: KeyboardShortcut[], enabled: boo
   const handleKeyDown = useCallback(
     (event: KeyboardEvent) => {
       if (!enabled) return
+
+      // Every page shortcut waits while a dialog is open (v0.48.1), `?` included: the
+      // dialog handles its own keys, and nothing behind it may act. A digit here used
+      // to switch the tab behind the Delete Project dialog and unmount it.
+      if (isModalSurfaceOpen()) return
 
       // Don't trigger shortcuts when typing in input fields
       if (isInputElement(event.target)) return

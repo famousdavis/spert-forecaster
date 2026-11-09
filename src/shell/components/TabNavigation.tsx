@@ -28,8 +28,15 @@ interface TabNavigationProps {
 }
 
 export function TabNavigation({ activeTab, onTabChange }: TabNavigationProps) {
+  /* The tab bar matches the SPERT® suite's (GanttApp v0.32.1, measured for v0.48.1): no left
+     inset, 8 px top corners, the CSS `normal` line-height (Tailwind's `leading-normal` is 1.5,
+     so the arbitrary value), and these colours. ⚠️ Every dark colour is a `dark:` class HERE,
+     on purpose: the `spert-*` colour tokens are declared in `@theme inline`, which bakes their
+     light values into the utilities, so their `.dark` overrides never apply. The muted text
+     and the hover stayed light-theme grey in dark mode until v0.48.1. Fixing the tokens
+     themselves changes dark mode app-wide and is deliberately not done in this file. */
   return (
-    <div className="flex gap-2 border-b-2 border-gray-100 dark:border-gray-700 pl-2">
+    <div className="flex gap-2 border-b-2 border-[#eee] dark:border-[#2d3748]">
       {TABS.filter((tab) => !tab.hidden).map((tab) => (
         <button
           key={tab.id}
@@ -65,10 +72,10 @@ export function TabNavigation({ activeTab, onTabChange }: TabNavigationProps) {
           aria-current={activeTab === tab.id ? 'true' : undefined}
           onClick={() => onTabChange(tab.id)}
           className={cn(
-            'px-5 py-2 border-0 border-b-[3px] rounded-t-lg cursor-pointer font-semibold text-base transition-all duration-200',
+            'px-5 py-2 border-0 border-b-[3px] rounded-t-[8px] cursor-pointer font-semibold text-base leading-[normal] transition-all duration-200',
             activeTab === tab.id
-              ? 'bg-spert-blue dark:bg-blue-700 text-white border-b-spert-blue dark:border-b-blue-700'
-              : 'bg-transparent text-spert-text-muted border-b-transparent hover:bg-spert-bg-hover'
+              ? 'bg-spert-blue dark:bg-[#3b82f6] text-white border-b-spert-blue dark:border-b-[#3b82f6]'
+              : 'bg-transparent text-spert-text-muted dark:text-[#a0aec0] border-b-transparent hover:bg-spert-bg-hover dark:hover:bg-[#2d3748]'
           )}
         >
           {tab.label}

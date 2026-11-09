@@ -7,6 +7,7 @@
 import { useState } from 'react'
 
 import { AI_PRIVACY_URL } from '../constants'
+import { modalSurfaceProps } from '@/shared/lib/modal-surface'
 
 interface ConnectAiConsentModalProps {
   open: boolean
@@ -30,6 +31,7 @@ export function ConnectAiConsentModal({
 
   return (
     <div
+      {...modalSurfaceProps}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
       role="dialog"
       aria-modal="true"
