@@ -17,7 +17,7 @@
 // ones that render without providers.
 // ===========================================================================
 
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, type Mock } from 'vitest'
 import { render, fireEvent, screen } from '@testing-library/react'
 import type { ReactElement } from 'react'
 
@@ -28,10 +28,10 @@ import { KeyboardShortcutsHelp } from '@/shared/components/KeyboardShortcutsHelp
 import { ConsentModal } from '@/features/auth/components/ConsentModal'
 import { ConnectAiConsentModal } from '@/features/connect-ai/components/ConnectAiConsentModal'
 
-type Spies = Record<'1' | '3' | '?', ReturnType<typeof vi.fn>>
+type Spies = Record<'1' | '3' | '?', Mock<() => void>>
 
 function makeShortcuts(): { spies: Spies; shortcuts: KeyboardShortcut[] } {
-  const spies: Spies = { '1': vi.fn(), '3': vi.fn(), '?': vi.fn() }
+  const spies: Spies = { '1': vi.fn<() => void>(), '3': vi.fn<() => void>(), '?': vi.fn<() => void>() }
   const shortcuts = (Object.keys(spies) as (keyof Spies)[]).map((key) => ({
     key,
     description: `probe ${key}`,
