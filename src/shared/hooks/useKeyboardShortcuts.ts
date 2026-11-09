@@ -23,6 +23,11 @@ function isInputElement(target: EventTarget | null): boolean {
   return tagName === 'input' || tagName === 'textarea' || tagName === 'select' || target.isContentEditable
 }
 
+// One character that is not a letter: `?`, `1`, `/`. Not `k`, not `Escape`.
+function isNonLetterCharacter(key: string): boolean {
+  return key.length === 1 && !/\p{L}/u.test(key)
+}
+
 // Check if cmd/ctrl modifier is pressed (cmd on Mac, ctrl on Windows/Linux)
 function isModifierKey(event: KeyboardEvent): boolean {
   // navigator.platform is deprecated but still works and is simpler than userAgentData
@@ -49,7 +54,13 @@ export function useKeyboardShortcuts(shortcuts: KeyboardShortcut[], enabled: boo
           shortcut.ctrl || shortcut.meta
             ? isModifierKey(event)
             : !event.ctrlKey && !event.metaKey
-        const shiftMatch = shortcut.shift ? event.shiftKey : !event.shiftKey
+        // A single non-letter key such as `?` or a digit already carries Shift in
+        // `event.key`: a real `?` IS Shift+/ on most keyboards. Requiring Shift to be up
+        // for it meant a real `?` never opened the help (fixed in v0.48.1). Letters keep
+        // the Shift check, so Shift+K still does not fire a `k` shortcut.
+        const shiftMatch = shortcut.shift
+          ? event.shiftKey
+          : !event.shiftKey || isNonLetterCharacter(shortcut.key)
 
         if (keyMatch && modifierMatch && shiftMatch) {
           event.preventDefault()

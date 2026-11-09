@@ -106,6 +106,53 @@ describe('useKeyboardShortcuts', () => {
     expect(onClose).toHaveBeenCalledTimes(2)
   })
 
+  // v0.48.1: a REAL `?` arrives with Shift held (Shift+/ on most keyboards). The hook
+  // used to require Shift to be up for every shortcut without `shift: true`, so a real
+  // `?` never opened the help; only a synthetic, Shift-less `?` did. A single non-letter
+  // key now skips the Shift test, because `event.key` already reflects Shift.
+  describe('Shift', () => {
+    it('a real "?" (Shift held) reaches the "?" shortcut', () => {
+      const { spies, shortcuts } = makeShortcuts()
+      render(<Probe shortcuts={shortcuts} />)
+      fireEvent.keyDown(document.body, { key: '?', code: 'Slash', shiftKey: true })
+      expect(spies['?']).toHaveBeenCalledTimes(1)
+    })
+
+    it('a digit with Shift held reaches its shortcut (as on layouts where digits need Shift)', () => {
+      const { spies, shortcuts } = makeShortcuts()
+      render(<Probe shortcuts={shortcuts} />)
+      fireEvent.keyDown(document.body, { key: '3', code: 'Digit3', shiftKey: true })
+      expect(spies['3']).toHaveBeenCalledTimes(1)
+    })
+
+    it('a real "?" still waits while a dialog is open', () => {
+      const { spies, shortcuts } = makeShortcuts()
+      render(<><Probe shortcuts={shortcuts} /><div {...modalSurfaceProps} /></>)
+      fireEvent.keyDown(document.body, { key: '?', code: 'Slash', shiftKey: true })
+      expect(spies['?']).not.toHaveBeenCalled()
+    })
+
+    it('a letter keeps the Shift check: Shift+K does not fire a "k" shortcut, k does', () => {
+      const k = vi.fn<() => void>()
+      render(<Probe shortcuts={[{ key: 'k', description: 'probe k', action: () => k() }]} />)
+      fireEvent.keyDown(document.body, { key: 'K', code: 'KeyK', shiftKey: true })
+      expect(k).not.toHaveBeenCalled()
+      fireEvent.keyDown(document.body, { key: 'k', code: 'KeyK' })
+      expect(k).toHaveBeenCalledTimes(1)
+    })
+
+    it('Ctrl or Meta held still stops a shortcut that does not ask for them', () => {
+      const { spies, shortcuts } = makeShortcuts()
+      render(<Probe shortcuts={shortcuts} />)
+      fireEvent.keyDown(document.body, { key: '?', shiftKey: true, ctrlKey: true })
+      fireEvent.keyDown(document.body, { key: '?', shiftKey: true, metaKey: true })
+      expect(spies['?']).not.toHaveBeenCalled()
+      // Control: the same key with neither reaches it.
+      fireEvent.keyDown(document.body, { key: '?', shiftKey: true })
+      expect(spies['?']).toHaveBeenCalledTimes(1)
+    })
+  })
+
   describe('typing in a field never fires a page shortcut', () => {
     const FIELDS: Array<{ name: string; el: () => ReactElement; select: string }> = [
       { name: 'an input', el: () => <input aria-label="field" />, select: 'input' },
