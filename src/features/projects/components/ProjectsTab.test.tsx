@@ -107,9 +107,11 @@ describe('ProjectsTab — import wiring', () => {
     expect(screen.getByRole('button', { name: /Import projects from JSON/i })).toBeTruthy()
   })
 
-  it('hides Export All when projects array is empty', () => {
+  // v0.48.0: rendered and disabled with no projects (was hidden until v0.48.0).
+  it('renders Export All disabled when projects array is empty', () => {
     renderProjectsTab()
-    expect(screen.queryByRole('button', { name: /Export all projects/i })).toBeNull()
+    const exportAll = screen.getByRole('button', { name: /Export all projects/i }) as HTMLButtonElement
+    expect(exportAll.disabled).toBe(true)
   })
 
   it('shows Export All when at least one project exists', () => {
@@ -125,15 +127,18 @@ describe('ProjectsTab — import wiring', () => {
       ],
     })
     renderProjectsTab()
-    expect(screen.getByRole('button', { name: /Export all projects/i })).toBeTruthy()
+    const exportAll = screen.getByRole('button', { name: /Export all projects/i }) as HTMLButtonElement
+    expect(exportAll.disabled).toBe(false)
   })
 
-  it('hides Load Sample toolbar button when projects array is empty (empty-state CTA covers this case)', () => {
+  // v0.48.0: the toolbar's Load Sample shows with no projects too, beside the empty
+  // state's own button, which stays (was hidden at zero since v0.33.2).
+  it('renders the Load Sample toolbar button when projects array is empty, and the empty state keeps its own', () => {
     renderProjectsTab()
     // Toolbar button has accessible name "Load Sample" (exact); empty-state CTA's
-    // accessible name is "Load Sample Project" (distinct). Anchored regex prevents
-    // the empty-state from matching here.
-    expect(screen.queryByRole('button', { name: /^Load Sample$/i })).toBeNull()
+    // accessible name is "Load Sample Project" (distinct). Anchored regexes keep them apart.
+    expect(screen.getByRole('button', { name: /^Load Sample$/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /^Load Sample Project$/i })).toBeTruthy()
   })
 
   it('shows Load Sample toolbar button when at least one project exists (v0.33.2)', () => {
@@ -153,7 +158,8 @@ describe('ProjectsTab — import wiring', () => {
   })
 
   // v0.33.3 — ProjectForm is hidden on first-touch until the user signals intent.
-  describe('ProjectForm visibility gating (v0.33.3)', () => {
+  // v0.48.0 — and hidden with projects listed too, until New Project.
+  describe('ProjectForm visibility gating (v0.33.3, v0.48.0)', () => {
     it('hides the ProjectForm on first-touch (zero projects, no edit, no focus flag)', () => {
       renderProjectsTab()
       expect(screen.queryByLabelText('Project Name')).toBeNull()
@@ -174,7 +180,8 @@ describe('ProjectsTab — import wiring', () => {
       expect(screen.getByLabelText('Project Name')).toBeTruthy()
     })
 
-    it('shows the ProjectForm when at least one project exists (always-visible-on-populated)', () => {
+    // Was "shows the ProjectForm when at least one project exists" until v0.48.0.
+    it('hides the ProjectForm with projects listed until New Project is pressed (known-bad: always-visible-on-populated)', () => {
       useProjectStore.setState({
         projects: [
           {
@@ -187,7 +194,9 @@ describe('ProjectsTab — import wiring', () => {
         ],
       })
       renderProjectsTab()
-      expect(screen.getByLabelText('Project Name')).toBeTruthy()
+      expect(screen.queryByLabelText('Project Name')).toBeNull()
+      fireEvent.click(screen.getByRole('button', { name: 'New Project' }))
+      expect(screen.getByLabelText('Project Name')).toBe(document.activeElement)
     })
   })
 

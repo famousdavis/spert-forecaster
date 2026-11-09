@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.48.0 - 2026-11-08
+
+The Projects tab's buttons, and the two notices at the top of the app, now sit in the same places, in the same order and with the same words as in the other SPERT® apps.
+
+### Changed
+- **The Projects tab now opens with one row: the Projects heading on the left, and Export All · Import · Load Sample · New Project on the right.** Before, these buttons sat in a row of their own further down the page, below the project form, the welcome panel and any import preview. The row was right-aligned, or centred when there were no projects, and there was no New Project button, because the form for a new project was simply always there. New Project is now the filled blue button on the far right. The other three are outlined in blue, in the same style as the welcome panel's buttons, and each button has an icon before its label. Before, they were borderless grey text that turned purple, green or blue on hover, the style introduced in v0.29.0, which this release replaces. On a narrow screen the buttons wrap onto a second line in the same order.
+- **All four buttons are always there.** Before, Export All and Load Sample were hidden until you had at least one project. Load Sample was hidden since v0.33.2 so that it would not repeat the welcome panel's Load Sample Project. Now Load Sample shows with no projects too, beside the welcome panel's own two buttons, which are unchanged. Export All shows but is greyed out until there is a project to export. No button appears, disappears or moves as projects are added, or while your cloud projects load. Load Sample's icon is now a flask; before, it was a loading-spinner shape.
+- **The form for a new project now stays hidden until you press New Project.** Since v0.33.3, the form was always shown once you had at least one project, as the place to add another. Now New Project opens it with the cursor in Project Name. Add Project or Cancel closes it again and puts you back on the New Project button. The form for a new project now has a Cancel button; before, only the form for editing a project had one. The welcome panel's Create New Project, and the Create New Project buttons on the other tabs, open the same form as before.
+- **Pressing New Project while you are editing a project switches to a blank form for a new project.** Changes you had typed into the project you were editing are discarded, as they already are when you press Cancel or another project's pencil.
+- **The two notices at the top of the app now sit just below the tabs, above the page.** These are the Terms of Service notice shown to first-time visitors, and the amber caution that your data exists only in this browser. Before, they sat between the app's title and the tabs. They keep their wording, look and order, and so do the invitation banner, the Connect AI notice and the export warning that share the space with them. "Got it" on the caution still hides it until the page is next loaded, and switching tabs does not bring it back. Settings → "Warn me on startup when using local storage" still turns it off for good.
+
+### Notes
+- Every condition that disables these buttons is unchanged. Import is still disabled while a file is being read or applied, and while your cloud projects are loading, with the same note below the row: "Loading your cloud projects — import will be available shortly." Export All and Import export and import exactly what they did before, and screen readers announce them by the same names as before: "Export all projects as JSON" and "Import projects from JSON".
+- New tests check the toolbar's order, labels and icons, that every button is always shown, the Import gate, when the project form opens and closes and where the cursor goes, and that the notices are placed below the tabs. Each test was checked by breaking the behaviour it guards and confirming that it fails.
+
 ## v0.47.6 - 2026-10-29
 
 ### Changed

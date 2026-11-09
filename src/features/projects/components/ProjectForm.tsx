@@ -295,15 +295,15 @@ export const ProjectForm = forwardRef<ProjectFormHandle, ProjectFormProps>(funct
             </button>
           )}
 
-          {isEditing && (
-            <button
-              type="button"
-              onClick={onCancel}
-              className="px-4 py-2 bg-gray-500 dark:bg-gray-600 text-white border-none rounded cursor-pointer text-[0.9rem] h-[38px]"
-            >
-              {readOnly ? 'Close' : 'Cancel'}
-            </button>
-          )}
+          {/* Offered on the create form too (v0.48.0): the form is hidden until asked
+              for, so a create form the user opened must be closable without adding. */}
+          <button
+            type="button"
+            onClick={onCancel}
+            className="px-4 py-2 bg-gray-500 dark:bg-gray-600 text-white border-none rounded cursor-pointer text-[0.9rem] h-[38px]"
+          >
+            {readOnly ? 'Close' : 'Cancel'}
+          </button>
         </div>
       </div>
 
