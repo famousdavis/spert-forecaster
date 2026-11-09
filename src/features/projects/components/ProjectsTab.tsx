@@ -19,6 +19,7 @@ import { accessReason, NOT_IN_CLOUD_LIST_NOTE } from '@/features/auth/lib/access
 import { ProjectList } from './ProjectList'
 import { ProjectForm, type ProjectFormHandle } from './ProjectForm'
 import { ImportPreviewSection } from './ImportPreviewSection'
+import { ProjectsToolbar } from './ProjectsToolbar'
 import { ProjectsEmptyState } from '@/shared/components/ProjectsEmptyState'
 import { loadSampleProject } from '../lib/sample-project'
 // Type-only: the hook is CALLED in AppShell now, not here. Importing the value would put it
@@ -85,11 +86,15 @@ export function ProjectsTab({ onViewHistory, importState }: ProjectsTabProps) {
   } = importState
 
   const [editingProject, setEditingProject] = useState<Project | null>(null)
-  // v0.33.3: form is hidden on first-touch (zero projects, no edit in flight) until
-  // the user explicitly signals intent via the empty-state's "Create New Project" CTA.
-  // Persists through the focus-flag reset so the form doesn't unmount mid-render.
+  // v0.48.0: the form is hidden until asked for — New Project, the empty state's "Create
+  // New Project", another tab's call to action, or a project's pencil — whatever the
+  // project count. Persists through the focus-flag reset so the form doesn't unmount
+  // mid-render.
   const [wantsToCreateNew, setWantsToCreateNew] = useState(false)
   const projectFormRef = useRef<ProjectFormHandle>(null)
+  // Where focus goes back to when a create form closes (Add Project or Cancel): the button
+  // that opens it. Always rendered, so it is there to receive focus.
+  const newProjectRef = useRef<HTMLButtonElement>(null)
   const shouldFocusNewProjectForm = useProjectStore((s) => s.shouldFocusNewProjectForm)
   const setShouldFocusNewProjectForm = useProjectStore((s) => s.setShouldFocusNewProjectForm)
   const { mode } = useStorageMode()
@@ -131,18 +136,20 @@ export function ProjectsTab({ onViewHistory, importState }: ProjectsTabProps) {
       if (updateProject(editingProject.id, data)) setEditingProject(null)
     } else {
       addProject(data)
+      newProjectRef.current?.focus()
     }
-    // Intent fulfilled — clear the "wants to create new" flag. After a successful add
-    // the form stays visible because projects.length > 0 now satisfies the gate.
+    // Intent fulfilled — clear the "wants to create new" flag, which hides the form
+    // (v0.48.0: a populated list no longer keeps it open).
     setWantsToCreateNew(false)
   }
 
   const handleFormCancel = () => {
+    const wasCreating = editingProject === null
     setEditingProject(null)
-    // v0.33.3: returning to the welcome view on cancel from a blank first-touch form.
-    // When projects.length > 0 the form stays visible regardless via the projects-exist
-    // branch of the gate.
+    // Hides the form, whatever the project count (v0.48.0). With no projects the
+    // welcome empty state is what remains.
     setWantsToCreateNew(false)
+    if (wasCreating) newProjectRef.current?.focus()
   }
 
   // The same helper serves "Export a backup" while the first cloud load is
@@ -215,8 +222,9 @@ export function ProjectsTab({ onViewHistory, importState }: ProjectsTabProps) {
 
   // Tab-switch focus handoff: when a sibling tab's empty-state CTA fires, it sets the
   // shouldFocusNewProjectForm flag and switches to this tab. v0.33.3: the in-tab
-  // "Create New Project" CTA also sets the same flag, so both entry points share a
-  // single focus pipeline. On render with the flag set, we (1) flip wantsToCreateNew
+  // "Create New Project" CTA also sets the same flag, and v0.48.0's New Project button
+  // does too, so every entry point shares a single focus pipeline. On render with the
+  // flag set, we (1) flip wantsToCreateNew
   // so the form stays mounted after we reset the flag, (2) focus the name input via
   // the imperative handle, and (3) reset the flag so subsequent renders don't refocus.
   // Strict Mode double-fires this in dev; the flag-reset makes the second fire a no-op.
@@ -239,28 +247,32 @@ export function ProjectsTab({ onViewHistory, importState }: ProjectsTabProps) {
     }
   }, [shouldFocusNewProjectForm, setShouldFocusNewProjectForm])
 
-  // Empty-state callbacks: same handlers on both tabs and on this tab's own empty state.
-  // v0.33.3: the in-tab "Create New Project" CTA delegates to the global focus flag,
-  // matching the cross-tab path. The effect above handles both visibility (via
-  // setWantsToCreateNew) and focus, so this callback is one line.
-  const handleCreateNewFromEmptyState = useCallback(() => {
+  // New Project (toolbar) and the empty state's "Create New Project" share this handler,
+  // and delegate to the global focus flag, matching the cross-tab path. The effect above
+  // handles both visibility (via setWantsToCreateNew) and focus.
+  //
+  // ⚠️ It ends any edit first. Without that, pressing New Project while a project's form
+  // is open would focus THAT project's name field. Ending the edit discards unsaved edit
+  // text, exactly as Cancel or another project's pencil already does; `key` then remounts
+  // the form blank. No confirm, no gate (v0.48.0, D2).
+  const handleNewProject = useCallback(() => {
+    setEditingProject(null)
     setShouldFocusNewProjectForm(true)
   }, [setShouldFocusNewProjectForm])
   const handleLoadSample = useCallback(() => {
     loadSampleProject()
   }, [])
 
-  // v0.33.3 form-visibility gate. Show the form when:
+  // Form-visibility gate (v0.48.0; was v0.33.3). Show the form only when asked for:
   //   - the user is editing an existing project (editingProject set);
-  //   - at least one project exists (the form is the always-available "new project"
-  //     surface on a populated tab);
-  //   - the user just clicked "Create New Project" in this tab (wantsToCreateNew);
-  //   - or a cross-tab CTA is requesting focus right now (shouldFocusNewProjectForm).
-  // Otherwise the form is hidden in favor of the welcome empty-state, which leads
-  // with the twin CTAs and skips the visual clutter of empty input fields.
+  //   - the user pressed New Project or "Create New Project" in this tab (wantsToCreateNew);
+  //   - or a CTA is requesting focus right now (shouldFocusNewProjectForm).
+  // ⚠️ A populated list no longer keeps it open. Until v0.48.0 `projects.length > 0` was a
+  // fourth branch, making the form the always-on "add another" surface; William ruled on
+  // 2026-11-08 that it stays hidden until asked for, and hides again after Add Project or
+  // Cancel.
   const showProjectForm =
     editingProject !== null ||
-    projects.length > 0 ||
     wantsToCreateNew ||
     shouldFocusNewProjectForm
 
@@ -270,7 +282,23 @@ export function ProjectsTab({ onViewHistory, importState }: ProjectsTabProps) {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-xl font-semibold">Projects</h2>
+      {/* The dashboard's first row: heading left, toolbar right. Wraps on a narrow
+          screen with the buttons in the same order. Everything the dashboard shows
+          comes after it. */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-xl font-semibold">Projects</h2>
+        <ProjectsToolbar
+          hasProjects={projects.length > 0}
+          importDisabled={applying || isCloudPending}
+          fileInputRef={fileInputRef}
+          newProjectRef={newProjectRef}
+          onExportAll={handleExport}
+          onImportClick={handleImportClick}
+          onFileChange={handleFileChange}
+          onLoadSample={handleLoadSample}
+          onNewProject={handleNewProject}
+        />
+      </div>
 
       {isCloudPending && (
         <p
@@ -328,7 +356,7 @@ export function ProjectsTab({ onViewHistory, importState }: ProjectsTabProps) {
       {projects.length === 0 && !importPreview && (
         <ProjectsEmptyState
           variant="welcome"
-          onCreateNew={handleCreateNewFromEmptyState}
+          onCreateNew={handleNewProject}
           onLoadSample={handleLoadSample}
         />
       )}
@@ -351,78 +379,6 @@ export function ProjectsTab({ onViewHistory, importState }: ProjectsTabProps) {
           onCancel={handleImportCancel}
         />
       )}
-
-      <div className={cn('flex gap-2', projects.length === 0 ? 'justify-center' : 'justify-end')}>
-        {/* Load Sample Project — v0.33.2: persistent toolbar button so the sample can be
-            re-loaded at any time, not only from the empty-state. Gated on projects.length > 0
-            because when zero projects exist, the empty-state's twin-CTA already surfaces the
-            same action with the friendlier framing. Auto-rename on name collision lives
-            inside loadSampleProject (see sample-project.ts:generateUniqueProjectName). */}
-        {projects.length > 0 && (
-          <button
-            type="button"
-            onClick={handleLoadSample}
-            aria-label="Load Sample"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-transparent bg-transparent text-gray-500 text-[0.9rem] font-medium cursor-pointer transition-all duration-[120ms] hover:text-[#8b5cf6] hover:bg-purple-50 dark:hover:bg-purple-500/15 hover:border-[#8b5cf6] focus:outline-none focus:text-[#8b5cf6] focus:bg-purple-50 dark:focus:bg-purple-500/15 focus:border-[#8b5cf6]"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path
-                d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"
-                stroke="currentColor"
-                strokeWidth="2.25"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-            Load Sample
-          </button>
-        )}
-        {projects.length > 0 && (
-          <button
-            type="button"
-            onClick={handleExport}
-            aria-label="Export all projects as JSON"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-transparent bg-transparent text-gray-500 text-[0.9rem] font-medium cursor-pointer transition-all duration-[120ms] hover:text-[#10b981] hover:bg-emerald-50 dark:hover:bg-emerald-500/15 hover:border-[#10b981] focus:outline-none focus:text-[#10b981] focus:bg-emerald-50 dark:focus:bg-emerald-500/15 focus:border-[#10b981]"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path
-                d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"
-                stroke="currentColor"
-                strokeWidth="2.25"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-            Export All
-          </button>
-        )}
-        <button
-          type="button"
-          onClick={handleImportClick}
-          disabled={applying || isCloudPending}
-          aria-label="Import projects from JSON"
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-transparent bg-transparent text-gray-500 text-[0.9rem] font-medium cursor-pointer transition-all duration-[120ms] hover:text-[#0070f3] hover:bg-blue-50 dark:hover:bg-blue-500/15 hover:border-[#0070f3] focus:outline-none focus:text-[#0070f3] focus:bg-blue-50 dark:focus:bg-blue-500/15 focus:border-[#0070f3] disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path
-              d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"
-              stroke="currentColor"
-              strokeWidth="2.25"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-          Import
-        </button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          name="projectImportFile"
-          accept=".json"
-          onChange={handleFileChange}
-          className="hidden"
-        />
-      </div>
 
       {/* T4c (V6): adding, copying or importing a project — all on this tab — is
           what drops a not-in-cloud project from the list, so the warning is here. */}

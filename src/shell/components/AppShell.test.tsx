@@ -50,6 +50,33 @@ describe('AppShell — crosslink wiring', () => {
     }
   })
 
+  // v0.48.0 — the SPERT® suite's shared placement for the app-wide notices. Also a WIRING
+  // fact: the caution's "Got it" lasts until the next page load only because the banner is
+  // mounted here, outside the per-tab conditional inside <main>; mounted inside a tab, every
+  // tab switch would bring it back.
+  it('renders the app-wide notices below the navigation and above <main>, in order', () => {
+    const at = (s: string) => {
+      const i = SOURCE.indexOf(s)
+      expect(i, `${s} not found`).toBeGreaterThan(-1)
+      return i
+    }
+    const order = [
+      '</header>',
+      '<TabNavigation',
+      '<InvitationBanner />',
+      '<AiTeardownBanner />',
+      '<FirstRunBanner />',
+      '<LocalStorageWarningBanner />',
+      '<ExportCheckWarning />',
+      '<main',
+    ].map(at)
+    expect(order).toEqual([...order].sort((a, b) => a - b))
+    // Each rendered exactly once.
+    for (const banner of ['<InvitationBanner', '<AiTeardownBanner', '<FirstRunBanner', '<LocalStorageWarningBanner', '<ExportCheckWarning']) {
+      expect(SOURCE.split(banner).length - 1, banner).toBe(1)
+    }
+  })
+
   // ── The control. Without it every assertion above passes on an empty string ──
   it('CONTROL — the source really was read, and a false claim fails', () => {
     expect(SOURCE.length).toBeGreaterThan(1000)

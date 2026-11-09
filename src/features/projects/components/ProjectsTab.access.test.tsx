@@ -213,16 +213,28 @@ describe('T4c — the Projects tab says when projects not in the cloud will leav
   })
 })
 
+// v0.48.0: the form is hidden until asked for, so each case opens it with New Project.
 describe('the create form is never read only (N-6)', () => {
   it('with read-only projects listed, a new project can still be typed and added (known-bad: the read-only form keyed on the list, not the project edited)', () => {
     renderTab(FIVE, FIVE_ROLES)
+    fireEvent.click(button('New Project'))
     expect([input('name').disabled, screen.queryByRole('button', { name: 'Add Project' }) !== null]).toEqual([false, true])
   })
 
-  it('closing a read-only project returns the form to an editable create form (known-bad: read only left behind)', () => {
+  it('closing a read-only project closes the form; New Project then opens an editable create form (known-bad: read only left behind)', () => {
     renderTab([project('v', 'View')], { v: 'viewer' })
     fireEvent.click(button('Edit View'))
     fireEvent.click(button('Close'))
+    expect(input('name')).toBeNull()
+    fireEvent.click(button('New Project'))
+    expect([input('name').value, input('name').disabled, screen.queryByRole('button', { name: 'Add Project' }) !== null])
+      .toEqual(['', false, true])
+  })
+
+  it('New Project while a read-only project is open switches to an editable blank create form (known-bad: read only left behind)', () => {
+    renderTab([project('v', 'View')], { v: 'viewer' })
+    fireEvent.click(button('Edit View'))
+    fireEvent.click(button('New Project'))
     expect([input('name').value, input('name').disabled, screen.queryByRole('button', { name: 'Add Project' }) !== null])
       .toEqual(['', false, true])
   })

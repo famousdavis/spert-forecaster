@@ -143,13 +143,23 @@ export function AppShell() {
           </div>
         </header>
 
-        <InvitationBanner />
-        <AiTeardownBanner />
-        <FirstRunBanner />
-        <LocalStorageWarningBanner />
-        <ExportCheckWarning />
-
         <TabNavigation activeTab={activeTab} onTabChange={setActiveTab} />
+
+        {/* The app-wide notices, directly below the navigation and above the page (the
+            SPERT® suite's shared placement, v0.48.0): the invitation, then the terms
+            notice, then the local-storage caution; the other two keep their places
+            relative to those. ⚠️ Rendered HERE, outside the per-tab conditional below, so
+            a tab switch never remounts them: "Got it" on the caution holds until the next
+            page load. `empty:hidden` drops the wrapper when none shows, so the gap between
+            the navigation and the page is unchanged; `-mb-4` takes back the last
+            banner's own bottom margin. */}
+        <div className="mt-6 -mb-4 empty:hidden">
+          <InvitationBanner />
+          <AiTeardownBanner />
+          <FirstRunBanner />
+          <LocalStorageWarningBanner />
+          <ExportCheckWarning />
+        </div>
 
         <main className="mt-8 flex-1">
           {awaitingCloud && PROJECT_DATA_TABS.has(activeTab) ? (
