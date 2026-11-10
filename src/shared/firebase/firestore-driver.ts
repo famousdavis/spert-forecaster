@@ -17,6 +17,7 @@ import {
   setDoc,
   deleteDoc,
   deleteField,
+  FieldPath,
   onSnapshot,
   query,
   where,
@@ -27,6 +28,13 @@ import { db } from './config'
 import { COLLECTIONS, type FirestoreProjectDoc, type FirestoreSettingsDoc } from './types'
 import { sanitizeForFirestore, stripFirestoreFields } from './firestore-sanitize'
 import { SAVE_FAILED_TEXT } from './firestore-errors'
+import {
+  isUnsafePrefKey,
+  projectPrefOf,
+  type ProjectPref,
+  type ProjectPrefField,
+  type ProjectPrefs,
+} from '@/shared/lib/project-prefs'
 
 // --- mergeFields constants (C1/C2) ---
 //
@@ -87,7 +95,11 @@ export const SETTINGS_MERGE_FIELDS: (keyof FirestoreSettingsDoc)[] = [
   'defaultCustomPercentile', 'defaultCustomPercentile2',
   'defaultResultsPercentiles', 'distributionsEnabled',
 ]
-type _SettingsWriteKey = keyof FirestoreSettingsDoc
+// `projectPrefs` is excluded, as `owner` and `members` are from the project guard: it is never
+// in SETTINGS_MERGE_FIELDS, so an ordinary settings save cannot touch the map. It is written
+// entry by entry, one FieldPath per (project id, field), by saveProjectPrefs and
+// uploadProjectPrefs below.
+type _SettingsWriteKey = Exclude<keyof FirestoreSettingsDoc, 'projectPrefs'>
 const _SETTINGS_WRITE_KEYS_GUARD: Record<_SettingsWriteKey, true> = {
   autoRecalculate: true, trialCount: true, defaultChartFontSize: true,
   defaultCustomPercentile: true, defaultCustomPercentile2: true,
@@ -106,6 +118,8 @@ export const SAVE_DEBOUNCE_MS = 200
 
 const pendingSaveTimers = new Map<string, ReturnType<typeof setTimeout>>()
 const pendingSaveFns = new Map<string, () => Promise<void>>()
+/** v0.50.0: the tile colour and archive (project id, field) pairs changed since the last prefs write (saveProjectPrefs). */
+const pendingPrefChanges = new Map<string, { projectId: string; field: ProjectPrefField }>()
 // Writes handed to the SDK and not yet settled, per key. A COUNT, not a flag: a
 // second write to the same key can be issued before the first one settles.
 const inFlightSaves = new Map<string, number>()
@@ -174,6 +188,9 @@ export function cancelPendingSaves(): void {
     pendingSaveTimers.delete(key)
   }
   pendingSaveFns.clear()
+  // The tile colour and archive changes waiting for their write go too: otherwise a change
+  // made before a sign-out would be written into the NEXT account's settings document.
+  pendingPrefChanges.clear()
 }
 
 /**
@@ -501,6 +518,85 @@ export function saveSettings(uid: string, data: FirestoreSettingsDoc): void {
     const { payload, mask } = buildMergeWrite(sanitizeForFirestore(data), SETTINGS_MERGE_FIELDS)
     await setDoc(ref, payload, { mergeFields: mask })
   })
+}
+
+// --- Tile colour and archive (v0.50.0) ---
+//
+// ⚠️ One FieldPath per (project id, field), with deleteField() for a field being cleared, and a
+// payload built from the changed entries only. It NEVER passes through sanitizeForFirestore,
+// which rebuilds every object from Object.entries and so turns the deleteField() sentinel into
+// a plain map (stored as data; nothing deleted), nor through buildMergeWrite, which keeps a mask
+// field only when `field in payload` and so drops every nested path (the write changes
+// nothing). Both fail silently on the real SDK (R2 consequence review, probes 2 and 3). The
+// Web SDK throws when a masked field is absent from the data, and silently drops a
+// deleteField() outside the mask, so every masked path is given a value or deleteField().
+
+const PREFS_SAVE_KEY = 'projectPrefs'
+
+/** The payload and mask that write exactly these fields from `prefs`: each a value, or deleteField(). */
+export function buildProjectPrefsWrite(
+  changes: { projectId: string; field: ProjectPrefField }[],
+  prefs: ProjectPrefs,
+): { payload: { projectPrefs: Record<string, Record<string, unknown>> }; mask: FieldPath[] } {
+  // A Map, not an object: a project id such as `hasOwnProperty` must not find an inherited member.
+  const entries = new Map<string, Record<string, unknown>>()
+  const mask: FieldPath[] = []
+  const seen = new Set<string>()
+  for (const { projectId, field } of changes) {
+    if (isUnsafePrefKey(projectId)) continue
+    const key = JSON.stringify([projectId, field])
+    if (seen.has(key)) continue
+    seen.add(key)
+    const value = projectPrefOf(prefs, projectId)[field]
+    const entry = entries.get(projectId) ?? {}
+    entry[field] = value === undefined ? deleteField() : value
+    entries.set(projectId, entry)
+    mask.push(new FieldPath('projectPrefs', projectId, field))
+  }
+  return { payload: { projectPrefs: Object.fromEntries(entries) }, mask }
+}
+
+/**
+ * Write changed tile colours and archives (debounced, coalesced). Debounced under its own key,
+ * never `'settings'`: debouncedSave keeps one function per key, so a shared key would drop one
+ * of the two writes. The buffer holds (id, field) pairs only; the values are read from
+ * `readPrefs` when the timer fires, so the write carries the newest state. cancelPendingSaves
+ * empties the buffer; flushPendingSaves sends it with the other saves.
+ */
+export function saveProjectPrefs(
+  uid: string,
+  changes: { projectId: string; field: ProjectPrefField }[],
+  readPrefs: () => ProjectPrefs,
+): void {
+  for (const change of changes) pendingPrefChanges.set(JSON.stringify([change.projectId, change.field]), change)
+  debouncedSave(PREFS_SAVE_KEY, async () => {
+    const drained = [...pendingPrefChanges.values()]
+    pendingPrefChanges.clear()
+    if (!db || drained.length === 0) return
+    const { payload, mask } = buildProjectPrefsWrite(drained, readPrefs())
+    if (mask.length === 0) return
+    await setDoc(doc(db, COLLECTIONS.settings, uid), payload, { mergeFields: mask })
+  })
+}
+
+/**
+ * The local → cloud upload's write of the uploaded projects' entries, immediate and awaited
+ * (never debounced: a failure must reach the upload's errors, or the switch to cloud would
+ * happen and the first cloud load would replace the local map with the cloud's). Both fields of
+ * every entry are masked: a field the entry lacks is cleared, so an entry holding only a colour
+ * clears the cloud's `archived`. Every other cloud entry is left alone. Throws on failure.
+ */
+export async function uploadProjectPrefs(
+  uid: string,
+  entries: { projectId: string; pref: ProjectPref }[],
+): Promise<void> {
+  if (!db || entries.length === 0) return
+  const fields: ProjectPrefField[] = ['color', 'archived']
+  const changes = entries.flatMap(({ projectId }) => fields.map((field) => ({ projectId, field })))
+  const prefs = Object.fromEntries(entries.map(({ projectId, pref }) => [projectId, pref]))
+  const { payload, mask } = buildProjectPrefsWrite(changes, prefs)
+  if (mask.length === 0) return
+  await setDoc(doc(db, COLLECTIONS.settings, uid), payload, { mergeFields: mask })
 }
 
 /** Save user settings immediately (no debounce). */

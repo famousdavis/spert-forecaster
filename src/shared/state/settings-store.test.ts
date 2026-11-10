@@ -74,6 +74,7 @@ describe('settings-store', () => {
         defaultCustomPercentile2: 50,
         defaultResultsPercentiles: [50, 80],
         distributionsEnabled: ['truncatedNormal', 'bootstrap'],
+        projectPrefs: {},
       })
       expect(useSettingsStore.getState().distributionsEnabled).toEqual([
         'truncatedNormal',

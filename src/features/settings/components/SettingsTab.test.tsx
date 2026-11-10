@@ -89,6 +89,7 @@ describe('percentile1 input buffering (A3)', () => {
         defaultCustomPercentile2: 50,
         defaultResultsPercentiles: [50, 80],
         distributionsEnabled: ['lognormal'],
+        projectPrefs: {},
       })
     })
 
@@ -140,6 +141,7 @@ describe('percentile2 input buffering (A3)', () => {
         defaultCustomPercentile2: 75,  // cloud pushes 75 mid-typing
         defaultResultsPercentiles: [50, 80],
         distributionsEnabled: ['lognormal'],
+        projectPrefs: {},
       })
     })
 

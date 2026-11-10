@@ -21,6 +21,7 @@ import { ImportBanner } from './ImportBanner'
 import { ImportPreviewSection } from './ImportPreviewSection'
 import { ProjectsToolbar } from './ProjectsToolbar'
 import { HEAD_ROW, HEADING, NOTE } from './dashboard-styles'
+import { AllArchivedLine, ArchiveAnnouncer, ShowArchivedFilter } from './ArchiveControls'
 import { ProjectsEmptyState } from '@/shared/components/ProjectsEmptyState'
 import { loadSampleProject } from '../lib/sample-project'
 // Type-only: the hook is CALLED in AppShell now, not here. Importing the value would put it
@@ -28,6 +29,7 @@ import { loadSampleProject } from '../lib/sample-project'
 import type { useImportState } from '../hooks/useImportState'
 import { useProjectDialog } from '../hooks/useProjectDialog'
 import { useProjectDelete } from '../hooks/useProjectDelete'
+import { useProjectArchive } from '../hooks/useProjectArchive'
 import { useProjectTileActions } from '../hooks/useProjectTileActions'
 import { exportWorkspaceBackup } from '../lib/export-backup'
 import { useAuth } from '@/shared/providers/AuthProvider'
@@ -89,7 +91,10 @@ export function ProjectsTab({ onViewHistory, importState }: ProjectsTabProps) {
   // The tab's root, where a tile's controls are found by project id when focus must land on one.
   const rootRef = useRef<HTMLDivElement>(null)
   const dialog = useProjectDialog({ accessOf, rootRef, newProjectRef })
-  const deletion = useProjectDelete({ projects, rootRef, newProjectRef })
+  // v0.50.0: archive, "Show archived (N)" and tile colour. `archive.shown` is what the grid shows
+  // and what delete focus reads; every save still gets the full list.
+  const archive = useProjectArchive({ projects, rootRef, newProjectRef, onViewHistory, dialogOpen: dialog.open || replaceAllPending })
+  const deletion = useProjectDelete({ shown: archive.shown, rootRef, newProjectRef })
   const tileActions = useProjectTileActions()
 
   const { mode } = useStorageMode()
@@ -150,6 +155,15 @@ export function ProjectsTab({ onViewHistory, importState }: ProjectsTabProps) {
         />
       </div>
 
+      {archive.archivedCount > 0 && (
+        <ShowArchivedFilter
+          id={`${idPrefix}-show-archived`}
+          count={archive.archivedCount}
+          checked={archive.showArchived}
+          onChange={archive.setShowArchived}
+        />
+      )}
+
       {isCloudPending && (
         <p
           role="status"
@@ -198,15 +212,26 @@ export function ProjectsTab({ onViewHistory, importState }: ProjectsTabProps) {
         </p>
       )}
 
+      <ArchiveAnnouncer text={archive.status} />
+      {projects.length > 0 && archive.shown.length === 0 && <AllArchivedLine count={archive.archivedCount} />}
+
       <ProjectList
-        projects={projects}
+        projects={archive.shown}
+        allProjects={projects}
+        prefs={archive.prefs}
+        colorOpenFor={archive.colorOpenFor}
+        onColorOpenChange={archive.setColorOpen}
+        onPickColor={archive.pickColor}
+        onArchive={archive.archive}
+        onUnarchive={archive.unarchive}
         sprints={sprints}
         onEdit={dialog.openEdit}
-        onDelete={deletion.request}
+        // The Delete dialog takes over the tab: an open colour popover closes first.
+        onDelete={(projectId) => (archive.setColorOpen(projectId, false), deletion.request(projectId))}
         onExport={tileActions.exportProject}
         onClone={tileActions.clone}
         onReorder={reorderProjects}
-        onViewHistory={onViewHistory ?? (() => {})}
+        onViewHistory={archive.openProject}
         onShare={setSharingProject}
         accessOf={accessOf}
         canShare={canShare}

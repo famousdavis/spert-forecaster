@@ -9,7 +9,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { mergeCloudView, sameValue, type CloudMergePolicy, type ProjectSet } from './snapshot-merge'
-import { selectViewingProject, useProjectStore } from '@/shared/state/project-store'
+import { selectViewingProjectIgnoringArchive, useProjectStore } from '@/shared/state/project-store'
 import type { Project, Sprint } from '@/shared/types'
 
 const TS = '2026-01-01T00:00:00.000Z'
@@ -29,9 +29,10 @@ const policy = (over: Partial<CloudMergePolicy> = {}): CloudMergePolicy => ({
   isDeletePending: () => false,
   ...over,
 })
-// The project Sprint History and Forecast show when nothing is selected.
+// The project Sprint History and Forecast show when nothing is selected and nothing is archived:
+// the rule resolveViewedProject applies to the unarchived projects (renamed in v0.50.0).
 const viewed = (r: ProjectSet) =>
-  selectViewingProject({ ...useProjectStore.getState(), projects: r.projects, viewingProjectId: null })?.id
+  selectViewingProjectIgnoringArchive({ ...useProjectStore.getState(), projects: r.projects, viewingProjectId: null })?.id
 
 describe('mergeCloudView — order (known-bads: cloud order, append-last)', () => {
   it('U-M1 keeps the store order when the cloud view lists the same projects in another order', () => {

@@ -7,13 +7,29 @@
 import { useId, useMemo, useState } from 'react'
 import type { Project, Sprint } from '@/shared/types'
 import type { ProjectAccess } from '@/shared/state/project-access'
+import { isProjectArchived, projectPrefOf, reorderShown, type ProjectColor, type ProjectPrefs } from '@/shared/lib/project-prefs'
 import { accessBadge, deleteReason } from '@/features/auth/lib/access-texts'
 import { summarizeSprints, tileMetaLines } from '../lib/tile-meta'
 import { ProjectTile } from './ProjectTile'
 import { GRID, GRID_AREA } from './dashboard-styles'
 
 interface ProjectListProps {
+  /** The tiles to render: the projects this person sees (archived ones hidden unless shown). */
   projects: Project[]
+  /**
+   * Every project, in order (v0.50.0). A drag reorders the tiles shown, and the order handed to
+   * `onReorder` is this list with those slots reordered (`reorderShown`), so a hidden project
+   * keeps its slot.
+   */
+  allProjects: Project[]
+  /** This person's tile colours and archived projects. */
+  prefs: ProjectPrefs
+  /** The project whose Tile color popover is open, or null. */
+  colorOpenFor: string | null
+  onColorOpenChange: (projectId: string, open: boolean) => void
+  onPickColor: (projectId: string, color: ProjectColor | null) => boolean
+  onArchive: (project: Project) => void
+  onUnarchive: (project: Project) => void
   /**
    * Every sprint in the store (`state.sprints`, read once by the caller). Each tile's count and
    * last sprint are derived here in a `useMemo`. ⚠️ Never select per project with
@@ -46,6 +62,13 @@ interface ProjectListProps {
  */
 export function ProjectList({
   projects,
+  allProjects,
+  prefs,
+  colorOpenFor,
+  onColorOpenChange,
+  onPickColor,
+  onArchive,
+  onUnarchive,
   sprints,
   onEdit,
   onDelete,
@@ -114,7 +137,10 @@ export function ProjectList({
     const newOrder = [...projects.map((p) => p.id)]
     const [removed] = newOrder.splice(draggedIndex, 1)
     newOrder.splice(dropIndex, 0, removed)
-    onReorder(newOrder)
+    // ⚠️ `newOrder` holds the SHOWN tiles only. reorderProjects deletes every id it is not given
+    // (B29), so it gets the full list, with the shown slots reordered and each hidden project in
+    // its own slot.
+    onReorder(reorderShown(allProjects, newOrder).map((p) => p.id))
 
     setDraggedIndex(null)
     setDragOverIndex(null)
@@ -143,6 +169,13 @@ export function ProjectList({
             showShare={canShare(project.id)}
             isDragged={draggedIndex === index}
             isDropTarget={dragOverIndex === index}
+            color={projectPrefOf(prefs, project.id).color}
+            archived={isProjectArchived(prefs, project.id)}
+            colorOpen={colorOpenFor === project.id}
+            onColorOpenChange={(open) => onColorOpenChange(project.id, open)}
+            onPickColor={(color) => onPickColor(project.id, color)}
+            onArchive={onArchive}
+            onUnarchive={onUnarchive}
             onViewHistory={onViewHistory}
             onShare={onShare}
             onExport={onExport}

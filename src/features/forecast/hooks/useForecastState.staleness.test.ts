@@ -225,9 +225,9 @@ describe('Gate 6 — a publish is SUPPRESSED when the resolved project changed',
     act(() => { void result.current.handleRunForecast() })
     expect(runSimulation).toHaveBeenCalledTimes(1)
 
-    // A collaborator deletes the viewed project mid-run. selectViewingProject
-    // falls back to projects[0], so the publish-time resolution now yields a
-    // DIFFERENT project.
+    // A collaborator deletes the viewed project mid-run. The viewed project
+    // falls back to the first unarchived one (getViewedProject), so the
+    // publish-time resolution now yields a DIFFERENT project.
     act(() => {
       useProjectStore.setState({
         projects: [{

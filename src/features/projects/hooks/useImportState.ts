@@ -6,9 +6,10 @@
 
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
-import { useProjectStore } from '@/shared/state/project-store'
+import { importWriteSet, useProjectStore } from '@/shared/state/project-store'
+import { useSettingsStore } from '@/shared/state/settings-store'
 import { accessFromState, replaceAllBlockedIn, type ProjectAccess } from '@/shared/state/project-access'
-import { buildImportBannerDetails } from '../lib/import-banner'
+import { archivedImportNotes, buildImportBannerDetails } from '../lib/import-banner'
 import { getStorageMode } from '@/shared/state/storage'
 import { validateImportData, type ExportData } from '@/shared/state/import-validation'
 import { MAX_FILE_SIZE } from '@/shared/state/import-limits'
@@ -232,6 +233,12 @@ export function useImportState() {
         }
         // C28: Banner built from outcome.result.
         const { result } = outcome
+        // D35 (v0.50.0): the projects this import wrote, by the store's own rule, and which of them
+        // are archived here now (read after the store moved any entry through a name-conflict
+        // replace, D36). It changes only the message, never what is imported.
+        const after = useProjectStore.getState().projects
+        const { savedIds } = importWriteSet(after, new Set(currentProjects.map((p) => p.id)), result)
+        const archivedNotes = archivedImportNotes(savedIds, after, useSettingsStore.getState().projectPrefs)
         const parts: string[] = []
         if (result.added > 0) parts.push(`${result.added} project${result.added !== 1 ? 's' : ''} added`)
         if (result.copied > 0) parts.push(`${result.copied} copied`)
@@ -242,7 +249,7 @@ export function useImportState() {
           kind: 'success',
           text: parts.length > 0 ? parts.join(', ') + '.' : 'No projects were imported.',
           // Built from the WRITE-TIME result, never from the preview.
-          details: buildImportBannerDetails(result),
+          details: [...buildImportBannerDetails(result), ...archivedNotes],
         })
         // ⚠️ TRUE only here. The crosslink sender reports success from this flag, so it must
         // mean "the store was written", not "nothing threw" — a preview opening and a stale
@@ -266,12 +273,16 @@ export function useImportState() {
       try {
         importDataAndSelectFirstAction(imported._originalExportData, imported.projects[0]?.id)
         const n = imported.projects.length
+        // D35 (v0.50.0): Replace all writes every project in the file; a kept id keeps its entry (D34).
+        const after = useProjectStore.getState().projects
+        const archivedNotes = archivedImportNotes(after.map((p) => p.id), after, useSettingsStore.getState().projectPrefs)
         showBanner({
           kind: 'success',
           text:
             n > 0
               ? `All data replaced. ${n} project${n !== 1 ? 's' : ''} imported.`
               : 'All data replaced.',
+          ...(archivedNotes.length > 0 ? { details: archivedNotes } : {}),
         })
         return { didApply: true }
       } catch (err) {

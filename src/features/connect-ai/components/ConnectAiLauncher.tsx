@@ -25,7 +25,7 @@
 import { useCallback, useState } from 'react'
 import { isFirebaseAvailable } from '@/shared/firebase/config'
 import { useIsClient } from '@/shared/hooks'
-import { useProjectStore } from '@/shared/state/project-store'
+import { useUnarchivedProjects } from '@/shared/state/viewed-project'
 import { useAiConnectivityContext } from '../AiConnectivityProvider'
 import { AI_CONSENT_KEY, AI_CONSENT_VERSION, AI_SESSION_ID_KEY } from '../constants'
 import { ConnectAiConsentModal } from './ConnectAiConsentModal'
@@ -34,7 +34,9 @@ import { ConnectAiPanel } from './ConnectAiPanel'
 export function ConnectAiLauncher() {
   const isClient = useIsClient()
   const connectivity = useAiConnectivityContext()
-  const projectCount = useProjectStore((s) => s.projects.length)
+  // v0.50.0: UNARCHIVED projects. With every project archived there is no viewed project, and
+  // startSession would refuse the start the button offers.
+  const projectCount = useUnarchivedProjects().length
   const [showConsent, setShowConsent] = useState(false)
   const [showPanel, setShowPanel] = useState(false)
   const [startError, setStartError] = useState(false)
@@ -87,7 +89,7 @@ export function ConnectAiLauncher() {
     [startSession]
   )
 
-  // Rendered only with Firebase configured AND at least one project to share.
+  // Rendered only with Firebase configured AND at least one unarchived project to share.
   // The siblings cannot reach a no-project state — their headers live inside
   // a project — so a button that opens a dialog saying "create a project
   // first" would be a Forecaster-only wart.

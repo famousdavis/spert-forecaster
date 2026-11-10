@@ -5,7 +5,8 @@
 'use client'
 
 import { useMemo } from 'react'
-import { useProjectStore, selectViewingProject } from '@/shared/state/project-store'
+import { useProjectStore } from '@/shared/state/project-store'
+import { useViewedProject } from '@/shared/state/viewed-project'
 import type { VelocityStats, ForecastMode, Sprint } from '@/shared/types'
 import { deriveForecastInputs } from '@/shared/lib/forecast-derivations'
 
@@ -29,7 +30,7 @@ export function useForecastInputs(
   includedSprintCount: number,
   sprints: Sprint[]
 ) {
-  const selectedProject = useProjectStore(selectViewingProject)
+  const selectedProject = useViewedProject()
   const setForecastInput = useProjectStore((state) => state.setForecastInput)
   const forecastInputs = useProjectStore((state) =>
     selectedProject ? state.forecastInputs[selectedProject.id] : undefined

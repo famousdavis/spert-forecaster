@@ -14,6 +14,17 @@ function makeProject(id: string, name: string): Project {
 
 const NOOP = () => {}
 
+/** v0.50.0's props with nothing archived or coloured: every project shown, no popover open. */
+const NO_ARCHIVE = (projects: Project[]) => ({
+  allProjects: projects,
+  prefs: {},
+  colorOpenFor: null,
+  onColorOpenChange: NOOP,
+  onPickColor: () => true,
+  onArchive: NOOP,
+  onUnarchive: NOOP,
+})
+
 /**
  * jsdom implements no DragEvent, so testing-library falls back to a plain Event.
  * dataTransfer is the one init key it does attach to the event, and ProjectList
@@ -30,14 +41,16 @@ function fireDrag(type: 'dragStart' | 'dragOver' | 'drop', el: Element) {
 }
 
 function renderList(onReorder: (ids: string[]) => void) {
+  const projects = [
+    makeProject('p-1', 'Alpha'),
+    makeProject('p-2', 'Bravo'),
+    makeProject('p-3', 'Charlie'),
+    makeProject('p-4', 'Delta'),
+  ]
   const { container } = render(
     <ProjectList
-      projects={[
-        makeProject('p-1', 'Alpha'),
-        makeProject('p-2', 'Bravo'),
-        makeProject('p-3', 'Charlie'),
-        makeProject('p-4', 'Delta'),
-      ]}
+      projects={projects}
+      {...NO_ARCHIVE(projects)}
       onEdit={NOOP}
       onDelete={NOOP}
       onExport={NOOP}
@@ -147,9 +160,11 @@ describe('ProjectList — drag to reorder lands the project in the boxed slot', 
 const classes = (el: Element | null) => (el?.getAttribute('class') ?? '').split(/\s+/).filter(Boolean)
 
 function renderTiles(opts: { canShare?: (id: string) => boolean } = {}) {
+  const projects = [makeProject('p-1', 'Alpha'), makeProject('p-2', 'Bravo')]
   const { container } = render(
     <ProjectList
-      projects={[makeProject('p-1', 'Alpha'), makeProject('p-2', 'Bravo')]}
+      projects={projects}
+      {...NO_ARCHIVE(projects)}
       sprints={[]}
       onEdit={NOOP}
       onDelete={NOOP}
@@ -174,8 +189,9 @@ describe('ProjectList — the revealed row (v0.49.0; was the Share slot, v0.48.2
     // Until v0.49.0 a 28 px placeholder lined rows up in a single-column list (B37).
     const { tiles } = renderTiles({ canShare: (id) => id === 'p-1' })
     const labels = (tile: Element) => Array.from(revealRowOf(tile).children).map((el) => el.getAttribute('aria-label'))
-    expect(labels(tiles[0])).toEqual(['Share project', 'Export Alpha', 'Edit Alpha', 'Clone Alpha'])
-    expect(labels(tiles[1])).toEqual(['Export Bravo', 'Edit Bravo', 'Clone Bravo'])
+    // v0.50.0 (D4): Archive and Tile color follow Clone. REWRITTEN in v0.50.0 from the four and three labels of v0.49.0.
+    expect(labels(tiles[0])).toEqual(['Share project', 'Export Alpha', 'Edit Alpha', 'Clone Alpha', 'Archive Alpha', 'Tile color for Alpha: No color'])
+    expect(labels(tiles[1])).toEqual(['Export Bravo', 'Edit Bravo', 'Clone Bravo', 'Archive Bravo', 'Tile color for Bravo: No color'])
     expect(tiles[1].querySelector('[aria-hidden="true"].size-7')).toBeNull()
   })
 })

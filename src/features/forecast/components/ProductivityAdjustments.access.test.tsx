@@ -15,7 +15,8 @@ vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }))
 import { toast } from 'sonner'
 import { render, screen, fireEvent, cleanup, act, within } from '@testing-library/react'
 import { ProductivityAdjustments } from './ProductivityAdjustments'
-import { useProjectStore, selectViewingProject } from '@/shared/state/project-store'
+import { useProjectStore } from '@/shared/state/project-store'
+import { useViewedProject } from '@/shared/state/viewed-project'
 import { syncBus } from '@/shared/firebase/sync-bus'
 import type { SyncEvent } from '@/shared/firebase/types'
 import { useStorageModeStore } from '@/shared/state/storage-mode-store'
@@ -150,9 +151,9 @@ describe('V10 — the form is tied to the project it was opened for', () => {
     vi.spyOn(syncBus, 'emit').mockImplementation((ev: SyncEvent) => { emitted.push(ev) })
   })
   afterEach(() => vi.restoreAllMocks())
-  /** As ForecastTab wires it: the project on screen (selectViewingProject), no key. */
+  /** As ForecastTab wires it: the project on screen (useViewedProject, archive-aware since v0.50.0), no key. REWIRED in v0.50.0. */
   function Shown() {
-    const shown = useProjectStore(selectViewingProject)
+    const shown = useViewedProject()
     return shown ? <ProductivityAdjustments projectId={shown.id} /> : null
   }
   /** P (editable, on screen) and Quartz. */

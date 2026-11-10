@@ -8,6 +8,17 @@ import { storage } from './storage'
 import { type ChartFontSize, DEFAULT_CHART_FONT_SIZE, type DistributionType } from '@/shared/types/burn-up'
 import { DEFAULT_TRIAL_COUNT, DEFAULT_SELECTED_PERCENTILES, SELECTABLE_PERCENTILES } from '@/features/forecast/constants'
 import { syncBus } from '@/shared/firebase/sync-bus'
+import {
+  MAX_PROJECT_PREFS,
+  PROJECT_COLORS,
+  isUnsafePrefKey,
+  projectPrefOf,
+  sanitizeProjectPrefs,
+  type ProjectColor,
+  type ProjectPref,
+  type ProjectPrefField,
+  type ProjectPrefs,
+} from '@/shared/lib/project-prefs'
 
 const SETTINGS_STORAGE_KEY = 'spert-settings'
 
@@ -43,6 +54,10 @@ interface SettingsState {
   // Notifications (local-only)
   suppressLocalStorageWarning: boolean
 
+  // This person's tile colours and archived projects (v0.50.0), keyed by project id.
+  // Written to the cloud entry by entry (`prefs:save`), never with the seven fields above.
+  projectPrefs: ProjectPrefs
+
   // Cloud sync flag (transient)
   _isCloudUpdate: boolean
 
@@ -58,6 +73,19 @@ interface SettingsState {
   setExportId: (value: string) => void
   setSuppressLocalStorageWarning: (value: boolean) => void
 
+  // Tile colour and archive (v0.50.0). Each returns whether it applied: false for an unsafe
+  // key, an unknown colour, or a new entry past MAX_PROJECT_PREFS. No role guard (D31): they
+  // change only this person's settings, never a project.
+  /** A colour, or null for none. */
+  setProjectColor: (projectId: string, color: ProjectColor | null) => boolean
+  setProjectArchived: (projectId: string, archived: boolean) => boolean
+  /** A deleted project's entry goes with it. */
+  dropProjectPref: (projectId: string) => boolean
+  /** A clone takes its source's colour, never its archive. */
+  copyProjectColor: (fromId: string, toId: string) => boolean
+  /** D36: the target becomes exactly the source's entry (removed when the source has none), and the source goes. */
+  moveProjectPref: (fromId: string, toId: string) => boolean
+
   // Sign-out action — clears user-identifying attribution fields so they
   // don't persist to the next user on a shared browser (F2/F3).
   clearSettingsOnSignOut: () => void
@@ -71,6 +99,7 @@ interface SettingsState {
     defaultCustomPercentile2: number
     defaultResultsPercentiles: number[]
     distributionsEnabled: DistributionType[]
+    projectPrefs: ProjectPrefs
   }) => void
 }
 
@@ -80,9 +109,51 @@ function emitSettingsSave(isCloudUpdate: boolean): void {
   }
 }
 
+/** The fields of `before` and `after` that differ. */
+function changedFields(before: ProjectPref, after: ProjectPref): ProjectPrefField[] {
+  const fields: ProjectPrefField[] = []
+  if (before.color !== after.color) fields.push('color')
+  if (before.archived !== after.archived) fields.push('archived')
+  return fields
+}
+
+/**
+ * The map with these entries set (an empty entry removes its key), and the (id, field) pairs
+ * that changed; null when the result would grow past MAX_PROJECT_PREFS.
+ */
+function withEntries(
+  prefs: ProjectPrefs,
+  entries: [string, ProjectPref][],
+): { prefs: ProjectPrefs; changes: { projectId: string; field: ProjectPrefField }[] } | null {
+  const next: ProjectPrefs = { ...prefs }
+  const changes: { projectId: string; field: ProjectPrefField }[] = []
+  for (const [projectId, after] of entries) {
+    const before = projectPrefOf(next, projectId)
+    for (const field of changedFields(before, after)) changes.push({ projectId, field })
+    const entry: ProjectPref = {}
+    if (after.color) entry.color = after.color
+    if (after.archived) entry.archived = true
+    if (entry.color || entry.archived) next[projectId] = entry
+    else delete next[projectId]
+  }
+  const size = Object.keys(next).length
+  if (size > MAX_PROJECT_PREFS && size > Object.keys(prefs).length) return null
+  return { prefs: next, changes }
+}
+
 export const useSettingsStore = create<SettingsState>()(
   persist(
-    (set, get) => ({
+    (set, get) => {
+      /** Sets these entries and emits the pairs that changed. False when refused (the bound). */
+      const applyEntries = (entries: [string, ProjectPref][]): boolean => {
+        const next = withEntries(get().projectPrefs, entries)
+        if (!next) return false
+        if (next.changes.length === 0) return true
+        set({ projectPrefs: next.prefs })
+        if (!get()._isCloudUpdate) syncBus.emit({ type: 'prefs:save', changes: next.changes })
+        return true
+      }
+      return {
       // Defaults
       autoRecalculate: true,
       trialCount: DEFAULT_TRIAL_COUNT as TrialCount,
@@ -106,6 +177,8 @@ export const useSettingsStore = create<SettingsState>()(
 
       // Notifications (local-only)
       suppressLocalStorageWarning: false,
+
+      projectPrefs: {},
 
       _isCloudUpdate: false,
 
@@ -150,9 +223,45 @@ export const useSettingsStore = create<SettingsState>()(
       setExportId: (value) => set({ exportId: value }),
       setSuppressLocalStorageWarning: (value) => set({ suppressLocalStorageWarning: value }),
 
-      // Attribution-only reset. Simulation/display preferences are per-browser
-      // defaults and safe to carry forward across sign-outs.
-      clearSettingsOnSignOut: () => set({ exportName: '', exportId: '' }),
+      // Tile colour and archive. Each change is its own sync event, carrying the (id, field)
+      // pairs it changed — never `settings:save`, which writes the seven fields above.
+      setProjectColor: (projectId, color) => {
+        if (isUnsafePrefKey(projectId)) return false
+        if (color !== null && !PROJECT_COLORS.includes(color)) return false
+        const before = projectPrefOf(get().projectPrefs, projectId)
+        return applyEntries([[projectId, { ...before, color: color ?? undefined }]])
+      },
+      setProjectArchived: (projectId, archived) => {
+        if (isUnsafePrefKey(projectId)) return false
+        const before = projectPrefOf(get().projectPrefs, projectId)
+        return applyEntries([[projectId, { ...before, archived: archived ? true : undefined }]])
+      },
+      dropProjectPref: (projectId) => {
+        if (isUnsafePrefKey(projectId)) return false
+        return applyEntries([[projectId, {}]])
+      },
+      copyProjectColor: (fromId, toId) => {
+        if (isUnsafePrefKey(fromId) || isUnsafePrefKey(toId)) return false
+        const prefs = get().projectPrefs
+        const color = projectPrefOf(prefs, fromId).color
+        return applyEntries([[toId, { ...projectPrefOf(prefs, toId), color }]])
+      },
+      moveProjectPref: (fromId, toId) => {
+        if (isUnsafePrefKey(fromId) || isUnsafePrefKey(toId)) return false
+        if (fromId === toId) return true
+        const source = projectPrefOf(get().projectPrefs, fromId)
+        return applyEntries([[fromId, {}], [toId, source]])
+      },
+
+      // Sign-out and account change (the two callers): the attribution, and this person's
+      // tile colours and archive, so the next account on this browser inherits neither
+      // (RISK-G2). Straight to set(), emitting nothing: at sign-out the sync bus is still
+      // subscribed after cancelPendingSaves (AuthProvider), so an emitting clear would queue
+      // deletes into the signed-out account's settings document. Simulation and display
+      // preferences are per-browser defaults and safe to carry forward. The two cloud→local
+      // switches do NOT call this: they keep the map, so a backup restored after the switch
+      // gets its colours back (D34).
+      clearSettingsOnSignOut: () => set({ exportName: '', exportId: '', projectPrefs: {} }),
 
       replaceSettingsFromCloud: (settings) => {
         set({
@@ -162,9 +271,17 @@ export const useSettingsStore = create<SettingsState>()(
         // Defer reset so all synchronous Zustand subscribers see the flag
         queueMicrotask(() => set({ _isCloudUpdate: false }))
       },
-    }),
+      }
+    },
     {
       name: SETTINGS_STORAGE_KEY,
+      // The default merge (`{ ...current, ...persisted }`), with the map sanitised: a corrupted
+      // or hand-edited `spert-settings` never puts a bad entry or an unsafe key in the store.
+      // Every other persisted setting comes through as before.
+      merge: (persisted, current) => {
+        const stored = persisted && typeof persisted === 'object' ? (persisted as Partial<SettingsState>) : {}
+        return { ...current, ...stored, projectPrefs: sanitizeProjectPrefs(stored.projectPrefs) }
+      },
       storage: {
         getItem: (name) => {
           const str = storage.getItem(name)

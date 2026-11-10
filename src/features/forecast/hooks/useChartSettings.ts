@@ -5,7 +5,8 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { useProjectStore, selectViewingProject } from '@/shared/state/project-store'
+import { useProjectStore } from '@/shared/state/project-store'
+import { useViewedProject } from '@/shared/state/viewed-project'
 import { useSettingsStore } from '@/shared/state/settings-store'
 import { type ChartFontSize } from '@/shared/types/burn-up'
 import { DEFAULT_BURN_UP_CONFIG, type BurnUpConfig } from '../types'
@@ -15,7 +16,7 @@ import { DEFAULT_BURN_UP_CONFIG, type BurnUpConfig } from '../types'
  * Session-only — not persisted to localStorage.
  */
 export function useChartSettings() {
-  const selectedProject = useProjectStore(selectViewingProject)
+  const selectedProject = useViewedProject()
 
   // Burn-up config (per project, session only)
   const setBurnUpConfigStore = useProjectStore((state) => state.setBurnUpConfig)

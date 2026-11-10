@@ -15,6 +15,7 @@ import { DISTRIBUTION_TYPES } from '@/shared/types/burn-up'
 import { SCHEMA_VERSION } from './types'
 import { sanitizeForFirestore } from './firestore-sanitize'
 import { normalizeUpdatedAt } from './updated-at'
+import { sanitizeProjectPrefs, type ProjectPrefs } from '@/shared/lib/project-prefs'
 
 /** Convert a Zustand project + its sprints into a Firestore document (for saving). */
 export function projectToFirestoreDoc(
@@ -112,7 +113,14 @@ export function settingsToFirestoreDoc(settings: {
   }
 }
 
-/** Convert Firestore settings doc back to partial Zustand settings. */
+/**
+ * Convert Firestore settings doc back to partial Zustand settings.
+ *
+ * `projectPrefs` (v0.50.0) is ALWAYS returned, sanitised, and `{}` when the document has none or
+ * holds something unusable, so replaceSettingsFromCloud replaces a stale local map rather than
+ * keeping it. Never throws. The v0.47.6 cloud-load guard does not check settings documents, so
+ * sanitizeProjectPrefs is the only check on this field.
+ */
 export function firestoreDocToSettings(doc: FirestoreSettingsDoc): {
   autoRecalculate: boolean
   trialCount: TrialCount
@@ -121,6 +129,7 @@ export function firestoreDocToSettings(doc: FirestoreSettingsDoc): {
   defaultCustomPercentile2: number
   defaultResultsPercentiles: number[]
   distributionsEnabled: DistributionType[]
+  projectPrefs: ProjectPrefs
 } {
   // Defensive two-layer coercion for distributionsEnabled (Delta A):
   // 1. Filter to known DistributionType values (guards against corrupted/forward-migrated keys).
@@ -144,5 +153,6 @@ export function firestoreDocToSettings(doc: FirestoreSettingsDoc): {
     defaultCustomPercentile2: doc.defaultCustomPercentile2,
     defaultResultsPercentiles: doc.defaultResultsPercentiles,
     distributionsEnabled,
+    projectPrefs: sanitizeProjectPrefs(doc.projectPrefs),
   }
 }
