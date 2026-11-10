@@ -29,6 +29,9 @@ import { ConsentModal } from '@/features/auth/components/ConsentModal'
 import { ConnectAiConsentModal } from '@/features/connect-ai/components/ConnectAiConsentModal'
 import { ConnectAiPanel } from '@/features/connect-ai/components/ConnectAiPanel'
 import { CloudStorageModal } from '@/features/auth/components/CloudStorageModal'
+import { ProjectDialog } from '@/features/projects/components/ProjectDialog'
+import { ProjectForm } from '@/features/projects/components/ProjectForm'
+import { useState } from 'react'
 
 type Spies = Record<'1' | '3' | '?', Mock<() => void>>
 
@@ -60,7 +63,26 @@ const SURFACES: Array<{ name: string; ariaModal: boolean; el: () => ReactElement
   { name: 'the keyboard shortcuts help', ariaModal: true, el: () => <KeyboardShortcutsHelp isOpen onClose={vi.fn()} shortcuts={[]} /> },
   { name: 'the cloud terms consent dialog', ariaModal: true, el: () => <ConsentModal onAccept={vi.fn()} onCancel={vi.fn()} /> },
   { name: 'the Connect AI consent dialog', ariaModal: true, el: () => <ConnectAiConsentModal open onCancel={vi.fn()} onConfirm={vi.fn()} /> },
+  {
+    name: 'the New Project / Edit Project dialog (v0.49.0)',
+    ariaModal: true,
+    el: () => (
+      <ProjectDialog identity="new" title="New Project" readOnly={false} onCancel={vi.fn()} returnFocusTo={() => null}>
+        <ProjectForm project={null} onSubmit={vi.fn()} onCancel={vi.fn()} />
+      </ProjectDialog>
+    ),
+  },
 ]
+
+/** The project dialog as ProjectsTab holds it: open until its own Cancel closes it. */
+function ProjectDialogParent() {
+  const [open, setOpen] = useState(true)
+  return open ? (
+    <ProjectDialog identity="new" title="New Project" readOnly={false} onCancel={() => setOpen(false)} returnFocusTo={() => null}>
+      <ProjectForm project={null} onSubmit={vi.fn()} onCancel={() => setOpen(false)} />
+    </ProjectDialog>
+  ) : null
+}
 
 describe('useKeyboardShortcuts', () => {
   it.each(KEYS)('with no dialog open, "%s" reaches its page shortcut', (key) => {
@@ -122,6 +144,17 @@ describe('useKeyboardShortcuts', () => {
       press(key)
       expect(spies[key]).toHaveBeenCalledTimes(1)
     })
+  })
+
+  it('the project dialog, closed by its OWN Cancel (not by unmounting): "3" waits while it is open, then reaches the page', () => {
+    const { spies, shortcuts } = makeShortcuts()
+    render(<><Probe shortcuts={shortcuts} /><ProjectDialogParent /></>)
+    press('3', screen.getByRole('button', { name: 'Cancel' }))
+    expect(spies['3']).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect([screen.queryByRole('dialog'), isModalSurfaceOpen()]).toEqual([null, false])
+    press('3')
+    expect(spies['3']).toHaveBeenCalledTimes(1)
   })
 
   it('the help dialog still closes on Escape and its close button while "?" waits', () => {

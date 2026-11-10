@@ -43,6 +43,7 @@ function renderList(onReorder: (ids: string[]) => void) {
       onExport={NOOP}
       onClone={NOOP}
       onReorder={onReorder}
+      sprints={[]}
       onViewHistory={NOOP}
       accessOf={() => 'owner'}
       canShare={() => false}
@@ -143,33 +144,91 @@ describe('ProjectList — drag to reorder lands the project in the boxed slot', 
   })
 })
 
-describe('ProjectList — the Share slot (v0.48.2)', () => {
-  it('a row without Share keeps a 28 px placeholder, the same size token as the Share button beside it', () => {
-    // Local mode never shows Share, so a browser has not seen the two rows side by side: this pins
-    // the alignment instead. Both carry `size-7` (28 px); before v0.48.2 the placeholder was w-8 h-8.
-    const { container } = render(
-      <ProjectList
-        projects={[makeProject('p-1', 'Alpha'), makeProject('p-2', 'Bravo')]}
-        onEdit={NOOP}
-        onDelete={NOOP}
-        onExport={NOOP}
-        onClone={NOOP}
-        onReorder={NOOP}
-        onViewHistory={NOOP}
-        onShare={NOOP}
-        accessOf={() => 'owner'}
-        canShare={(id) => id === 'p-1'}
-      />,
+const classes = (el: Element | null) => (el?.getAttribute('class') ?? '').split(/\s+/).filter(Boolean)
+
+function renderTiles(opts: { canShare?: (id: string) => boolean } = {}) {
+  const { container } = render(
+    <ProjectList
+      projects={[makeProject('p-1', 'Alpha'), makeProject('p-2', 'Bravo')]}
+      sprints={[]}
+      onEdit={NOOP}
+      onDelete={NOOP}
+      onExport={NOOP}
+      onClone={NOOP}
+      onReorder={NOOP}
+      onViewHistory={NOOP}
+      onShare={NOOP}
+      accessOf={() => 'owner'}
+      canShare={opts.canShare ?? (() => false)}
+    />,
+  )
+  return { container, tiles: Array.from(container.querySelectorAll<HTMLElement>('[data-tile="true"]')) }
+}
+
+/** A tile's revealed row: the wrapper around its Export button. */
+const revealRowOf = (tile: Element) => tile.querySelector('button[aria-label^="Export "]')!.parentElement!
+
+describe('ProjectList — the revealed row (v0.49.0; was the Share slot, v0.48.2)', () => {
+  it('Share (cloud owner) comes first in the revealed row; without it, Export is first and no placeholder holds its place', () => {
+    // GanttApp's tile and the reviewed mock-up keep no placeholder: the row starts at Export.
+    // Until v0.49.0 a 28 px placeholder lined rows up in a single-column list (B37).
+    const { tiles } = renderTiles({ canShare: (id) => id === 'p-1' })
+    const labels = (tile: Element) => Array.from(revealRowOf(tile).children).map((el) => el.getAttribute('aria-label'))
+    expect(labels(tiles[0])).toEqual(['Share project', 'Export Alpha', 'Edit Alpha', 'Clone Alpha'])
+    expect(labels(tiles[1])).toEqual(['Export Bravo', 'Edit Bravo', 'Clone Bravo'])
+    expect(tiles[1].querySelector('[aria-hidden="true"].size-7')).toBeNull()
+  })
+})
+
+// jsdom loads no CSS, so these pin the CLASS PAIRS that make the dashboard behave, not the pixels.
+// Each half of a pair is useless alone, and a guard on one half passes while the page is wrong.
+// The release measured the rendering in a browser.
+describe('ProjectList — class guards (the pairs, not just the strings)', () => {
+  it('the revealed row shows on tile hover, on focus inside the tile, and always without hover, AND the tile root is the group it reads', () => {
+    const { tiles } = renderTiles()
+    const row = revealRowOf(tiles[0])
+    expect(classes(row)).toEqual(
+      expect.arrayContaining(['opacity-0', 'group-hover/tile:opacity-100', 'group-focus-within/tile:opacity-100', '[@media(hover:none)]:opacity-100']),
     )
-    const [alpha, bravo] = Array.from(container.querySelectorAll('[data-tile="true"]'))
-    const share = alpha.querySelector('button[aria-label="Share project"]')!
-    const slot = bravo.querySelector('button[aria-label="Export Bravo"]')!.parentElement!.previousElementSibling!
-    expect(bravo.querySelector('button[aria-label="Share project"]')).toBeNull()
-    expect(slot.tagName).toBe('DIV')
-    expect(slot.getAttribute('aria-hidden')).toBe('true')
-    const classes = (el: Element) => (el.getAttribute('class') ?? '').split(/\s+/)
-    expect(classes(share)).toContain('size-7')
-    expect(classes(slot)).toEqual(expect.arrayContaining(['size-7', 'flex-none']))
-    expect(classes(slot)).not.toContain('w-8')
+    // The pairing: the nearest `group/tile` above the row is the tile root itself.
+    expect(row.parentElement!.closest('.group\\/tile')).toBe(tiles[0])
+    expect(classes(tiles[0])).toContain('group/tile')
+  })
+
+  it('the grid\'s column queries are answered by an ANCESTOR carrying @container, never by the grid itself', () => {
+    const { container } = renderTiles()
+    const grid = container.querySelector('ul[aria-label="Projects"]')!
+    expect(classes(grid)).toEqual(expect.arrayContaining(['grid-cols-1', '@min-[560px]:grid-cols-2', '@min-[860px]:grid-cols-3', 'gap-4']))
+    expect(classes(grid)).not.toContain('@container')
+    expect(grid.parentElement!.closest('.\\@container')).not.toBeNull()
+  })
+
+  it('the name button\'s ::after covers the tile (the root is relative), and the grip, Delete and the revealed row sit above it', () => {
+    const { tiles } = renderTiles()
+    const tile = tiles[0]
+    const open = tile.querySelector('button[aria-label^="View history for "]')!
+    expect(classes(tile)).toContain('relative')
+    expect(classes(open)).toEqual(expect.arrayContaining(['after:absolute', 'after:inset-0', "after:content-['']"]))
+    const grip = tile.querySelector('[draggable="true"]')!
+    const deleteWrap = tile.querySelector('button[aria-label^="Delete "]')!.parentElement!
+    for (const el of [grip, deleteWrap, revealRowOf(tile)]) {
+      expect(classes(el), el.outerHTML.slice(0, 60)).toEqual(expect.arrayContaining(['relative', 'z-[1]']))
+    }
+  })
+
+  it('the drop box REPLACES the border colour and its hover, in both themes (known-bad: a dark: border left beside it)', () => {
+    const { tiles } = renderTiles()
+    fireDrag('dragStart', tiles[0].querySelector('[draggable="true"]')!)
+    fireDrag('dragOver', tiles[1])
+    const borderColour = (el: Element) => classes(el).filter((c) => /^(dark:)?(hover:)?border-(?!2$)/.test(c))
+    expect(borderColour(tiles[1])).toEqual(['border-spert-blue'])
+    // Control: the tile at rest carries the rest colours and the hover's, and no drop box.
+    expect(borderColour(tiles[0])).toEqual(['border-[#eee]', 'dark:border-[#2d3748]', 'hover:border-[#93c5fd]', 'dark:hover:border-[#3b82f6]'])
+  })
+
+  it('the dragged tile shows at half opacity (B26)', () => {
+    const { tiles } = renderTiles()
+    fireDrag('dragStart', tiles[0].querySelector('[draggable="true"]')!)
+    expect([classes(tiles[0]).includes('opacity-50'), classes(tiles[1]).includes('opacity-50')]).toEqual([true, false])
   })
 })

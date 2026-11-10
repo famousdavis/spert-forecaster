@@ -4,12 +4,24 @@
 
 'use client'
 
-import { forwardRef, useId, useImperativeHandle, useRef, useState } from 'react'
+import { useId, useState } from 'react'
 import { cn } from '@/lib/utils'
 import type { Project } from '@/shared/types'
 import { DEFAULT_UNIT_OF_MEASURE } from '../constants'
 import { isValidDateRange } from '@/shared/lib/dates'
 import { MAX_STRING_LENGTH } from '@/shared/state/import-limits'
+import {
+  DIALOG_BUTTONS,
+  DIALOG_CANCEL,
+  DIALOG_SUBMIT,
+  FIELD,
+  HINT,
+  INPUT_BASE,
+  INPUT_BORDER,
+  INPUT_BORDER_ERROR,
+  LABEL,
+  REASON,
+} from './dashboard-styles'
 
 // The form stores the TRIMMED name and unit, so the trimmed length is the one to
 // bound. `maxLength` stops typing past the limit, but it never flags a value
@@ -32,27 +44,14 @@ interface ProjectFormProps {
 }
 
 /**
- * Imperative handle exposed via forwardRef. Callers in v0.31.1 use this to focus the
- * name field when the user clicks "Create New Project" from a sibling tab's empty state
- * (see useProjectStore.shouldFocusNewProjectForm handoff).
+ * The project's fields, inside the New Project / Edit Project dialog (v0.49.0; `ProjectDialog`
+ * owns the title, the focus and the keys). Until v0.49.0 this was an inline card above the list.
+ * Cancel comes first, then Add Project / Update Project, which stays disabled while the form is
+ * invalid. Enter in a field saves (the form's own submit), Escape cancels (the dialog).
  */
-export interface ProjectFormHandle {
-  focusNameInput: () => void
-}
-
-export const ProjectForm = forwardRef<ProjectFormHandle, ProjectFormProps>(function ProjectForm(
-  { project, onSubmit, onCancel, readOnlyReason },
-  ref,
-) {
-  const nameInputRef = useRef<HTMLInputElement | null>(null)
+export function ProjectForm({ project, onSubmit, onCancel, readOnlyReason }: ProjectFormProps) {
   const reasonId = useId()
   const readOnly = !!readOnlyReason
-
-  useImperativeHandle(ref, () => ({
-    focusNameInput: () => {
-      nameInputRef.current?.focus()
-    },
-  }), [])
 
   const [name, setName] = useState(project?.name ?? '')
   const [projectStartDate, setProjectStartDate] = useState(project?.projectStartDate ?? '')
@@ -140,17 +139,15 @@ export const ProjectForm = forwardRef<ProjectFormHandle, ProjectFormProps>(funct
   const isEditing = project !== null
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      aria-describedby={readOnly ? reasonId : undefined}
-      className="rounded-lg border border-border dark:border-gray-700 p-4 bg-spert-bg-input dark:bg-gray-800"
-    >
+    <form onSubmit={handleSubmit} aria-describedby={readOnly ? reasonId : undefined}>
+      {/* An empty date's mm/dd/yyyy in the dialog's grey (4.5:1), a filled one in the text colour,
+          as GanttApp's dialog (`projects-tab.css`, `.pt-date`). */}
       <style jsx>{`
         input[type="date"]::-webkit-datetime-edit-text,
         input[type="date"]::-webkit-datetime-edit-month-field,
         input[type="date"]::-webkit-datetime-edit-day-field,
         input[type="date"]::-webkit-datetime-edit-year-field {
-          color: #999;
+          color: #666;
         }
         input[type="date"].has-value::-webkit-datetime-edit-text,
         input[type="date"].has-value::-webkit-datetime-edit-month-field,
@@ -162,74 +159,75 @@ export const ProjectForm = forwardRef<ProjectFormHandle, ProjectFormProps>(funct
         :global(.dark) input[type="date"]::-webkit-datetime-edit-month-field,
         :global(.dark) input[type="date"]::-webkit-datetime-edit-day-field,
         :global(.dark) input[type="date"]::-webkit-datetime-edit-year-field {
-          color: #737373;
+          color: #a0aec0;
         }
         :global(.dark) input[type="date"].has-value::-webkit-datetime-edit-text,
         :global(.dark) input[type="date"].has-value::-webkit-datetime-edit-month-field,
         :global(.dark) input[type="date"].has-value::-webkit-datetime-edit-day-field,
         :global(.dark) input[type="date"].has-value::-webkit-datetime-edit-year-field {
-          color: #e5e5e5;
+          color: #e2e8f0;
         }
       `}</style>
 
       {readOnlyReason && (
-        <p id={reasonId} className="mb-3 text-sm text-spert-text-secondary dark:text-gray-300">
+        <p id={reasonId} className={REASON}>
           {readOnlyReason}
         </p>
       )}
 
-      <div className="flex gap-4 items-start flex-wrap">
-        {/* Project Name - wider */}
-        <div className="flex-[1_1_300px] min-w-[250px]">
-          <label htmlFor="name" className="block mb-1 text-sm font-semibold text-spert-text-secondary">
-            Project Name
-          </label>
-          <input
-            id="name"
-            ref={nameInputRef}
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            disabled={readOnly}
-            className="p-2 text-[0.9rem] border border-spert-border dark:border-gray-600 rounded w-full bg-white dark:bg-gray-700 dark:text-gray-100 disabled:cursor-not-allowed disabled:bg-spert-bg-disabled dark:disabled:bg-gray-700"
-            placeholder="Project name"
-            maxLength={MAX_STRING_LENGTH}
-            required
-          />
-        </div>
+      <div className={FIELD}>
+        <label htmlFor="name" className={LABEL}>
+          Project Name
+        </label>
+        {/* App-domain text: no autocomplete (form hygiene; ProjectForm.bounds.test.tsx). */}
+        <input
+          id="name"
+          name="projectName"
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          disabled={readOnly}
+          className={cn(INPUT_BASE, INPUT_BORDER)}
+          placeholder="Project name"
+          maxLength={MAX_STRING_LENGTH}
+          required
+        />
+      </div>
 
-        {/* Unit of Measure */}
-        <div className="flex-[0_0_130px]">
-          <label htmlFor="unitOfMeasure" className="block mb-1 text-sm font-semibold text-spert-text-secondary">
-            Unit of Measure
-          </label>
-          <input
-            id="unitOfMeasure"
-            type="text"
-            value={unitOfMeasure}
-            onChange={(e) => setUnitOfMeasure(e.target.value)}
-            disabled={readOnly}
-            className="p-2 text-[0.9rem] border border-spert-border dark:border-gray-600 rounded w-full bg-white dark:bg-gray-700 dark:text-gray-100 disabled:cursor-not-allowed disabled:bg-spert-bg-disabled dark:disabled:bg-gray-700"
-            placeholder="story points"
-            maxLength={MAX_STRING_LENGTH}
-            required
-          />
-        </div>
+      <div className={FIELD}>
+        <label htmlFor="unitOfMeasure" className={LABEL}>
+          Unit of Measure
+        </label>
+        <input
+          id="unitOfMeasure"
+          name="unitOfMeasure"
+          type="text"
+          value={unitOfMeasure}
+          onChange={(e) => setUnitOfMeasure(e.target.value)}
+          disabled={readOnly}
+          className={cn(INPUT_BASE, INPUT_BORDER, 'max-w-[240px]')}
+          placeholder="story points"
+          maxLength={MAX_STRING_LENGTH}
+          required
+        />
+      </div>
 
-        {/* Start Date */}
-        <div className="flex-[0_0_150px]">
-          <label htmlFor="projectStartDate" className="block mb-1 text-sm font-semibold text-spert-text-secondary">
-            Start Date (Optional)
+      <div className="flex flex-wrap gap-x-4">
+        <div className={FIELD}>
+          <label htmlFor="projectStartDate" className={LABEL}>
+            Start Date <span className="font-normal">(Optional)</span>
           </label>
           <input
             id="projectStartDate"
+            name="projectStartDate"
             type="date"
             value={projectStartDate}
             disabled={readOnly}
             className={cn(
-              'p-2 text-[0.9rem] rounded w-[150px] text-spert-text dark:text-gray-100 bg-white dark:bg-gray-700 disabled:cursor-not-allowed disabled:bg-spert-bg-disabled dark:disabled:bg-gray-700',
+              INPUT_BASE,
+              'w-[200px] max-w-full',
               projectStartDate ? 'has-value' : '',
-              startDateError ? 'border border-spert-error' : 'border border-spert-border dark:border-gray-600'
+              startDateError ? INPUT_BORDER_ERROR : INPUT_BORDER,
             )}
             onChange={(e) => {
               setProjectStartDate(e.target.value)
@@ -240,27 +238,25 @@ export const ProjectForm = forwardRef<ProjectFormHandle, ProjectFormProps>(funct
             min="2000-01-01"
             max="2050-12-31"
           />
-          {startDateError && (
-            <div className="text-spert-error text-xs mt-1">
-              {startDateError}
-            </div>
-          )}
+          {startDateError && <div className="text-spert-error text-xs mt-1">{startDateError}</div>}
         </div>
 
         {/* Finish Date - immediately after Start Date */}
-        <div className="flex-[0_0_150px]">
-          <label htmlFor="projectFinishDate" className="block mb-1 text-sm font-semibold text-spert-text-secondary">
-            Finish Date (Optional)
+        <div className={FIELD}>
+          <label htmlFor="projectFinishDate" className={LABEL}>
+            Finish Date <span className="font-normal">(Optional)</span>
           </label>
           <input
             id="projectFinishDate"
+            name="projectFinishDate"
             type="date"
             value={projectFinishDate}
             disabled={readOnly}
             className={cn(
-              'p-2 text-[0.9rem] rounded w-[150px] text-spert-text dark:text-gray-100 bg-white dark:bg-gray-700 disabled:cursor-not-allowed disabled:bg-spert-bg-disabled dark:disabled:bg-gray-700',
+              INPUT_BASE,
+              'w-[200px] max-w-full',
               projectFinishDate ? 'has-value' : '',
-              finishDateError ? 'border border-spert-error' : 'border border-spert-border dark:border-gray-600'
+              finishDateError ? INPUT_BORDER_ERROR : INPUT_BORDER,
             )}
             onChange={(e) => {
               setProjectFinishDate(e.target.value)
@@ -271,48 +267,25 @@ export const ProjectForm = forwardRef<ProjectFormHandle, ProjectFormProps>(funct
             min="2000-01-01"
             max="2050-12-31"
           />
-          {finishDateError && (
-            <div className="text-spert-error text-xs mt-1">
-              {finishDateError}
-            </div>
-          )}
-        </div>
-
-        {/* Buttons — read only, Save is not offered at all (OD-8) */}
-        <div className="flex-[0_0_auto] self-end flex gap-2">
-          {!readOnly && (
-            <button
-              type="submit"
-              disabled={!isValid}
-              className={cn(
-                'px-4 py-2 border-none rounded text-[0.9rem] font-semibold text-white h-[38px]',
-                isValid
-                  ? 'bg-spert-blue cursor-pointer opacity-100'
-                  : 'bg-gray-400 dark:bg-gray-600 cursor-not-allowed opacity-60'
-              )}
-            >
-              {isEditing ? 'Update Project' : 'Add Project'}
-            </button>
-          )}
-
-          {/* Offered on the create form too (v0.48.0): the form is hidden until asked
-              for, so a create form the user opened must be closable without adding. */}
-          <button
-            type="button"
-            onClick={onCancel}
-            className="px-4 py-2 bg-gray-500 dark:bg-gray-600 text-white border-none rounded cursor-pointer text-[0.9rem] h-[38px]"
-          >
-            {readOnly ? 'Close' : 'Cancel'}
-          </button>
+          {finishDateError && <div className="text-spert-error text-xs mt-1">{finishDateError}</div>}
         </div>
       </div>
 
       {/* Submit error message */}
-      {submitError && (
-        <div className="text-spert-error text-sm mt-3">
-          {submitError}
-        </div>
-      )}
+      {submitError && <div className="text-spert-error text-sm">{submitError}</div>}
+
+      {/* Cancel first, then the save. Read only, the save is not offered at all (OD-8). */}
+      <div className={DIALOG_BUTTONS}>
+        <button type="button" onClick={onCancel} className={DIALOG_CANCEL}>
+          {readOnly ? 'Close' : 'Cancel'}
+        </button>
+        {!readOnly && (
+          <button type="submit" disabled={!isValid} className={DIALOG_SUBMIT}>
+            {isEditing ? 'Update Project' : 'Add Project'}
+          </button>
+        )}
+      </div>
+      <p className={HINT}>{readOnly ? 'Esc closes.' : 'Enter saves. Esc cancels.'}</p>
     </form>
   )
-})
+}

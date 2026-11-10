@@ -6,6 +6,13 @@
 
 import type { ChangeEvent, RefObject } from 'react'
 import { cn } from '@/lib/utils'
+import {
+  TOOLBAR_BUTTON,
+  TOOLBAR_ICON_PRIMARY,
+  TOOLBAR_ICON_SECONDARY,
+  TOOLBAR_PRIMARY,
+  TOOLBAR_SECONDARY,
+} from '@/shared/components/toolbar-button-styles'
 import { ToolbarIcon } from './ToolbarIcon'
 import { TOOLBAR_ICON_PATHS } from './toolbarIconPaths'
 
@@ -32,12 +39,14 @@ interface ProjectsToolbarProps {
   onNewProject: () => void
 }
 
-// The empty state's two buttons (ProjectsEmptyState.tsx) are the model for both styles.
-const BUTTON =
-  'inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-md border cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed'
-const SECONDARY =
-  'bg-transparent text-spert-blue border-spert-blue hover:bg-spert-blue/10 disabled:hover:bg-transparent dark:text-blue-300 dark:border-blue-400 dark:hover:bg-blue-400/10'
-const PRIMARY = 'bg-spert-blue text-white border-spert-blue hover:bg-spert-blue-dark'
+// v0.49.0: GanttApp's `.pt-btn` look (grey outline, dark text, grey icons), from the shared
+// strings that the welcome empty state (ProjectsEmptyState.tsx) uses too. The toolbar is the
+// model now; until v0.49.0 it copied the empty state's blue outline.
+const SECONDARY = cn(TOOLBAR_BUTTON, TOOLBAR_SECONDARY)
+const PRIMARY = cn(TOOLBAR_BUTTON, TOOLBAR_PRIMARY)
+const icon = (d: string, primary = false) => (
+  <ToolbarIcon d={d} className={primary ? TOOLBAR_ICON_PRIMARY : TOOLBAR_ICON_SECONDARY} />
+)
 
 export function ProjectsToolbar({
   hasProjects,
@@ -57,9 +66,9 @@ export function ProjectsToolbar({
         onClick={onExportAll}
         disabled={!hasProjects}
         aria-label="Export all projects as JSON"
-        className={cn(BUTTON, SECONDARY)}
+        className={SECONDARY}
       >
-        <ToolbarIcon d={TOOLBAR_ICON_PATHS.export} />
+        {icon(TOOLBAR_ICON_PATHS.export)}
         Export All
       </button>
       <button
@@ -67,9 +76,9 @@ export function ProjectsToolbar({
         onClick={onImportClick}
         disabled={importDisabled}
         aria-label="Import projects from JSON"
-        className={cn(BUTTON, SECONDARY)}
+        className={SECONDARY}
       >
-        <ToolbarIcon d={TOOLBAR_ICON_PATHS.import} />
+        {icon(TOOLBAR_ICON_PATHS.import)}
         Import
       </button>
       <input
@@ -80,12 +89,12 @@ export function ProjectsToolbar({
         onChange={onFileChange}
         className="hidden"
       />
-      <button type="button" onClick={onLoadSample} className={cn(BUTTON, SECONDARY)}>
-        <ToolbarIcon d={TOOLBAR_ICON_PATHS.sample} />
+      <button type="button" onClick={onLoadSample} className={SECONDARY}>
+        {icon(TOOLBAR_ICON_PATHS.sample)}
         Load Sample
       </button>
-      <button type="button" ref={newProjectRef} onClick={onNewProject} className={cn(BUTTON, PRIMARY)}>
-        <ToolbarIcon d={TOOLBAR_ICON_PATHS.plus} />
+      <button type="button" ref={newProjectRef} onClick={onNewProject} className={PRIMARY}>
+        {icon(TOOLBAR_ICON_PATHS.plus, true)}
         New Project
       </button>
     </div>

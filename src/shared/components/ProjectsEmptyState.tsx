@@ -5,6 +5,7 @@
 'use client'
 
 import { cn } from '@/lib/utils'
+import { TOOLBAR_BUTTON, TOOLBAR_PRIMARY, TOOLBAR_SECONDARY } from './toolbar-button-styles'
 
 // v0.31.1 — Option A empty-state with twin CTAs ("Create New Project" + "Load Sample Project").
 // Same component used on both the Projects tab (Welcome variant) and the Forecast tab
@@ -47,24 +48,16 @@ export function ProjectsEmptyState({ variant, onCreateNew, onLoadSample }: Proje
       <p className="text-sm text-spert-text-muted dark:text-gray-400 max-w-prose mx-auto">
         {SUBHEADS[variant]}
       </p>
+      {/* v0.49.0: the dashboard toolbar's look (GanttApp's `.pt-btn`), from the same shared
+          strings, so Load Sample reads the same here and in the toolbar above. */}
       <div className="mt-6 flex items-center justify-center gap-3 flex-wrap">
-        <button
-          type="button"
-          onClick={onCreateNew}
-          className={cn(
-            'px-4 py-2 text-sm font-medium rounded-md border cursor-pointer transition-colors',
-            'bg-spert-blue text-white border-spert-blue hover:bg-spert-blue-dark',
-          )}
-        >
+        <button type="button" onClick={onCreateNew} className={cn(TOOLBAR_BUTTON, TOOLBAR_PRIMARY)}>
           Create New Project
         </button>
         <button
           type="button"
           onClick={onLoadSample}
-          className={cn(
-            'px-4 py-2 text-sm font-medium rounded-md border cursor-pointer transition-colors',
-            'bg-transparent text-spert-blue border-spert-blue hover:bg-spert-blue/10',
-          )}
+          className={cn(TOOLBAR_BUTTON, TOOLBAR_SECONDARY)}
         >
           Load Sample Project
         </button>
