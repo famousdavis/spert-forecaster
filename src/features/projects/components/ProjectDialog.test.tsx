@@ -100,11 +100,15 @@ describe('ProjectDialog', () => {
     expect(screen.getByText('Esc closes.').tagName).toBe('P')
   })
 
-  it('turning read only while open moves focus to Close, and keeps the dialog open (known-bad: focus left on the disabled name field)', () => {
-    const view = render(<Harness project={ALPHA} />)
+  it('turning read only while open moves focus to Close, and keeps the dialog open, without running its close path (known-bads: focus left on the disabled name field; readOnly in the open effect\'s dependencies)', () => {
+    // The close path (inert removed, focus sent behind the dialog) must not run mid-dialog. Its
+    // final state would look the same, so the only witness is the return-focus call itself.
+    const closePath = vi.fn()
+    const view = render(<Harness project={ALPHA} returnSeen={closePath} />)
     expect(document.activeElement).toBe(nameField())
-    view.rerender(<Harness project={ALPHA} readOnlyReason={REASON} />)
+    view.rerender(<Harness project={ALPHA} readOnlyReason={REASON} returnSeen={closePath} />)
     expect([nameField().disabled, document.activeElement === button('Close'), screen.queryByRole('dialog') !== null]).toEqual([true, true, true])
+    expect(closePath).not.toHaveBeenCalled()
   })
 
   it.each([
