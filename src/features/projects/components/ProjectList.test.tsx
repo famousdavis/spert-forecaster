@@ -318,3 +318,37 @@ describe('ProjectList — the z-[1] guard covers the archived tile\'s Unarchive 
     expect(classes(unarchiveGroup)).not.toContain('opacity-0')
   })
 })
+
+describe('ProjectList — the drop box on a tinted and on an archived tile (v0.50.0)', () => {
+  it.each([
+    ['tinted', { 'p-2': { color: 'pink' as const } }],
+    ['archived', { 'p-2': { archived: true as const } }],
+    ['tinted and archived', { 'p-2': { color: 'teal' as const, archived: true as const } }],
+  ])('%s: the box is the only border colour, and no dashes survive it', (_label, prefs) => {
+    const projects = [makeProject('p-1', 'Alpha'), makeProject('p-2', 'Bravo')]
+    const { container } = render(
+      <ProjectList
+        projects={projects}
+        {...NO_ARCHIVE(projects)}
+        prefs={prefs}
+        onEdit={NOOP}
+        onDelete={NOOP}
+        onExport={NOOP}
+        onClone={NOOP}
+        onReorder={NOOP}
+        sprints={[]}
+        onViewHistory={NOOP}
+        accessOf={() => 'owner'}
+        canShare={() => false}
+      />,
+    )
+    const tiles = Array.from(container.querySelectorAll('[data-tile="true"]'))
+    const border = (el: Element) => classes(el).filter((c) => /^(dark:)?(hover:)?border-(?!2$)/.test(c))
+    const atRest = border(tiles[1])
+    fireDrag('dragStart', tiles[0].querySelector('[draggable="true"]')!)
+    fireDrag('dragOver', tiles[1])
+    expect(border(tiles[1])).toEqual(['border-spert-blue'])
+    // Control: at rest an archived tile carries its dashes (and a tinted one its rest colour).
+    expect(atRest.length).toBeGreaterThan(1)
+  })
+})

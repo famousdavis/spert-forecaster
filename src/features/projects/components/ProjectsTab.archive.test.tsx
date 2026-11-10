@@ -81,7 +81,7 @@ afterEach(() => {
   importState = null
   mockUser.current = null
   toastSpy.success.mockClear()
-  useProjectStore.setState({ projects: [], sprints: [], projectRoles: {}, cloudDataLoaded: false })
+  useProjectStore.setState({ projects: [], sprints: [], projectRoles: {}, cloudDataLoaded: false, shouldFocusNewProjectForm: false })
   useSettingsStore.setState({ projectPrefs: {} })
   useStorageModeStore.setState({ mode: 'local' })
 })
@@ -424,6 +424,33 @@ describe('the reveal hook (GanttApp parity): data-popopen with the group-data cl
     expect(classes(pop.parentElement)).not.toContain('relative')
     expect(pop.parentElement!.parentElement).toBe(tileOf('A'))
     expect(classes(pop)).toEqual(expect.arrayContaining(['absolute', 'z-20', 'right-1.5', 'top-[calc(100%-6px)]']))
+  })
+
+  it('the popover does not come back with its tile: archived away and back, it stays closed', () => {
+    renderTab([project('A'), project('B')], {})
+    click('Tile color for A: No color')
+    expect(screen.queryByRole('dialog', { name: 'Tile color' })).not.toBeNull()
+    act(() => {
+      useSettingsStore.getState().setProjectArchived('A', true) // the tile leaves the grid (filter off)
+    })
+    act(() => {
+      useSettingsStore.getState().setProjectArchived('A', false)
+    })
+    expect(tileOf('A')).toBeDefined()
+    expect(screen.queryByRole('dialog', { name: 'Tile color' })).toBeNull()
+  })
+
+  it('the popover does not come back after a dialog took over the tab', () => {
+    renderTab([project('A'), project('B')], {})
+    click('Tile color for A: No color')
+    act(() => {
+      useProjectStore.setState({ shouldFocusNewProjectForm: true }) // the New Project dialog opens
+    })
+    expect(screen.getByRole('dialog', { name: 'New Project' })).not.toBeNull()
+    expect(screen.queryByRole('dialog', { name: 'Tile color' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByRole('dialog', { name: 'New Project' })).toBeNull()
+    expect(screen.queryByRole('dialog', { name: 'Tile color' })).toBeNull()
   })
 
   it('Delete closes an open popover before its dialog opens', () => {
