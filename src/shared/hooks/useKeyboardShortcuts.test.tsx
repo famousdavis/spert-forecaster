@@ -27,6 +27,8 @@ import { ConfirmDialog } from '@/shared/components/ConfirmDialog'
 import { KeyboardShortcutsHelp } from '@/shared/components/KeyboardShortcutsHelp'
 import { ConsentModal } from '@/features/auth/components/ConsentModal'
 import { ConnectAiConsentModal } from '@/features/connect-ai/components/ConnectAiConsentModal'
+import { ConnectAiPanel } from '@/features/connect-ai/components/ConnectAiPanel'
+import { CloudStorageModal } from '@/features/auth/components/CloudStorageModal'
 
 type Spies = Record<'1' | '3' | '?', Mock<() => void>>
 
@@ -69,6 +71,37 @@ describe('useKeyboardShortcuts', () => {
     expect(spies[key]).toHaveBeenCalledTimes(1)
     // Only that one.
     expect(Object.values(spies).reduce((n, s) => n + s.mock.calls.length, 0)).toBe(1)
+  })
+
+  // v0.48.1 review G1: the shortcuts read the DOM, so a CLOSED surface that left a
+  // marker behind (a hidden marked element instead of nothing) would silently stop
+  // every shortcut in the app while every "waits" test above stayed green. Each surface
+  // that has a closed state is rendered closed beside the probe. (ConsentModal has no
+  // closed state: its parent mounts it only to show it.)
+  const CLOSED: Array<{ name: string; el: () => ReactElement }> = [
+    { name: 'the confirmation dialog', el: () => <ConfirmDialog isOpen={false} title="Delete Project" message="Delete?" onConfirm={vi.fn()} onCancel={vi.fn()} /> },
+    { name: 'the keyboard shortcuts help', el: () => <KeyboardShortcutsHelp isOpen={false} onClose={vi.fn()} shortcuts={[]} /> },
+    { name: 'the Connect AI consent dialog', el: () => <ConnectAiConsentModal open={false} onCancel={vi.fn()} onConfirm={vi.fn()} /> },
+    {
+      name: 'the Connect AI panel',
+      el: () => (
+        <ConnectAiPanel
+          open={false}
+          onClose={vi.fn()}
+          sessionState={{ sessionActive: false, aiConnected: false, consentRead: true, sessionId: null }}
+          onChangePermissions={vi.fn(async () => true)}
+          onDisconnect={vi.fn(async () => {})}
+        />
+      ),
+    },
+    { name: 'the Cloud Storage dialog', el: () => <CloudStorageModal isOpen={false} onClose={vi.fn()} /> },
+  ]
+  it.each(CLOSED)('$name, closed, leaves no marker and the shortcuts work', ({ el }) => {
+    const { spies, shortcuts } = makeShortcuts()
+    render(<><Probe shortcuts={shortcuts} />{el()}</>)
+    expect(isModalSurfaceOpen()).toBe(false)
+    press('3')
+    expect(spies['3']).toHaveBeenCalledTimes(1)
   })
 
   describe.each(SURFACES)('while $name is open', ({ el, ariaModal }) => {
