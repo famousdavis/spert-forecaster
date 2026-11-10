@@ -77,6 +77,18 @@ describe('AppShell — crosslink wiring', () => {
     }
   })
 
+  // v0.48.1 — `?` is the help's only opener, and a WIRING fact: the shortcut's action sets
+  // the state the help reads. The hook's tests prove a real `?` reaches a shortcut; this
+  // proves that shortcut is the one that opens the help. Read within the `?` entry only, so
+  // another shortcut's action cannot satisfy it.
+  it("wires the '?' shortcut to open the keyboard shortcuts help", () => {
+    const start = SOURCE.indexOf("key: '?',")
+    expect(start, "the '?' shortcut entry").toBeGreaterThan(-1)
+    const entry = SOURCE.slice(start, SOURCE.indexOf('}', start))
+    expect(entry).toMatch(/action: \(\) => setIsShortcutsHelpOpen\(true\),/)
+    expect(SOURCE).toMatch(/<KeyboardShortcutsHelp\s+isOpen=\{isShortcutsHelpOpen\}/)
+  })
+
   // ── The control. Without it every assertion above passes on an empty string ──
   it('CONTROL — the source really was read, and a false claim fails', () => {
     expect(SOURCE.length).toBeGreaterThan(1000)
