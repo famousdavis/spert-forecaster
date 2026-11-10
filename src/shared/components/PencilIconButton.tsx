@@ -25,9 +25,10 @@ export function PencilIconButton({
   describedBy,
 }: PencilIconButtonProps) {
   // Disabled overrides active (GanttApp's rule): a disabled pencil never shows the active look.
-  // The active look REPLACES the resting classes rather than joining them: side by side, the
-  // resting grey and transparent background win the stylesheet's tie (v0.48.1's active pencil
-  // drew grey, untinted, with only its ring).
+  // The active look REPLACES the resting classes rather than joining them: side by side, each
+  // pair is a tie the stylesheet's class order settles. In v0.48.1 the resting classes won: the
+  // active pencil's icon stayed grey in both themes, and its background stayed transparent in
+  // the light theme.
   const isActive = !!active && !disabled
   return (
     <button

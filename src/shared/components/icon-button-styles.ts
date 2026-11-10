@@ -3,7 +3,12 @@
 // See LICENSE file in the project root for full license text.
 
 // The look of the five shared icon buttons (Trash, Pencil, Export, Clone, Share), v0.48.2:
-// GanttApp's, value for value (its five components at d437e84 style the same thing inline).
+// the values GanttApp's five components set inline at d437e84, with two differences in where
+// a value comes from or how it reaches the screen:
+// - the keyboard focus outline is not in those components; it is a rule of GanttApp's Projects
+//   tab (`projects-tab.css:56-59` at d437e84), and here it applies wherever the buttons are used;
+// - the hover look reaches only devices that can hover: Tailwind 4 puts `hover:` inside
+//   `@media (hover: hover)`, where GanttApp's components set it from `onMouseEnter`.
 // A 28 px box with an 18 px glyph, 6 px corners, a resting grey, and one hue per action on
 // hover and on focus, with a tinted background and a 1.5 px ring.
 //
@@ -11,8 +16,9 @@
 // focus look (GanttApp: "disabled overrides active").
 //
 // The background lives in the RESTING classes, not the base: a plain `bg-transparent` beside
-// Pencil's active `bg-[…]` is a tie Tailwind settles by its own class order, and the
-// transparent one won. That is how v0.48.1's active pencil drew grey with no tint.
+// Pencil's active `bg-[…]` is a tie Tailwind settles by its own class order. In v0.48.1 the
+// resting classes won those ties: the active pencil's icon stayed grey in both themes, and its
+// background stayed transparent in the light theme.
 
 /** Box, corners, cursor, disabled state and the keyboard focus outline. */
 export const ICON_BUTTON_BASE =

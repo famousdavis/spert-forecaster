@@ -171,8 +171,9 @@ describe('Pencil’s active state (the row being edited)', () => {
   it('holds Edit’s hover look, GanttApp’s blue in both themes, with none of the resting classes', () => {
     const t = tokens(renderButton(<PencilIconButton onClick={vi.fn()} ariaLabel="Edit Sprint 3" active />, 'Edit Sprint 3'))
     expect(t).toEqual(expect.arrayContaining(ACTIVE))
-    // A resting class beside an active one is a tie the stylesheet's order settles; the grey and
-    // the transparent background won it in v0.48.1, so the active pencil drew grey, untinted.
+    // A resting class beside an active one is a tie the stylesheet's order settles; in v0.48.1
+    // the resting classes won, so the active pencil's icon stayed grey in both themes, and its
+    // background stayed transparent in the light theme.
     for (const rest of REST) expect(t).not.toContain(rest)
   })
 
