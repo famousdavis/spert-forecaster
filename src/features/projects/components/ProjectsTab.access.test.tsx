@@ -71,16 +71,24 @@ const FIVE = [project('o', 'Own'), project('e', 'Edit'), project('v', 'View'), p
 const FIVE_ROLES: Record<string, ProjectAccess> = { o: 'owner', e: 'editor', v: 'viewer', n: 'not-in-cloud' } // u: no entry
 
 describe('the Projects list (T4/T4b, T3)', () => {
+  // v0.49.0: the badge sits BESIDE the name, outside its button, where GanttApp puts it (until
+  // then it was inside the button). The button's label still names it.
   it('a badge beside each read-only project\'s name, named in its button too (known-bads: no badge; badge on an editable project)', () => {
     renderTab(FIVE, FIVE_ROLES)
     const names = FIVE.map((p) => screen.getByRole('button', { name: new RegExp(`^View history for ${p.name}`) }))
-    expect(names.map((b) => [b.getAttribute('aria-label'), b.textContent?.includes('View only') || b.textContent?.includes('Not in cloud')]))
+    /** The badge shown in this tile's name row, outside the name button; null for none. */
+    const badgeBeside = (b: HTMLElement) => {
+      const row = b.closest('[data-tile="true"]')!.firstElementChild!
+      const shown = Array.from(row.children).filter((el) => !el.contains(b) && /^(View only|Not in cloud)$/.test(el.textContent ?? ''))
+      return shown.length === 1 ? shown[0].textContent : shown.length === 0 ? null : `${shown.length} badges`
+    }
+    expect(names.map((b) => [b.getAttribute('aria-label'), b.textContent, badgeBeside(b)]))
       .toEqual([
-        ['View history for Own', false],
-        ['View history for Edit', false],
-        ['View history for View (View only)', true],
-        ['View history for Gone (Not in cloud)', true],
-        ['View history for New', false],
+        ['View history for Own', 'Own', null],
+        ['View history for Edit', 'Edit', null],
+        ['View history for View (View only)', 'View', 'View only'],
+        ['View history for Gone (Not in cloud)', 'Gone', 'Not in cloud'],
+        ['View history for New', 'New', null],
       ])
   })
 
@@ -231,9 +239,15 @@ describe('the create form is never read only (N-6)', () => {
       .toEqual(['', false, true])
   })
 
-  it('New Project while a read-only project is open switches to an editable blank create form (known-bad: read only left behind)', () => {
+  // v0.49.0: until then this pressed New Project WHILE the read-only form was open, which the
+  // inert page behind a modal dialog no longer allows (jsdom does no hit-testing and would).
+  // Rewritten to what a dialog can fail: Escape closes the read-only dialog, and New Project then
+  // opens an editable blank one.
+  it('Escape closes a read-only project; New Project then opens an editable blank create dialog (known-bad: read only left behind)', () => {
     renderTab([project('v', 'View')], { v: 'viewer' })
     fireEvent.click(button('Edit View'))
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
+    expect(input('name')).toBeNull()
     fireEvent.click(button('New Project'))
     expect([input('name').value, input('name').disabled, screen.queryByRole('button', { name: 'Add Project' }) !== null])
       .toEqual(['', false, true])

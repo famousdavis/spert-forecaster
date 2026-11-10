@@ -205,19 +205,40 @@ describe('ProjectsTab — import wiring', () => {
     expect(screen.queryByRole('region', { name: /Review import/i })).toBeNull()
   })
 
+  // v0.49.0 split ProjectsTab.tsx (444 lines) into these files, so the two scans below read all
+  // of them: code that moved out of the tab is still scanned. Must-find control: every file is
+  // read (each carries the copyright header), and the scan reaches code that moved out of
+  // ProjectsTab.tsx (the single-project export and the dialog's submit).
+  const DASHBOARD_FILES = [
+    'ProjectsTab.tsx',
+    'ProjectList.tsx',
+    'ProjectTile.tsx',
+    'ProjectDialog.tsx',
+    'ImportBanner.tsx',
+    'dashboard-styles.ts',
+    '../hooks/useProjectDialog.ts',
+    '../hooks/useProjectDelete.ts',
+    '../hooks/useProjectTileActions.ts',
+    '../lib/tile-meta.ts',
+    '../lib/tile-focus.ts',
+  ]
+  const dashboardSources = () => DASHBOARD_FILES.map((f) => readFileSync(resolve(__dirname, f), 'utf8'))
+
+  it('the scans below read every dashboard file, including the code moved out of ProjectsTab.tsx (control)', () => {
+    const sources = dashboardSources()
+    expect(sources.map((s) => s.includes('Copyright (C) 2026 William W. Davis'))).toEqual(DASHBOARD_FILES.map(() => true))
+    const all = sources.join('\n')
+    expect(all).toMatch(/exportSingleProject\(projectId/)
+    expect(all).toMatch(/updateProject\(editingProject\.id, data\)/)
+  })
+
   it('does NOT import MergeImportDialog (regression guard)', () => {
-    const source = readFileSync(
-      resolve(__dirname, 'ProjectsTab.tsx'),
-      'utf8',
-    )
+    const source = dashboardSources().join('\n')
     expect(source).not.toMatch(/MergeImportDialog/)
   })
 
   it('does NOT reference old store actions importData / mergeImportData / mergeProjectSubset', () => {
-    const source = readFileSync(
-      resolve(__dirname, 'ProjectsTab.tsx'),
-      'utf8',
-    )
+    const source = dashboardSources().join('\n')
     // Allow `importDataAndSelectFirst` (it contains "importData" as a substring),
     // but reject standalone usages of the deprecated actions.
     expect(source).not.toMatch(/\.importData\b(?!AndSelectFirst)/)

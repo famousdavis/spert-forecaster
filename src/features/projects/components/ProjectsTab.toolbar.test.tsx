@@ -6,7 +6,7 @@
  * The Projects dashboard toolbar and the project form it opens (v0.48.0, the SPERT® suite's
  * shared toolbar): one row with the heading on the left and Export All · Import · Load
  * Sample · New Project on the right, every button always rendered, Import's gate unchanged,
- * and the form hidden until asked for.
+ * and the project form hidden until asked for (a modal dialog since v0.49.0).
  *
  * ⚠️ Mounted through a harness that calls the REAL `useImportState`, as AppShell does (see
  * ProjectsTab.test.tsx for why that matters).
@@ -103,13 +103,20 @@ describe('the toolbar row', () => {
     }
   })
 
-  it('each button leads with its icon: 18 px, hidden from assistive tech, the shared path, drawn in the text colour', () => {
+  // Was "… drawn in the text colour" until v0.49.0, which D17 made false while the test stayed green.
+  it('each button leads with its icon: 18 px, hidden from assistive tech, the shared path, stroked in currentColor; the three secondary icons carry GanttApp\'s grey, New Project\'s does not (D17)', () => {
     renderTab([EXISTING])
     const icons = toolbarButtons().map((b) => b.firstElementChild as SVGElement)
     expect(icons.map((svg) => [svg.tagName.toLowerCase(), svg.getAttribute('aria-hidden'), svg.getAttribute('width'), svg.getAttribute('height')]))
       .toEqual(LABELS.map(() => ['svg', 'true', '18', '18']))
     expect(icons.map((svg) => svg.querySelector('path')?.getAttribute('d'))).toEqual(PATHS)
     expect(icons.map((svg) => svg.querySelector('path')?.getAttribute('stroke'))).toEqual(LABELS.map(() => 'currentColor'))
+    // The grey is the svg's `color`, so `currentColor` above draws in it. Written out, not imported.
+    const grey = (svg: SVGElement) => {
+      const c = (svg.getAttribute('class') ?? '').split(/\s+/)
+      return c.includes('text-[#666]') && c.includes('dark:text-[#a0aec0]')
+    }
+    expect(icons.map(grey)).toEqual([true, true, true, false])
   })
 
   it('is not given role="toolbar", which would promise arrow-key navigation', () => {
@@ -117,9 +124,13 @@ describe('the toolbar row', () => {
     expect(screen.queryByRole('toolbar')).toBeNull()
   })
 
-  it('New Project is the one filled primary button', () => {
+  // Until v0.49.0 this read `className.includes('bg-spert-blue ')`, which needed a trailing space
+  // and failed whenever the class ended the string (C2). It reads the class list now.
+  it('New Project is the one filled primary button; the three others carry the grey outline (D7)', () => {
     renderTab([EXISTING])
-    expect(toolbarButtons().map((b) => b.className.includes('bg-spert-blue '))).toEqual([false, false, false, true])
+    const classes = (b: Element) => (b.getAttribute('class') ?? '').split(/\s+/)
+    expect(toolbarButtons().map((b) => classes(b).includes('bg-spert-blue'))).toEqual([false, false, false, true])
+    expect(toolbarButtons().map((b) => classes(b).includes('border-[#8a8a8a]'))).toEqual([true, true, true, false])
   })
 })
 
@@ -157,7 +168,7 @@ describe('the gates (kept from before v0.48.0, none added)', () => {
   })
 })
 
-describe('the project form opens only when asked for (v0.48.0)', () => {
+describe('the project form opens only when asked for (v0.48.0; in a dialog since v0.49.0)', () => {
   it('New Project opens a blank create form with the name focused', () => {
     renderTab([EXISTING])
     expect(nameField()).toBeNull()
@@ -189,10 +200,16 @@ describe('the project form opens only when asked for (v0.48.0)', () => {
       .toEqual([null, true, projects.length])
   })
 
-  it('New Project while editing switches to a blank create form with the name focused (known-bad: the edited project\'s field focused instead)', () => {
+  // v0.49.0: until then this pressed New Project WHILE the edit form was open. Behind a modal
+  // dialog the page is inert, so no user can; jsdom does no hit-testing and allows the click.
+  // Rewritten to what a dialog can fail: Escape closes the edit, nothing saved, and New Project
+  // then opens a blank create dialog.
+  it('Edit, type, Escape: the edit closes unsaved; New Project then opens a blank create dialog with the name focused (known-bad: the edited text carried into the create form)', () => {
     renderTab([EXISTING])
     fireEvent.click(button('Edit Existing'))
     fireEvent.change(nameField()!, { target: { value: 'Existing, renamed' } })
+    fireEvent.keyDown(nameField()!, { key: 'Escape' })
+    expect([nameField(), useProjectStore.getState().projects[0].name]).toEqual([null, 'Existing'])
     fireEvent.click(button('New Project'))
     expect([
       nameField()?.value,
@@ -218,9 +235,14 @@ describe('the project form opens only when asked for (v0.48.0)', () => {
       .toEqual([true, true, false])
   })
 
-  it('the empty state\'s "Create New Project" takes the same path as New Project: deleting the project being edited, then Create New Project, gives a blank create form (known-bad: the deleted project\'s form focused)', () => {
+  // v0.49.0: until then this pressed Delete behind an open edit form, which an inert page
+  // behind a modal dialog no longer allows. Now the edit is closed first (Cancel), then the
+  // project deleted, and the welcome panel's button must still open a blank create dialog.
+  it('the empty state\'s "Create New Project" takes the same path as New Project: edit, Cancel, delete the project, then Create New Project gives a blank create dialog (known-bad: the deleted project\'s form)', () => {
     renderTab([EXISTING])
     fireEvent.click(button('Edit Existing'))
+    fireEvent.click(button('Cancel'))
+    expect(nameField()).toBeNull()
     fireEvent.click(button('Delete Existing'))
     fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Delete' }))
     fireEvent.click(button('Create New Project'))
@@ -228,10 +250,20 @@ describe('the project form opens only when asked for (v0.48.0)', () => {
       .toEqual(['', true, null])
   })
 
-  it('the empty state\'s "Create New Project" opens the same form; it sits below the toolbar row', () => {
-    renderTab([])
+  // Replaces S7 (v0.48.0's "it sits below the toolbar row", by document order), which stays true
+  // and means nothing once the form is a dialog portalled to the end of <body>. This asserts what
+  // a dialog can fail: a modal, outside the tab, with the tab inert behind it.
+  it('the empty state\'s "Create New Project" opens the same dialog: a modal in document.body, outside the tab, which is inert behind it', () => {
+    const { container } = renderTab([])
     fireEvent.click(button('Create New Project'))
-    expect(document.activeElement === nameField()).toBe(true)
-    expect(headingRow().compareDocumentPosition(nameField()!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    const field = nameField()!
+    const dialog = field.closest('[role="dialog"]')
+    expect([
+      document.activeElement === field,
+      dialog?.getAttribute('aria-modal'),
+      dialog?.closest('[data-modal-surface]')?.parentElement === document.body,
+      container.contains(field),
+      container.hasAttribute('inert'),
+    ]).toEqual([true, 'true', true, false, true])
   })
 })

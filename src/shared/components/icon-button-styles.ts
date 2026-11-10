@@ -24,9 +24,6 @@
 export const ICON_BUTTON_BASE =
   'inline-flex size-7 flex-none items-center justify-center p-0 border-0 rounded-[6px] leading-[0] cursor-pointer transition-[background-color,box-shadow] duration-[120ms] ease-[ease] disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0070f3] dark:focus-visible:outline-[#60a5fa]'
 
-/** The slot's size alone, for a placeholder that must line up with a button (ProjectList's Share slot). */
-export const ICON_BUTTON_SLOT = 'size-7 flex-none'
-
 /** The glyph's width and height, in px. */
 export const ICON_GLYPH_SIZE = 18
 
