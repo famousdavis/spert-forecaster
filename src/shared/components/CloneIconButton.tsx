@@ -4,6 +4,8 @@
 
 'use client'
 
+import { ICON_BUTTON_BASE, ICON_GLYPH_SIZE, ICON_REST, ICON_HUE_VIOLET } from './icon-button-styles'
+
 interface CloneIconButtonProps {
   onClick: () => void
   ariaLabel?: string
@@ -24,11 +26,11 @@ export function CloneIconButton({
       aria-label={ariaLabel}
       title={title}
       disabled={disabled}
-      className="inline-flex items-center justify-center p-1.5 rounded-md leading-none bg-transparent border-none cursor-pointer transition-[color,background-color,box-shadow] duration-150 text-gray-400 hover:text-violet-500 hover:bg-violet-50 dark:hover:bg-violet-500/15 hover:[box-shadow:0_0_0_1.5px_rgba(139,92,246,0.5)] focus:outline-none focus:text-violet-500 focus:bg-violet-50 dark:focus:bg-violet-500/15 focus:[box-shadow:0_0_0_1.5px_rgba(139,92,246,0.5)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-gray-400 disabled:[box-shadow:none]"
+      className={`${ICON_BUTTON_BASE} ${ICON_REST} ${ICON_HUE_VIOLET}`}
     >
       <svg
-        width="20"
-        height="20"
+        width={ICON_GLYPH_SIZE}
+        height={ICON_GLYPH_SIZE}
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"
