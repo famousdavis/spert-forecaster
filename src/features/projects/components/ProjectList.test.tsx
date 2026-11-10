@@ -248,3 +248,73 @@ describe('ProjectList — class guards (the pairs, not just the strings)', () =>
     expect([classes(tiles[0]).includes('opacity-50'), classes(tiles[1]).includes('opacity-50')]).toEqual([true, false])
   })
 })
+
+// v0.50.0: archived tiles hidden. `reorderProjects` deletes every id it is not given (B29), so a
+// drag among the SHOWN tiles must hand it the FULL list, each hidden project in its own slot.
+describe('ProjectList — a drag with archived tiles hidden (v0.50.0)', () => {
+  function renderShown(all: Project[], shownIds: string[], onReorder: (ids: string[]) => void) {
+    const shown = all.filter((p) => shownIds.includes(p.id))
+    const { container } = render(
+      <ProjectList
+        projects={shown}
+        {...NO_ARCHIVE(all)}
+        onEdit={NOOP}
+        onDelete={NOOP}
+        onExport={NOOP}
+        onClone={NOOP}
+        onReorder={onReorder}
+        sprints={[]}
+        onViewHistory={NOOP}
+        accessOf={() => 'owner'}
+        canShare={() => false}
+      />,
+    )
+    return Array.from(container.querySelectorAll('[data-tile="true"]'))
+  }
+  const ALL = ['a', 'x', 'b', 'y', 'c'].map((id) => makeProject(id, id.toUpperCase()))
+
+  it.each([
+    { from: 0, onto: 2, expected: ['b', 'x', 'c', 'y', 'a'], label: 'first shown onto last shown' },
+    { from: 2, onto: 0, expected: ['c', 'x', 'a', 'y', 'b'], label: 'last shown onto first shown' },
+    { from: 1, onto: 2, expected: ['a', 'x', 'c', 'y', 'b'], label: 'middle onto last' },
+  ])('$label: every project is handed over, and each hidden one keeps its slot', ({ from, onto, expected }) => {
+    const onReorder = vi.fn()
+    const tiles = renderShown(ALL, ['a', 'b', 'c'], onReorder)
+    expect(tiles).toHaveLength(3)
+    dragTileOnto(tiles, from, onto)
+    expect(onReorder.mock.calls).toEqual([[expected]])
+  })
+
+  it('with nothing hidden, the order is the shown order', () => {
+    const onReorder = vi.fn()
+    const all = ['a', 'b', 'c'].map((id) => makeProject(id, id))
+    dragTileOnto(renderShown(all, ['a', 'b', 'c'], onReorder), 0, 2)
+    expect(onReorder.mock.calls).toEqual([[['b', 'c', 'a']]])
+  })
+})
+
+describe('ProjectList — the z-[1] guard covers the archived tile\'s Unarchive group (v0.50.0)', () => {
+  it('Unarchive sits in an always-shown group raised above the name button\'s ::after, like the grip, Delete and the revealed row', () => {
+    const projects = [makeProject('p-1', 'Alpha')]
+    const { container } = render(
+      <ProjectList
+        projects={projects}
+        {...NO_ARCHIVE(projects)}
+        prefs={{ 'p-1': { archived: true } }}
+        onEdit={NOOP}
+        onDelete={NOOP}
+        onExport={NOOP}
+        onClone={NOOP}
+        onReorder={NOOP}
+        sprints={[]}
+        onViewHistory={NOOP}
+        accessOf={() => 'owner'}
+        canShare={() => false}
+      />,
+    )
+    const tile = container.querySelector('[data-tile="true"]')!
+    const unarchiveGroup = tile.querySelector('button[aria-label="Unarchive Alpha"]')!.parentElement!
+    expect(classes(unarchiveGroup)).toEqual(expect.arrayContaining(['relative', 'z-[1]']))
+    expect(classes(unarchiveGroup)).not.toContain('opacity-0')
+  })
+})

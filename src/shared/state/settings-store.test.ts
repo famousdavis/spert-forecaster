@@ -95,12 +95,17 @@ describe('settings-store', () => {
         exportId: 'js-123',
         autoRecalculate: false,
         trialCount: 25000,
+        // v0.50.0: the fixture holds tile colour and archive entries, so an emitting clear (one
+        // built from the per-entry setters) would show here as a sync event.
+        projectPrefs: { p1: { color: 'teal', archived: true }, p2: { archived: true } },
       })
       const spy = vi.spyOn(syncBus, 'emit')
       try {
         useSettingsStore.getState().clearSettingsOnSignOut()
         expect(useSettingsStore.getState().exportName).toBe('')
         expect(useSettingsStore.getState().exportId).toBe('')
+        // v0.50.0: the next account on this browser inherits no colours or archive (RISK-G2).
+        expect(useSettingsStore.getState().projectPrefs).toEqual({})
         // Non-attribution preferences carry forward — per-browser defaults are safe
         expect(useSettingsStore.getState().autoRecalculate).toBe(false)
         expect(useSettingsStore.getState().trialCount).toBe(25000)

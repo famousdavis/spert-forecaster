@@ -20,7 +20,6 @@ import {
   useForecastResultsStore,
   VIEW_STATE_LITERAL_SEEDS,
 } from '@/shared/state/forecast-results-store'
-import { useProjectStore } from '@/shared/state/project-store'
 import { useViewedProject } from '@/shared/state/viewed-project'
 
 interface ForecastSummaryProps {
