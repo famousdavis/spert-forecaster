@@ -4,8 +4,8 @@
 
 'use client'
 
-/** GanttApp's all-archived look (`.pt-empty`): the meta colour, italic. Also the Projects tab's line. */
-export const ALL_ARCHIVED_CLASS = 'text-[#666] dark:text-[#a0aec0] italic'
+/** GanttApp's all-archived look (`.pt-empty`): the meta colour, italic, line-height normal. Also the Projects tab's line. */
+export const ALL_ARCHIVED_CLASS = 'leading-[normal] text-[#666] dark:text-[#a0aec0] italic'
 
 /** GanttApp's text (`ReleasesTab.tsx:22` at d437e84). */
 export const ALL_ARCHIVED_ELSEWHERE_TEXT = 'All projects are archived. Unarchive one on the Projects tab to see it here.'

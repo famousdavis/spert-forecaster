@@ -24,7 +24,8 @@ export function ShowArchivedFilter({
   onChange: (checked: boolean) => void
 }) {
   return (
-    <div className="-mt-1 mb-4">
+    // leading-[normal]: GanttApp's row is line-height normal (19.5 px at DPR 1); the page's 24 px line-height made it 24 (measured).
+    <div className="-mt-1 mb-4 leading-[normal]">
       <label className={CHECK} htmlFor={id}>
         <input
           type="checkbox"
