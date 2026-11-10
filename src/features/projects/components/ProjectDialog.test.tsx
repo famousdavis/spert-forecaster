@@ -201,6 +201,25 @@ describe('ProjectDialog', () => {
     }
   })
 
+  it('registers one capture-phase keydown listener while open, and removes THAT listener with the same capture flag on close', () => {
+    // A removal without the flag leaves the capture listener behind (the flag is part of a
+    // listener's identity). It finds no dialog and does nothing today, so no key press shows it;
+    // this pins the pairing directly.
+    const add = vi.spyOn(document, 'addEventListener')
+    const remove = vi.spyOn(document, 'removeEventListener')
+    try {
+      render(<Harness />)
+      const added = add.mock.calls.filter(([type, , opts]) => type === 'keydown' && opts === true)
+      expect(added).toHaveLength(1)
+      fireEvent.click(button('Cancel'))
+      const removed = remove.mock.calls.filter(([type, fn, opts]) => type === 'keydown' && fn === added[0][1] && opts === true)
+      expect(removed).toHaveLength(1)
+    } finally {
+      add.mockRestore()
+      remove.mockRestore()
+    }
+  })
+
   it('Escape closes it and comes back handled (defaultPrevented), and once closed its listener is gone', () => {
     render(<Harness />)
     expect(key(nameField(), { key: 'Escape' })).toBe(false) // false = defaultPrevented
