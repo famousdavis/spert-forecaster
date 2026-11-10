@@ -18,6 +18,7 @@ import {
 import type { Sprint } from '@/shared/types'
 import { REPLACE_ALL_SHARED_TEXT, canEditProject, type ProjectAccess } from '@/shared/state/project-access'
 import { importEditorReplaceNote, importNotInCloudNote, importViewerNote } from '@/features/auth/lib/access-texts'
+import { isModalSurfaceOpen } from '@/shared/lib/modal-surface'
 
 interface ImportPreviewSectionProps {
   imported: ParsedImportData
@@ -97,10 +98,15 @@ export function ImportPreviewSection({
     headingRef.current?.focus()
   }, [])
 
-  // Escape closes the preview when not mid-apply.
+  // Escape closes the preview when not mid-apply, and only when no dialog has the
+  // Escape (v0.48.1). Before, Escape in a dialog opened over the preview also
+  // cancelled the import behind it. Two checks, because both listener orders happen:
+  // - this listener first: the dialog is still in the DOM, so its marker is there;
+  // - the dialog's first: React may already have removed the dialog (a real key press
+  //   runs microtasks between listeners), but its handler called preventDefault.
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !applying) onCancel()
+      if (e.key === 'Escape' && !applying && !e.defaultPrevented && !isModalSurfaceOpen()) onCancel()
     }
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)

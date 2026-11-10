@@ -9,6 +9,7 @@ import { callGeneratePairingCode } from '@/shared/firebase/callables'
 import { functionsInstance } from '@/shared/firebase/config'
 import { buildPairingPrompt } from '../copyPrompt'
 import type { AiSessionState } from '../hooks/useAiConnectivity'
+import { modalSurfaceProps } from '@/shared/lib/modal-surface'
 
 interface ConnectAiPanelProps {
   open: boolean
@@ -77,7 +78,9 @@ export function ConnectAiPanel({
   // ConfirmDialog, which is this app's modal reference.
   useEffect(() => {
     if (!open) return
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    // preventDefault: the Escape is handled here, so an import preview behind the
+    // panel does not also cancel (v0.48.1; see modal-surface.ts).
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.preventDefault(); onClose() } }
     document.addEventListener('keydown', onKey)
     document.body.style.overflow = 'hidden'
     return () => {
@@ -118,7 +121,7 @@ export function ConnectAiPanel({
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center" role="presentation">
+    <div {...modalSurfaceProps} className="fixed inset-0 z-50 flex items-center justify-center" role="presentation">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} aria-hidden="true" />
       <div
         role="dialog"

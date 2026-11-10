@@ -6,6 +6,7 @@
 
 import { useEffect, useRef, useCallback } from 'react'
 import { cn } from '@/lib/utils'
+import { modalSurfaceProps } from '@/shared/lib/modal-surface'
 
 interface ConfirmDialogProps {
   isOpen: boolean
@@ -113,6 +114,7 @@ export function ConfirmDialog({
 
   return (
     <div
+      {...modalSurfaceProps}
       className="fixed inset-0 z-50 flex items-center justify-center"
       role="presentation"
     >

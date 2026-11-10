@@ -102,7 +102,8 @@ export function AppShell() {
     {
       key: '?',
       description: 'Show keyboard shortcuts',
-      action: () => setIsShortcutsHelpOpen((prev) => !prev),
+      // Opens only: while the help is open every page shortcut waits (v0.48.1).
+      action: () => setIsShortcutsHelpOpen(true),
     },
   ], [])
 
@@ -124,7 +125,12 @@ export function AppShell() {
                 alt="SPERT Forecaster icon"
                 className="mr-2 h-7 w-7 rounded-lg ring-1 ring-white/20"
               />
-              <h1 className="text-2xl sm:text-[1.75rem] md:text-[2.1rem]">
+              {/* `leading-[normal]` here and on the tagline (v0.48.1): the CSS `normal`
+                  line-height, matching the suite's header as measured against GanttApp
+                  v0.32.1. Without it the title kept `text-2xl`'s line-height ratio up to
+                  2.1rem (44.8 px) and the header stood about 9 px taller. Tailwind's
+                  `leading-normal` is 1.5, not `normal`: hence the arbitrary value. */}
+              <h1 className="text-2xl sm:text-[1.75rem] md:text-[2.1rem] leading-[normal]">
                 <span
                   className="font-bold bg-gradient-to-r from-spert-blue-light to-spert-blue-dark bg-clip-text text-transparent"
                 >
@@ -134,7 +140,7 @@ export function AppShell() {
                 > Forecaster</span>
               </h1>
             </div>
-            <p className="text-sm text-gray-500 dark:text-gray-400 italic">{APP_DESCRIPTION}</p>
+            <p className="text-sm leading-[normal] text-gray-500 dark:text-gray-400 italic">{APP_DESCRIPTION}</p>
           </div>
           <div className="flex items-center gap-2">
             <ConnectAiLauncher />

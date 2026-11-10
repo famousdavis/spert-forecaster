@@ -6,6 +6,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { TOS_URL, PRIVACY_URL } from '@/features/auth/lib/tos'
+import { modalSurfaceProps } from '@/shared/lib/modal-surface'
 
 interface ConsentModalProps {
   onAccept: () => void
@@ -76,6 +77,7 @@ export function ConsentModal({ onAccept, onCancel }: ConsentModalProps) {
 
   return (
     <div
+      {...modalSurfaceProps}
       className="fixed inset-0 z-50 flex items-center justify-center"
       role="presentation"
     >
