@@ -23,6 +23,8 @@ export function KeyboardShortcutsHelp({ isOpen, onClose, shortcuts }: KeyboardSh
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        // Handled: an import preview behind the help must not also cancel (v0.48.1).
+        e.preventDefault()
         onClose()
       }
     }

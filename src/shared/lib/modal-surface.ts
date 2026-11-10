@@ -13,6 +13,12 @@
 //
 // ⚠️ A new modal (`aria-modal="true"`) must carry the marker too.
 // `modal-surface.test.ts` scans the source and goes red when one does not.
+//
+// ⚠️ A modal surface's Escape handler calls `e.preventDefault()`. The import
+// preview's Escape listener (`ImportPreviewSection.tsx`) skips an Escape that is
+// already handled OR that arrives while a surface is open: when the dialog's listener
+// runs first, React can remove the dialog before the preview's listener asks this
+// module, and only `defaultPrevented` is left to say the Escape was the dialog's.
 
 export const MODAL_SURFACE_ATTR = 'data-modal-surface'
 

@@ -78,7 +78,9 @@ export function ConnectAiPanel({
   // ConfirmDialog, which is this app's modal reference.
   useEffect(() => {
     if (!open) return
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    // preventDefault: the Escape is handled here, so an import preview behind the
+    // panel does not also cancel (v0.48.1; see modal-surface.ts).
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.preventDefault(); onClose() } }
     document.addEventListener('keydown', onKey)
     document.body.style.overflow = 'hidden'
     return () => {
