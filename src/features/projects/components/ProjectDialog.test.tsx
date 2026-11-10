@@ -183,6 +183,24 @@ describe('ProjectDialog', () => {
     expect(document.activeElement).toBe(lands())
   })
 
+  it('Escape never reaches a document listener of the page behind, even one registered before the dialog opened (capture phase)', () => {
+    // A bubble-phase listener on `document`, added first, runs before a bubble-phase dialog's.
+    // Only a capture-phase listener that stops propagation keeps the Escape from it.
+    const behind = vi.fn()
+    document.addEventListener('keydown', behind)
+    try {
+      render(<Harness />)
+      key(nameField(), { key: 'Escape' })
+      expect([screen.queryByRole('dialog'), behind.mock.calls.length]).toEqual([null, 0])
+      // Control: the same listener hears a key the dialog does not handle.
+      render(<Harness />)
+      key(nameField(), { key: 'x' })
+      expect(behind).toHaveBeenCalledTimes(1)
+    } finally {
+      document.removeEventListener('keydown', behind)
+    }
+  })
+
   it('Escape closes it and comes back handled (defaultPrevented), and once closed its listener is gone', () => {
     render(<Harness />)
     expect(key(nameField(), { key: 'Escape' })).toBe(false) // false = defaultPrevented
