@@ -4,6 +4,8 @@
 
 'use client'
 
+import { ICON_ACTIVE_BLUE, ICON_BUTTON_BASE, ICON_GLYPH_SIZE, ICON_HUE_BLUE, ICON_REST } from './icon-button-styles'
+
 interface PencilIconButtonProps {
   onClick: () => void
   ariaLabel?: string
@@ -14,9 +16,6 @@ interface PencilIconButtonProps {
   active?: boolean
 }
 
-// `disabled:bg-transparent disabled:text-gray-400` (non-hover variants) are required
-// in addition to `disabled:hover:*`: the `active` prop applies static (non-hover)
-// blue tint/color classes that `disabled:hover:*` alone cannot strip.
 export function PencilIconButton({
   onClick,
   ariaLabel = 'Edit',
@@ -25,10 +24,11 @@ export function PencilIconButton({
   active = false,
   describedBy,
 }: PencilIconButtonProps) {
+  // Disabled overrides active (GanttApp's rule): a disabled pencil never shows the active look.
+  // The active look REPLACES the resting classes rather than joining them: side by side, the
+  // resting grey and transparent background win the stylesheet's tie (v0.48.1's active pencil
+  // drew grey, untinted, with only its ring).
   const isActive = !!active && !disabled
-  const activeClasses = isActive
-    ? ' text-[#0070f3] bg-blue-50 dark:bg-blue-500/15 [box-shadow:0_0_0_1.5px_rgba(0,112,243,0.5)]'
-    : ''
   return (
     <button
       type="button"
@@ -37,11 +37,11 @@ export function PencilIconButton({
       title={title}
       disabled={disabled}
       aria-describedby={describedBy}
-      className={`inline-flex items-center justify-center p-1.5 rounded-md leading-none bg-transparent border-none cursor-pointer transition-[color,background-color,box-shadow] duration-150 text-gray-400 hover:text-[#0070f3] hover:bg-blue-50 dark:hover:bg-blue-500/15 focus:outline-none focus:text-[#0070f3] focus:bg-blue-50 dark:focus:bg-blue-500/15 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-gray-400 hover:[box-shadow:0_0_0_1.5px_rgba(0,112,243,0.5)] focus:[box-shadow:0_0_0_1.5px_rgba(0,112,243,0.5)] disabled:[box-shadow:none] disabled:bg-transparent disabled:text-gray-400${activeClasses}`}
+      className={`${ICON_BUTTON_BASE} ${isActive ? ICON_ACTIVE_BLUE : ICON_REST} ${ICON_HUE_BLUE}`}
     >
       <svg
-        width="20"
-        height="20"
+        width={ICON_GLYPH_SIZE}
+        height={ICON_GLYPH_SIZE}
         viewBox="0 0 24 24"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"

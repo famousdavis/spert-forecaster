@@ -14,6 +14,7 @@ import { PencilIconButton } from '@/shared/components/PencilIconButton'
 import { TrashIconButton } from '@/shared/components/TrashIconButton'
 import { ExportIconButton } from '@/shared/components/ExportIconButton'
 import { ShareIconButton } from '@/shared/components/ShareIconButton'
+import { ICON_BUTTON_SLOT } from '@/shared/components/icon-button-styles'
 import { CloneIconButton } from '@/shared/components/CloneIconButton'
 import { DragHandle } from '@/shared/components/DragHandle'
 
@@ -80,7 +81,8 @@ function ProjectRowActions({
           title="Share project"
         />
       ) : (
-        <div className="w-8 h-8 flex-shrink-0" aria-hidden="true" />
+        // Holds Share's place, so rows with and without Share line up (28 px, the buttons' own size token).
+        <div className={ICON_BUTTON_SLOT} aria-hidden="true" />
       )}
 
       <div className="flex items-center gap-0.5">

@@ -142,3 +142,34 @@ describe('ProjectList — drag to reorder lands the project in the boxed slot', 
     expect(tiles[0].querySelectorAll('[draggable="true"]')).toHaveLength(1)
   })
 })
+
+describe('ProjectList — the Share slot (v0.48.2)', () => {
+  it('a row without Share keeps a 28 px placeholder, the same size token as the Share button beside it', () => {
+    // Local mode never shows Share, so a browser has not seen the two rows side by side: this pins
+    // the alignment instead. Both carry `size-7` (28 px); before v0.48.2 the placeholder was w-8 h-8.
+    const { container } = render(
+      <ProjectList
+        projects={[makeProject('p-1', 'Alpha'), makeProject('p-2', 'Bravo')]}
+        onEdit={NOOP}
+        onDelete={NOOP}
+        onExport={NOOP}
+        onClone={NOOP}
+        onReorder={NOOP}
+        onViewHistory={NOOP}
+        onShare={NOOP}
+        accessOf={() => 'owner'}
+        canShare={(id) => id === 'p-1'}
+      />,
+    )
+    const [alpha, bravo] = Array.from(container.querySelectorAll('[data-tile="true"]'))
+    const share = alpha.querySelector('button[aria-label="Share project"]')!
+    const slot = bravo.querySelector('button[aria-label="Export Bravo"]')!.parentElement!.previousElementSibling!
+    expect(bravo.querySelector('button[aria-label="Share project"]')).toBeNull()
+    expect(slot.tagName).toBe('DIV')
+    expect(slot.getAttribute('aria-hidden')).toBe('true')
+    const classes = (el: Element) => (el.getAttribute('class') ?? '').split(/\s+/)
+    expect(classes(share)).toContain('size-7')
+    expect(classes(slot)).toEqual(expect.arrayContaining(['size-7', 'flex-none']))
+    expect(classes(slot)).not.toContain('w-8')
+  })
+})

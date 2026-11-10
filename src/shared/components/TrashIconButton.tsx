@@ -4,6 +4,8 @@
 
 'use client'
 
+import { ICON_BUTTON_BASE, ICON_GLYPH_SIZE, ICON_REST, ICON_HUE_RED } from './icon-button-styles'
+
 interface TrashIconButtonProps {
   onClick: () => void
   ariaLabel?: string
@@ -28,11 +30,11 @@ export function TrashIconButton({
       title={title}
       disabled={disabled}
       aria-describedby={describedBy}
-      className="inline-flex items-center justify-center p-1.5 rounded-md leading-none bg-transparent border-none cursor-pointer transition-[color,background-color,box-shadow] duration-150 text-gray-400 hover:text-[#ef4444] hover:bg-red-50 dark:hover:bg-red-500/15 focus:outline-none focus:text-[#ef4444] focus:bg-red-50 dark:focus:bg-red-500/15 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-gray-400 hover:[box-shadow:0_0_0_1.5px_rgba(239,68,68,0.5)] focus:[box-shadow:0_0_0_1.5px_rgba(239,68,68,0.5)] disabled:[box-shadow:none]"
+      className={`${ICON_BUTTON_BASE} ${ICON_REST} ${ICON_HUE_RED}`}
     >
       <svg
-        width="20"
-        height="20"
+        width={ICON_GLYPH_SIZE}
+        height={ICON_GLYPH_SIZE}
         viewBox="0 0 24 24"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
