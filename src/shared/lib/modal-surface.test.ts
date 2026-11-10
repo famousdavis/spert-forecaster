@@ -9,11 +9,10 @@
 // key switching the tab behind it. This file goes red when that happens.
 //
 // The check is a SOURCE SCAN, like AppShell.test.tsx: in every non-test .tsx file
-// under src/, each `aria-modal=` needs a `{...modalSurfaceProps}` spread. Two of
-// the six surfaces at v0.48.1 (CloudStorageModal, ConnectAiPanel) depend on the
-// auth context or Firebase, so the scan, not a render, is what reaches all of
-// them. The four that render bare are also exercised for real in
-// useKeyboardShortcuts.test.tsx.
+// under src/, each mention of `aria-modal` needs a `{...modalSurfaceProps}` spread.
+// The scan reaches every surface, a new one included; a render reaches only the ones
+// a test mounts. useKeyboardShortcuts.test.tsx presses keys in four open surfaces
+// and checks five closed ones.
 //
 // ⚠️ A scan that reads nothing passes "every file has its marker" perfectly. The
 // control below requires the scan to have read many files and to have FOUND the
@@ -36,7 +35,9 @@ function sourceTsx(): Array<{ rel: string; text: string }> {
 }
 
 const count = (text: string, re: RegExp) => (text.match(re) ?? []).length
-const ARIA_MODAL = /aria-modal=/g
+// Any mention, not just `aria-modal=`: the shorthand `<div aria-modal>` and a spread
+// `{...{ 'aria-modal': true }}` are modals too, and `=` missed both (review G2).
+const ARIA_MODAL = /aria-modal/g
 const MARKER = /\{\.\.\.modalSurfaceProps\}/g
 
 describe('isModalSurfaceOpen', () => {
