@@ -55,9 +55,10 @@ export function useKeyboardShortcuts(shortcuts: KeyboardShortcut[], enabled: boo
             ? isModifierKey(event)
             : !event.ctrlKey && !event.metaKey
         // A single non-letter key such as `?` or a digit already carries Shift in
-        // `event.key`: a real `?` IS Shift+/ on most keyboards. Requiring Shift to be up
-        // for it meant a real `?` never opened the help (fixed in v0.48.1). Letters keep
-        // the Shift check, so Shift+K still does not fire a `k` shortcut.
+        // `event.key`: a real `?` is typed with Shift held (Shift+/ on a US keyboard).
+        // Requiring Shift to be up for it meant a real `?` never opened the help
+        // (fixed in v0.48.1). Letters keep the Shift check, so Shift+K still does not
+        // fire a `k` shortcut.
         const shiftMatch = shortcut.shift
           ? event.shiftKey
           : !event.shiftKey || isNonLetterCharacter(shortcut.key)
