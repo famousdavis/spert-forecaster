@@ -15,7 +15,9 @@
 // Every hover is `enabled:`-gated, so a disabled button shows none.
 //
 // The page colour behind a secondary button is Forecaster's own (`bg-white` /
-// `dark:bg-gray-900`), not GanttApp's `--pt-bg` (`#1a1a2e` in dark).
+// `dark:bg-gray-900`), not GanttApp's `--pt-bg` (`#1a1a2e` in dark). The welcome panel's
+// button (`ProjectsEmptyState`) adds `dark:bg-transparent`, because it sits on that panel's
+// `bg-card`, not on the page (v0.50.3).
 
 /** Box, type, corners, disabled state and the keyboard focus outline. */
 export const TOOLBAR_BUTTON =
