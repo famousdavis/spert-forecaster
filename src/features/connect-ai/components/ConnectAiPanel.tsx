@@ -140,7 +140,7 @@ export function ConnectAiPanel({
           type="button"
           onClick={onClose}
           aria-label="Close"
-          className="-mr-1 -mt-1 rounded p-1 text-spert-muted hover:text-spert-text dark:text-gray-400 dark:hover:text-gray-100"
+          className="-mr-1 -mt-1 rounded p-1 text-spert-text-muted hover:text-spert-text dark:text-gray-400 dark:hover:text-gray-100"
         >
           <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
@@ -162,10 +162,10 @@ export function ConnectAiPanel({
       </div>
 
       <div className="mt-4">
-        <div className="text-xs font-medium uppercase tracking-wide text-spert-muted dark:text-gray-400">
+        <div className="text-xs font-medium uppercase tracking-wide text-spert-text-muted dark:text-gray-400">
           Pairing code
         </div>
-        {codeLoading && <p className="mt-1 text-sm text-spert-muted">Generating…</p>}
+        {codeLoading && <p className="mt-1 text-sm text-spert-text-muted dark:text-gray-400">Generating…</p>}
         {codeError && (
           <p className="mt-1 text-sm text-red-600 dark:text-red-400">
             Could not generate a pairing code.{' '}
@@ -179,7 +179,7 @@ export function ConnectAiPanel({
             <div className="mt-1 font-mono text-2xl tracking-widest text-spert-text dark:text-gray-100">
               {code}
             </div>
-            <p className="mt-1 text-xs text-spert-muted dark:text-gray-400">
+            <p className="mt-1 text-xs text-spert-text-muted dark:text-gray-400">
               Single-use, expires in 15 minutes.
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
@@ -211,7 +211,7 @@ export function ConnectAiPanel({
         />
         <span>
           <span className="font-medium text-spert-text dark:text-gray-200">Read Mode</span>
-          <span className="block text-spert-muted dark:text-gray-400">
+          <span className="block text-spert-text-muted dark:text-gray-400">
             {sessionState.consentRead
               ? 'The assistant can read the project you have open. Turning this off deletes the uploaded copy and keeps the pairing.'
               : 'The assistant can explain how forecasting works but cannot see your project.'}
