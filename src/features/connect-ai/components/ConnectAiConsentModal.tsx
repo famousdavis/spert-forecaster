@@ -86,7 +86,7 @@ export function ConnectAiConsentModal({
             />
             <span>
               <span className="font-medium">Read Mode</span>
-              <span className="block text-spert-muted dark:text-gray-400">
+              <span className="block text-spert-text-muted dark:text-gray-400">
                 Upload a copy of the currently open project to SPERT&apos;s cloud
                 so the assistant can read it. Without this, the assistant can
                 still explain how forecasting works, but cannot see your data.
@@ -96,7 +96,7 @@ export function ConnectAiConsentModal({
             </span>
           </label>
 
-          <ul className="list-disc space-y-1 pl-5 text-spert-muted dark:text-gray-400">
+          <ul className="list-disc space-y-1 pl-5 text-spert-text-muted dark:text-gray-400">
             <li>Only the project you currently have open is uploaded.</li>
             <li>
               The copy is deleted when you disconnect, turn Read Mode off, or

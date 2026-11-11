@@ -4,9 +4,9 @@
 
 // @vitest-environment node
 
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
-import { dirname, join } from 'node:path'
+import { dirname, join, relative } from 'node:path'
 import { compile } from 'tailwindcss'
 import { describe, expect, it } from 'vitest'
 
@@ -90,5 +90,79 @@ describe('globals.css colour tokens', () => {
 
   it('gives every dark-overridden colour a utility that reads its variable', async () => {
     expect(await deadOverrides(GLOBALS, names)).toEqual([])
+  })
+})
+
+/*
+ * v0.50.5. Seven classes in the Connect AI dialogs named `spert-muted`, a colour that has never
+ * existed (the real one is `spert-text-muted`). Tailwind writes no rule for a class it cannot
+ * resolve, and nothing else complains, so in the light theme that text took its parent's colour
+ * (`#333`, or `#0a0a0a` near black) instead of the muted grey it was written for.
+ *
+ * So: every colour name that a `<utility>-spert-<name>` class uses anywhere in the `.ts` and
+ * `.tsx` files under `src` (tests included) must compile, with the app's Tailwind, to a rule.
+ * A `var(--color-spert-<name>)` counts too. The same run-time assembly as above keeps this
+ * file from adding anything to the app's CSS, and from tripping its own check.
+ */
+
+const SRC = join(HERE, '..')
+// Any utility (`text-`, `bg-`, `border-t-`, `from-` …, or `color-` in a CSS variable) before
+// `spert-`; a variant before it (`dark:hover:`) ends at the `:`, an `/opacity` after it ends the name.
+const SPERT_CLASS = /[a-z]+(?:-[a-z]+)*?-spert-([a-z0-9-]+)/g
+
+/** Each `spert-*` colour name used in `sources`, with the places (`file:line`) that use it. */
+function spertColourNames(sources: Array<[string, string]>): Map<string, string[]> {
+  const uses = new Map<string, string[]>()
+  for (const [file, text] of sources) {
+    text.split('\n').forEach((line, i) => {
+      for (const m of line.matchAll(SPERT_CLASS)) {
+        uses.set(m[1], [...(uses.get(m[1]) ?? []), `${file}:${i + 1}`])
+      }
+    })
+  }
+  return uses
+}
+
+/** Every `.ts`/`.tsx` file under `src`. */
+function appSources(): Array<[string, string]> {
+  return (readdirSync(SRC, { recursive: true }) as string[])
+    .filter((f) => /\.tsx?$/.test(f))
+    .map((f) => [relative(SRC, join(SRC, f)), readFileSync(join(SRC, f), 'utf8')])
+}
+
+/** The names among `names` for which `text-spert-<name>` compiles to no rule. */
+async function undefinedColours(css: string, names: string[]): Promise<string[]> {
+  const cls = (n: string) => 'text-' + 'spert-' + n
+  const out = await build(css, names.map(cls))
+  return names.filter((n) => !new RegExp(`\\.${cls(n)}\\s*\\{`).test(out)).sort()
+}
+
+describe('spert-* colour classes in the app source', () => {
+  const used = spertColourNames(appSources())
+  // Assembled at run time: written out in full, both of these are classes Tailwind would build.
+  const TEXT_MUTED = 'text' + '-muted'
+  const BG_HIGHLIGHT = 'bg' + '-highlight'
+
+  it('finds the classes it checks (the reader is not silently empty)', () => {
+    expect(used.get(TEXT_MUTED)?.some((at) => at.startsWith(join('shell', 'components', 'TabNavigation.tsx')))).toBe(true)
+    expect(used.size).toBeGreaterThan(20)
+  })
+
+  it('reports a colour that does not exist (known-bad controls)', async () => {
+    const fixture = [
+      `<p className="mt-1 ${'text-' + 'spert-' + 'muted'}">`, // the typo v0.50.5 fixed
+      `<b className="${'dark:hover:' + 'bg-' + 'spert-' + 'nope'}/50">`, // behind variants and an opacity
+      `<i className="${'border-' + 'spert-' + TEXT_MUTED}/40">`, // real: must not be reported
+      `<u className="${'bg-' + 'spert-' + 'bg'} ${'bg-' + 'spert-' + BG_HIGHLIGHT}">`, // cut short; the real one it starts
+      `const c = 'var(--${'color-' + 'spert-' + 'gone'})'`, // read through the variable
+    ].join('\n')
+    const names = spertColourNames([['fixture.tsx', fixture]])
+    expect([...names.keys()].sort()).toEqual(['bg', BG_HIGHLIGHT, 'gone', 'muted', 'nope', TEXT_MUTED])
+    expect(await undefinedColours(GLOBALS, [...names.keys()])).toEqual(['bg', 'gone', 'muted', 'nope'])
+  })
+
+  it('uses only colours that globals.css defines', async () => {
+    const missing = await undefinedColours(GLOBALS, [...used.keys()])
+    expect(Object.fromEntries(missing.map((n) => [n, used.get(n)]))).toEqual({})
   })
 })
