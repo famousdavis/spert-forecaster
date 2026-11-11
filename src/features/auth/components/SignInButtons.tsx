@@ -4,7 +4,7 @@
 
 'use client'
 
-import { useState } from 'react'
+import { useLayoutEffect, useState } from 'react'
 import { useAuth } from '@/shared/providers/AuthProvider'
 import { signInWithGoogle as firebaseSignInWithGoogle, signInWithMicrosoft as firebaseSignInWithMicrosoft } from '@/shared/firebase/auth'
 import { isTosCached, cacheTos, setPendingWrite } from '@/features/auth/lib/tos'
@@ -19,6 +19,13 @@ interface SignInButtonsProps {
    * is preserved.
    */
   fullLabel?: boolean
+  /**
+   * Told `true` when the agreement shown before a first sign-in (ConsentModal) appears, and
+   * `false` when it leaves, by any way out, including these buttons leaving the page (v0.50.6).
+   * The Cloud Storage window passes it so that its Escape yields to the agreement. Pass a stable
+   * function (a state setter).
+   */
+  onAgreementOpenChange?: (open: boolean) => void
 }
 
 function GoogleIcon() {
@@ -43,11 +50,22 @@ function MicrosoftIcon() {
   )
 }
 
-export function SignInButtons({ fullLabel = false }: SignInButtonsProps = {}) {
+export function SignInButtons({ fullLabel = false, onAgreementOpenChange }: SignInButtonsProps = {}) {
   const { user, isFirebaseAvailable } = useAuth()
   const [pendingProvider, setPendingProvider] = useState<'google' | 'microsoft' | null>(null)
   const [showConsent, setShowConsent] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Report whether the agreement is on the page (v0.50.6). From an effect, not from the handlers
+  // that open and close it: its cleanup also runs when the agreement leaves with these buttons (a
+  // sign-in in another tab), which no handler sees, and a window still told "open" would ignore
+  // every Escape. A layout effect, so the window hears it before the browser handles another key.
+  const agreementShown = showConsent && isFirebaseAvailable && !user
+  useLayoutEffect(() => {
+    if (!agreementShown || !onAgreementOpenChange) return
+    onAgreementOpenChange(true)
+    return () => onAgreementOpenChange(false)
+  }, [agreementShown, onAgreementOpenChange])
 
   if (!isFirebaseAvailable || user) return null
 
