@@ -105,15 +105,18 @@ export function ProductivityAdjustmentList({
                 </td>
                 <td className="p-2 text-center">
                   <span
+                    /* The four tints turn dark in dark mode (v0.50.3), so each badge needs a light
+                       text colour there: the light-mode text on the dark tint measured 2.61:1 to
+                       3.50:1; these measure 5.14:1 (red) to 6.48:1 (amber). */
                     className={cn(
                       'inline-block rounded-xl px-2 py-0.5 text-[0.8rem] font-medium',
                       adj.factor === 0
-                        ? 'bg-spert-bg-error-row text-red-600'
+                        ? 'bg-spert-bg-error-row text-red-600 dark:text-red-400'
                         : adj.factor < 0.5
-                          ? 'bg-spert-bg-warning-row text-spert-warning-dark'
+                          ? 'bg-spert-bg-warning-row text-spert-warning-dark dark:text-amber-400'
                           : adj.factor < 1
-                            ? 'bg-spert-bg-info-row text-blue-600'
-                            : 'bg-spert-bg-success-row text-emerald-600'
+                            ? 'bg-spert-bg-info-row text-blue-600 dark:text-blue-400'
+                            : 'bg-spert-bg-success-row text-emerald-600 dark:text-emerald-400'
                     )}
                   >
                     {Math.round(adj.factor * 100)}%
