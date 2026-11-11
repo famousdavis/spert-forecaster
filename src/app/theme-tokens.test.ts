@@ -94,7 +94,7 @@ describe('globals.css colour tokens', () => {
 })
 
 /*
- * v0.50.4. Seven classes in the Connect AI dialogs named `spert-muted`, a colour that has never
+ * v0.50.5. Seven classes in the Connect AI dialogs named `spert-muted`, a colour that has never
  * existed (the real one is `spert-text-muted`). Tailwind writes no rule for a class it cannot
  * resolve, and nothing else complains, so in the light theme that text took its parent's colour
  * (`#333`, or `#0a0a0a` near black) instead of the muted grey it was written for.
@@ -150,7 +150,7 @@ describe('spert-* colour classes in the app source', () => {
 
   it('reports a colour that does not exist (known-bad controls)', async () => {
     const fixture = [
-      `<p className="mt-1 ${'text-' + 'spert-' + 'muted'}">`, // the typo v0.50.4 fixed
+      `<p className="mt-1 ${'text-' + 'spert-' + 'muted'}">`, // the typo v0.50.5 fixed
       `<b className="${'dark:hover:' + 'bg-' + 'spert-' + 'nope'}/50">`, // behind variants and an opacity
       `<i className="${'border-' + 'spert-' + TEXT_MUTED}/40">`, // real: must not be reported
       `<u className="${'bg-' + 'spert-' + 'bg'} ${'bg-' + 'spert-' + BG_HIGHLIGHT}">`, // cut short; the real one it starts

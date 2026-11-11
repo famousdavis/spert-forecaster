@@ -31,6 +31,7 @@ import { useProjectDialog } from '../hooks/useProjectDialog'
 import { useProjectDelete } from '../hooks/useProjectDelete'
 import { useProjectArchive } from '../hooks/useProjectArchive'
 import { useProjectTileActions } from '../hooks/useProjectTileActions'
+import { useImportFocusReturn } from '../hooks/useImportFocusReturn'
 import { exportWorkspaceBackup } from '../lib/export-backup'
 import { useAuth } from '@/shared/providers/AuthProvider'
 import type { Project } from '@/shared/types'
@@ -96,6 +97,8 @@ export function ProjectsTab({ onViewHistory, importState }: ProjectsTabProps) {
   const archive = useProjectArchive({ projects, rootRef, newProjectRef, onViewHistory, dialogOpen: dialog.open || replaceAllPending })
   const deletion = useProjectDelete({ shown: archive.shown, rootRef, newProjectRef })
   const tileActions = useProjectTileActions()
+  // v0.50.4: once the import preview goes (applied, replaced, cancelled), focus lost with it goes to Import.
+  const importRef = useImportFocusReturn(importPreview !== null, newProjectRef)
 
   const { mode } = useStorageMode()
   // Pitfall #88: gate the Import button on cloud-data hydration so users can't
@@ -146,6 +149,7 @@ export function ProjectsTab({ onViewHistory, importState }: ProjectsTabProps) {
           hasProjects={projects.length > 0}
           importDisabled={applying || isCloudPending}
           fileInputRef={fileInputRef}
+          importRef={importRef}
           newProjectRef={newProjectRef}
           onExportAll={handleExport}
           onImportClick={handleImportClick}

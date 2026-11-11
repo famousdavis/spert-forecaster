@@ -4,12 +4,18 @@
 
 'use client'
 
+import type { Ref } from 'react'
 import { useAuth } from '@/shared/providers/AuthProvider'
 import { useStorageMode } from '@/shared/hooks/useStorageMode'
 import { firstNameFromDisplayName } from '@/features/auth/lib/display-name'
 
 interface UserMenuProps {
   onRequestOpen: () => void
+  /**
+   * The button shown, whichever of the three it is (v0.50.4): the Cloud Storage window returns
+   * focus to it, and signing in or out swaps one for another.
+   */
+  buttonRef?: Ref<HTMLButtonElement>
 }
 
 function CloudIcon() {
@@ -32,7 +38,7 @@ function LockIcon() {
   )
 }
 
-export function UserMenu({ onRequestOpen }: UserMenuProps) {
+export function UserMenu({ onRequestOpen, buttonRef }: UserMenuProps) {
   const { user } = useAuth()
   const { mode } = useStorageMode()
 
@@ -45,6 +51,7 @@ export function UserMenu({ onRequestOpen }: UserMenuProps) {
     return (
       <button
         type="button"
+        ref={buttonRef}
         onClick={onRequestOpen}
         aria-label="Account menu"
         className="flex items-center rounded-full hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
@@ -85,6 +92,7 @@ export function UserMenu({ onRequestOpen }: UserMenuProps) {
     return (
       <button
         type="button"
+        ref={buttonRef}
         onClick={onRequestOpen}
         aria-label="Account menu"
         className="flex items-center rounded-full hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
@@ -124,6 +132,7 @@ export function UserMenu({ onRequestOpen }: UserMenuProps) {
   return (
     <button
       type="button"
+      ref={buttonRef}
       onClick={onRequestOpen}
       aria-label="Sign in"
       className="flex items-center rounded-full hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"

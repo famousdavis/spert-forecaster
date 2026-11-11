@@ -7,6 +7,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { TOS_URL, PRIVACY_URL } from '@/features/auth/lib/tos'
 import { modalSurfaceProps } from '@/shared/lib/modal-surface'
+import { useDialogFocus } from '@/shared/hooks/useDialogFocus'
 
 interface ConsentModalProps {
   onAccept: () => void
@@ -28,10 +29,10 @@ export function ConsentModal({ onAccept, onCancel }: ConsentModalProps) {
   const acceptButtonRef = useRef<HTMLButtonElement>(null)
   const checkboxRef = useRef<HTMLInputElement>(null)
 
-  // Focus cancel on mount — keyboard dismiss is the safer default.
-  useEffect(() => {
-    cancelButtonRef.current?.focus()
-  }, [])
+  // Focus Cancel on mount — keyboard dismiss is the safer default. On unmount (it closes by
+  // unmounting), focus goes back to the sign-in button that opened it (v0.50.4; before, it fell
+  // to <body>).
+  useDialogFocus(true, () => cancelButtonRef.current)
 
   // Keyboard handling: Escape to cancel, Tab to trap focus
   const handleKeyDown = useCallback(

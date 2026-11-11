@@ -4,7 +4,7 @@
 
 'use client'
 
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useRef } from 'react'
 import { TabNavigation, type TabId } from './TabNavigation'
 import { Footer } from './Footer'
 import { ProjectsTab } from '@/features/projects'
@@ -43,6 +43,8 @@ export function AppShell() {
   const [activeTab, setActiveTab] = useState<TabId>('projects')
   const [isShortcutsHelpOpen, setIsShortcutsHelpOpen] = useState(false)
   const [cloudModalOpen, setCloudModalOpen] = useState(false)
+  // The header's account button, whichever one is shown: where focus goes when Cloud Storage closes.
+  const userMenuRef = useRef<HTMLButtonElement>(null)
   const setViewingProjectId = useProjectStore((state) => state.setViewingProjectId)
   // ⚠️ Owned HERE, not in ProjectsTab, because ProjectsTab unmounts on every tab switch
   // (see the conditional render below) and a transfer arriving mid-switch would have nothing
@@ -145,7 +147,7 @@ export function AppShell() {
           <div className="flex items-center gap-2">
             <ConnectAiLauncher />
             <HeaderThemeToggle />
-            <UserMenu onRequestOpen={() => setCloudModalOpen(true)} />
+            <UserMenu buttonRef={userMenuRef} onRequestOpen={() => setCloudModalOpen(true)} />
           </div>
         </header>
 
@@ -197,6 +199,7 @@ export function AppShell() {
       <CloudStorageModal
         isOpen={cloudModalOpen}
         onClose={() => setCloudModalOpen(false)}
+        returnFocusTo={() => userMenuRef.current}
       />
     </div>
     </AiConnectivityProvider>
