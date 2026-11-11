@@ -34,7 +34,7 @@ export function KeyboardShortcutsHelp({ isOpen, onClose, shortcuts }: KeyboardSh
       if (dialogRef.current && !dialogRef.current.contains(e.target as Node)) {
         // Handled: a mousedown's default action moves focus to what was clicked, or to <body>
         // when that cannot take focus (the overlay). It runs AFTER the close has put focus back
-        // on what opened the help, so unprevented it undid that (measured in Chrome, v0.50.3).
+        // on what opened the help, so unprevented it undid that (measured in Chrome, v0.50.4).
         e.preventDefault()
         onClose()
       }
@@ -49,7 +49,7 @@ export function KeyboardShortcutsHelp({ isOpen, onClose, shortcuts }: KeyboardSh
     }
   }, [isOpen, onClose])
 
-  // Open: focus the help itself. Closed: back to what had focus when `?` opened it (v0.50.3;
+  // Open: focus the help itself. Closed: back to what had focus when `?` opened it (v0.50.4;
   // before, focus fell to <body>).
   useDialogFocus(isOpen, () => dialogRef.current)
 

@@ -6,7 +6,7 @@ import { useEffect, useLayoutEffect, useRef } from 'react'
 
 /**
  * Where focus goes when a dialog opens and when it closes: ConfirmDialog's rule since v0.50.2,
- * shared by every dialog since v0.50.3.
+ * shared by every dialog since v0.50.4.
  *
  * Open: remember what had focus, then focus `initialFocus()`. Close, or unmount while open: focus
  * goes back to what had it, or to `returnFocusTo()` when the caller gives one. `returnFocusTo` is

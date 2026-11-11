@@ -2,7 +2,7 @@
 // Licensed under the GNU General Public License v3.0.
 // See LICENSE file in the project root for full license text.
 
-// Focus in the two Connect AI modals (v0.50.3, F5 and F6). Open: the modal itself, so its title
+// Focus in the two Connect AI modals (v0.50.4, F5 and F6). Open: the modal itself, so its title
 // is read (before: focus stayed behind it, on the header button). Closed, by any way out: the
 // Connect AI button. After Connect in the consent modal the panel opens from nothing (the consent
 // modal is gone), so the launcher names its own button rather than relying on what had focus.

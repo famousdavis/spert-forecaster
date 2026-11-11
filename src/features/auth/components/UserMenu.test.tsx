@@ -4,7 +4,7 @@
 
 // The header's account button is one of three different <button>s (signed in to the cloud,
 // signed in on local storage, signed out). `buttonRef` must name whichever is shown, because the
-// Cloud Storage window returns focus to it when it closes (v0.50.3), and signing in or out inside
+// Cloud Storage window returns focus to it when it closes (v0.50.4), and signing in or out inside
 // the window swaps one for another.
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, cleanup } from '@testing-library/react'

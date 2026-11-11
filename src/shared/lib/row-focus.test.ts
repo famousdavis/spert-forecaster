@@ -2,7 +2,7 @@
 // Licensed under the GNU General Public License v3.0.
 // See LICENSE file in the project root for full license text.
 
-// Where focus goes when a row leaves a list (v0.50.3): its own control if still there, else the
+// Where focus goes when a row leaves a list (v0.50.4): its own control if still there, else the
 // row that moved into its place, else the row above, else the fallbacks; never a disabled or
 // detached control. The callers' own tests drive this through real deletes; these pin the order.
 import { describe, it, expect, afterEach } from 'vitest'

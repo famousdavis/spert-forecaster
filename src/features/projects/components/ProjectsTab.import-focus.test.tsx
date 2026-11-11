@@ -3,7 +3,7 @@
 // See LICENSE file in the project root for full license text.
 
 /**
- * Focus once the import preview goes (v0.50.3, F4 and F5): applied by Replace all data or by
+ * Focus once the import preview goes (v0.50.4, F4 and F5): applied by Replace all data or by
  * Apply import, or cancelled by its Cancel or by Escape. Focus that was inside the preview goes to
  * the toolbar's Import; focus the user has put anywhere else stays there. Known-bad (measured on a
  * production build in v0.50.2 for Replace all data): <body>.

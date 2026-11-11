@@ -21,7 +21,7 @@ interface ListRowActionsProps {
    * their description: a screen-reader-only element they name.
    */
   reason?: string | null
-  /** The row's id, on its Delete: see TrashIconButton (v0.50.3). */
+  /** The row's id, on its Delete: see TrashIconButton (v0.50.4). */
   rowKey?: string
 }
 

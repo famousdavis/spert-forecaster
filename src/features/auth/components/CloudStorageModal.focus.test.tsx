@@ -2,7 +2,7 @@
 // Licensed under the GNU General Public License v3.0.
 // See LICENSE file in the project root for full license text.
 
-// Focus in the Cloud Storage window (v0.50.3, F6). Open: the window itself, so its title is read
+// Focus in the Cloud Storage window (v0.50.4, F6). Open: the window itself, so its title is read
 // (before: focus stayed behind it, on the header button). Closed: back to the header's account
 // button. Signing out swaps that button for another element, so AppShell passes `returnFocusTo`
 // to read the one shown THEN; the opener alone would be a detached element. The signed-in paths

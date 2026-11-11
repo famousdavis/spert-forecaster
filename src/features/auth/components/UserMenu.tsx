@@ -12,7 +12,7 @@ import { firstNameFromDisplayName } from '@/features/auth/lib/display-name'
 interface UserMenuProps {
   onRequestOpen: () => void
   /**
-   * The button shown, whichever of the three it is (v0.50.3): the Cloud Storage window returns
+   * The button shown, whichever of the three it is (v0.50.4): the Cloud Storage window returns
    * focus to it, and signing in or out swaps one for another.
    */
   buttonRef?: Ref<HTMLButtonElement>

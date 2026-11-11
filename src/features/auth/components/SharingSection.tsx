@@ -74,7 +74,7 @@ export function SharingSection({ projectId, projectName }: SharingSectionProps) 
   const [actionBusy, setActionBusy] = useState<string | null>(null)
   const [revokeConfirmTokenId, setRevokeConfirmTokenId] = useState<string | null>(null)
   const [ownerStatus, setOwnerStatus] = useState<OwnerStatus>('loading')
-  // v0.50.3 (F3): after a revoke removes its row, focus goes to the Revoke of the invitation that
+  // v0.50.4 (F3): after a revoke removes its row, focus goes to the Revoke of the invitation that
   // moved into its place, else the one above, else the invite email box. A revoke that fails
   // keeps its row, and focus goes back to its Revoke.
   const rootRef = useRef<HTMLDivElement>(null)

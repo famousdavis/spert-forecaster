@@ -6,7 +6,7 @@ import { useCallback, useRef, type RefObject } from 'react'
 import { focusTargetAfterRemoval, rowKeysInOrder } from '@/shared/lib/row-focus'
 
 /**
- * Focus after a row is removed through a ConfirmDialog (v0.50.3; the order is in row-focus.ts).
+ * Focus after a row is removed through a ConfirmDialog (v0.50.4; the order is in row-focus.ts).
  *
  * Call `remember(key)` when the user asks to remove the row, before anything is removed: it
  * records the rows' order inside `root`. Pass `returnFocusTo` to the dialog. It reads `fallbacks`

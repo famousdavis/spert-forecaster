@@ -78,7 +78,7 @@ export function SprintHistoryTab() {
     isOpen: false,
     sprintId: null,
   })
-  // v0.50.3 (F1): after Delete Sprint, focus goes to the Delete of the sprint that is now the latest
+  // v0.50.4 (F1): after Delete Sprint, focus goes to the Delete of the sprint that is now the latest
   // (only the latest can be deleted, so it is always the row beside the one removed), else Add Sprint.
   const rootRef = useRef<HTMLDivElement>(null)
   const addSprintRef = useRef<HTMLButtonElement>(null)

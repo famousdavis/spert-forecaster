@@ -30,11 +30,11 @@ interface TabNavigationProps {
 export function TabNavigation({ activeTab, onTabChange }: TabNavigationProps) {
   /* The tab bar matches the SPERT® suite's (GanttApp v0.32.1, measured for v0.48.1): no left
      inset, 8 px top corners, the CSS `normal` line-height (Tailwind's `leading-normal` is 1.5,
-     so the arbitrary value), and these colours. ⚠️ Every dark colour is a `dark:` class HERE,
-     on purpose: the `spert-*` colour tokens are declared in `@theme inline`, which bakes their
-     light values into the utilities, so their `.dark` overrides never apply. The muted text
-     and the hover stayed light-theme grey in dark mode until v0.48.1. Fixing the tokens
-     themselves changes dark mode app-wide and is deliberately not done in this file. */
+     so the arbitrary value), and these colours. Every dark colour is a `dark:` class here, and
+     they are GanttApp's: #a0aec0 text, #2d3748 hover, #3b82f6 active. v0.48.1 added them when no
+     `spert-*` token's dark value applied at all; v0.50.3 made the tokens' dark values apply
+     app-wide (globals.css). These classes stay, because the tokens' dark values differ from
+     GanttApp's (muted text #a3a3a3, hover #262626), and a `dark:` class wins over a token. */
   return (
     <div className="flex gap-2 border-b-2 border-[#eee] dark:border-[#2d3748]">
       {TABS.filter((tab) => !tab.hidden).map((tab) => (

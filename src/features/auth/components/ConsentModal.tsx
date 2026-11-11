@@ -30,7 +30,7 @@ export function ConsentModal({ onAccept, onCancel }: ConsentModalProps) {
   const checkboxRef = useRef<HTMLInputElement>(null)
 
   // Focus Cancel on mount — keyboard dismiss is the safer default. On unmount (it closes by
-  // unmounting), focus goes back to the sign-in button that opened it (v0.50.3; before, it fell
+  // unmounting), focus goes back to the sign-in button that opened it (v0.50.4; before, it fell
   // to <body>).
   useDialogFocus(true, () => cancelButtonRef.current)
 

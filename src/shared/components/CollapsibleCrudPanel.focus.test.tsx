@@ -2,7 +2,7 @@
 // Licensed under the GNU General Public License v3.0.
 // See LICENSE file in the project root for full license text.
 
-// Focus after Delete Milestone / Delete Adjustment (v0.50.3, F2), through the two real panels
+// Focus after Delete Milestone / Delete Adjustment (v0.50.4, F2), through the two real panels
 // that use CollapsibleCrudPanel: the Delete of the row that moved into its place, else the row
 // above, else + Add, else (the form is open, so + Add is hidden) the panel's header toggle.
 // Known-bad (measured on a production build in v0.50.2): <body>.

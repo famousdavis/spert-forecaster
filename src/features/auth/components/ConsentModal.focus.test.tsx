@@ -2,7 +2,7 @@
 // Licensed under the GNU General Public License v3.0.
 // See LICENSE file in the project root for full license text.
 
-// Focus in the sign-in consent modal (v0.50.3, F5). It opens on Cancel, as before; it closes by
+// Focus in the sign-in consent modal (v0.50.4, F5). It opens on Cancel, as before; it closes by
 // unmounting, and focus now goes back to the sign-in button that opened it, by every way out.
 // Sign-in needs Firebase, so this is jsdom only, through the real SignInButtons.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'

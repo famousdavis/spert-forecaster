@@ -19,7 +19,7 @@ interface ConnectAiPanelProps {
   onChangePermissions: (consentRead: boolean) => Promise<boolean>
   onDisconnect: () => Promise<void>
   /**
-   * Where focus goes when the panel closes (v0.50.3): the launcher's button. Without it, focus goes
+   * Where focus goes when the panel closes (v0.50.4): the launcher's button. Without it, focus goes
    * back to what had it when the panel opened, which after the consent step is nothing.
    */
   returnFocusTo?: () => HTMLElement | null
@@ -46,7 +46,7 @@ export function ConnectAiPanel({
   const [permError, setPermError] = useState(false)
   const [disconnecting, setDisconnecting] = useState(false)
   const refreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  // v0.50.3 (F6): open, focus goes to the panel itself, so its title is read; closed (Close, Done,
+  // v0.50.4 (F6): open, focus goes to the panel itself, so its title is read; closed (Close, Done,
   // Escape, the backdrop, Disconnect), back to the launcher. Before, focus never moved in.
   const dialogRef = useRef<HTMLDivElement>(null)
   useDialogFocus(open, () => dialogRef.current, returnFocusTo)

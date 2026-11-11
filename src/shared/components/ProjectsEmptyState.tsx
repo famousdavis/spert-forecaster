@@ -49,7 +49,10 @@ export function ProjectsEmptyState({ variant, onCreateNew, onLoadSample }: Proje
         {SUBHEADS[variant]}
       </p>
       {/* v0.49.0: the dashboard toolbar's look (GanttApp's `.pt-btn`), from the same shared
-          strings, so Load Sample reads the same here and in the toolbar above. */}
+          strings, so Load Sample reads the same here and in the toolbar above. One exception,
+          v0.50.3: in dark mode the secondary button is transparent here. The shared dark:bg-gray-900
+          matches the page behind the toolbar, but this panel is bg-card (#171717), where gray-900
+          (#101828) showed as a bluer box. */}
       <div className="mt-6 flex items-center justify-center gap-3 flex-wrap">
         <button type="button" onClick={onCreateNew} className={cn(TOOLBAR_BUTTON, TOOLBAR_PRIMARY)}>
           Create New Project
@@ -57,7 +60,7 @@ export function ProjectsEmptyState({ variant, onCreateNew, onLoadSample }: Proje
         <button
           type="button"
           onClick={onLoadSample}
-          className={cn(TOOLBAR_BUTTON, TOOLBAR_SECONDARY)}
+          className={cn(TOOLBAR_BUTTON, TOOLBAR_SECONDARY, 'dark:bg-transparent')}
         >
           Load Sample Project
         </button>

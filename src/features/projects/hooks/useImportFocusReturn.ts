@@ -5,7 +5,7 @@
 import { useEffect, useRef, type RefObject } from 'react'
 
 /**
- * Focus when the import preview goes (v0.50.3, F4 and F5). Returns the ref for the toolbar's
+ * Focus when the import preview goes (v0.50.4, F4 and F5). Returns the ref for the toolbar's
  * Import button.
  *
  * The preview leaves the page when its import is applied (its Import, or Replace all data once

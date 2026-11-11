@@ -2,7 +2,7 @@
 // Licensed under the GNU General Public License v3.0.
 // See LICENSE file in the project root for full license text.
 
-// Focus in the keyboard shortcuts help (v0.50.3, F5). It opens on itself, as before; closed, focus
+// Focus in the keyboard shortcuts help (v0.50.4, F5). It opens on itself, as before; closed, focus
 // now goes back to what had it when `?` opened it. Known-bad: <body>.
 import { describe, it, expect, afterEach } from 'vitest'
 import { render, screen, fireEvent, cleanup, within, createEvent } from '@testing-library/react'

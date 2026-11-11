@@ -2,7 +2,7 @@
 // Licensed under the GNU General Public License v3.0.
 // See LICENSE file in the project root for full license text.
 
-// Focus after "Revoke invitation?" (v0.50.3, F3). A revoke that works removes its row (the list
+// Focus after "Revoke invitation?" (v0.50.4, F3). A revoke that works removes its row (the list
 // is reloaded while the dialog is still open), and focus goes to the Revoke of the invitation
 // that moved into its place, else the one above, else the invite email box. A revoke that fails
 // keeps its row, and focus goes back to its Revoke. Sharing needs a signed-in cloud account, so

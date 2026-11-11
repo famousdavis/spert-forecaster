@@ -14,7 +14,7 @@ interface ConnectAiConsentModalProps {
   open: boolean
   onCancel: () => void
   onConfirm: (consentRead: boolean) => void
-  /** Where focus goes when the modal closes (v0.50.3): the launcher's button. */
+  /** Where focus goes when the modal closes (v0.50.4): the launcher's button. */
   returnFocusTo?: () => HTMLElement | null
 }
 
@@ -29,7 +29,7 @@ export function ConnectAiConsentModal({
   open, onCancel, onConfirm, returnFocusTo,
 }: ConnectAiConsentModalProps) {
   const [consentRead, setConsentRead] = useState(true)
-  // v0.50.3: open, focus goes to the modal itself, so its title is read; closed, back to the
+  // v0.50.4: open, focus goes to the modal itself, so its title is read; closed, back to the
   // launcher. Escape cancels, as in every other dialog here; preventDefault so an import preview
   // behind it does not cancel too (modal-surface.ts). Before, it had neither.
   const dialogRef = useRef<HTMLDivElement>(null)

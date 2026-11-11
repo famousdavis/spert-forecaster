@@ -96,12 +96,12 @@ describe('AppShell — crosslink wiring', () => {
   })
 })
 
-// v0.50.3 (F6) — a WIRING fact, so structural (see the header). The Cloud Storage window returns
+// v0.50.4 (F6) — a WIRING fact, so structural (see the header). The Cloud Storage window returns
 // focus to the header's account button as it is when the window closes: signing out swaps that
 // button for another element, so the element that opened the window can be gone. The behaviour
 // (focus lands on the live button; with the opener alone it is lost) is CloudStorageModal.focus.test.tsx;
 // UserMenu's ref naming whichever button is shown is UserMenu.test.tsx.
-describe('AppShell — focus when Cloud Storage closes (v0.50.3)', () => {
+describe('AppShell — focus when Cloud Storage closes (v0.50.4)', () => {
   it('UserMenu fills the ref the window reads when it closes', () => {
     expect(SOURCE).toMatch(/^\s*const userMenuRef = useRef<HTMLButtonElement>\(null\)$/m)
     expect(SOURCE).toMatch(/^\s*<UserMenu buttonRef=\{userMenuRef\} onRequestOpen=\{\(\) => setCloudModalOpen\(true\)\} \/>$/m)

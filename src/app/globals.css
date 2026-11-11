@@ -48,7 +48,13 @@
   --radius-2xl: calc(var(--radius) + 8px);
   --radius-3xl: calc(var(--radius) + 12px);
   --radius-4xl: calc(var(--radius) + 16px);
+}
 
+/* The SPERT colours are a plain @theme, not inline (v0.50.3): their utilities then read
+   var(--color-spert-*), so the .dark overrides below apply. Inside @theme inline, Tailwind writes
+   each value into the utility itself; until v0.50.3 these colours sat there, and none of their
+   dark overrides ever took effect. theme-tokens.test.ts fails if one moves back. */
+@theme {
   /* SPERT brand colors */
   --color-spert-blue: #0070f3;
   --color-spert-blue-light: #0099ff;

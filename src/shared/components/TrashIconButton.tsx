@@ -15,7 +15,7 @@ interface TrashIconButtonProps {
   describedBy?: string
   /**
    * The row's id, as `data-row-key`: where focus can land when a neighbouring row is deleted
-   * (v0.50.3, `shared/lib/row-focus.ts`).
+   * (v0.50.4, `shared/lib/row-focus.ts`).
    */
   rowKey?: string
 }

@@ -97,7 +97,7 @@ export function ProjectsTab({ onViewHistory, importState }: ProjectsTabProps) {
   const archive = useProjectArchive({ projects, rootRef, newProjectRef, onViewHistory, dialogOpen: dialog.open || replaceAllPending })
   const deletion = useProjectDelete({ shown: archive.shown, rootRef, newProjectRef })
   const tileActions = useProjectTileActions()
-  // v0.50.3: once the import preview goes (applied, replaced, cancelled), focus lost with it goes to Import.
+  // v0.50.4: once the import preview goes (applied, replaced, cancelled), focus lost with it goes to Import.
   const importRef = useImportFocusReturn(importPreview !== null, newProjectRef)
 
   const { mode } = useStorageMode()

@@ -1,0 +1,94 @@
+// Copyright (C) 2026 William W. Davis, MSPM, PMP. All rights reserved.
+// Licensed under the GNU General Public License v3.0.
+// See LICENSE file in the project root for full license text.
+
+// @vitest-environment node
+
+import { readFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
+import { dirname, join } from 'node:path'
+import { compile } from 'tailwindcss'
+import { describe, expect, it } from 'vitest'
+
+/*
+ * v0.50.3. A colour declared in `@theme inline` is written into its utility as a literal
+ * (`.text-spert-text-muted{color:#666}`), so a `.dark` override of the same variable can never
+ * reach it. Until v0.50.3 every `spert-*` colour sat there: their 20 dark overrides were dead,
+ * and light-theme greys and tints showed in dark mode.
+ *
+ * So this compiles globals.css with the app's own Tailwind and checks the outcome, whatever
+ * the source looks like: for every colour the `.dark` rule overrides, a utility that uses it
+ * must read `var(--color-…)`. (A first version read the source's block structure instead; a
+ * one-line `@theme inline { … }` or `@theme static inline` slipped past it.)
+ *
+ * ⚠️ Tailwind scans this file too, and would add to the app's CSS any class or theme variable
+ * written here in full that the app does not already use. So every class name and every
+ * probe variable below is assembled at run time; the two `spert-*` names written out are
+ * already used by the app.
+ */
+
+const HERE = import.meta.dirname
+const GLOBALS = readFileSync(join(HERE, 'globals.css'), 'utf8')
+const resolve = createRequire(join(HERE, 'theme-tokens.test.ts')).resolve
+
+/** Compile CSS as the app's build does; `tw-animate-css` (keyframes only) is left out. */
+async function build(css: string, candidates: string[]): Promise<string> {
+  const compiler = await compile(css, {
+    base: HERE,
+    loadStylesheet: async (id: string, base: string) => {
+      if (id === 'tw-animate-css') return { path: id, base, content: '' }
+      if (id !== 'tailwindcss') throw new Error(`unexpected @import ${id}`)
+      const path = resolve('tailwindcss/index.css')
+      return { path, base: dirname(path), content: readFileSync(path, 'utf8') }
+    },
+  })
+  return compiler.build(candidates)
+}
+
+/** Every `--color-*` variable set inside a style rule whose selector names `.dark` (`.dark`,
+ *  `html.dark`, …). The selector is the text after the previous `;`, so a statement before the
+ *  rule, such as `@custom-variant dark (&:is(.dark *));`, is not read as part of it. */
+function darkOverrides(css: string): string[] {
+  const names: string[] = []
+  for (const rule of css.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]*)\{([^{}]*)\}/g)) {
+    const selector = rule[1].split(';').pop()!.trim()
+    if (!/\.dark(?![\w-])/.test(selector)) continue
+    for (const m of rule[2].matchAll(/(--color-[\w-]+)\s*:/g)) names.push(m[1])
+  }
+  return [...new Set(names)]
+}
+
+/** The colours among `names` whose `text-…` utility does NOT read its variable. */
+async function deadOverrides(css: string, names: string[]): Promise<string[]> {
+  const suffix = (name: string) => name.slice('--color-'.length)
+  const out = await build(css, names.map((n) => 'text-' + suffix(n)))
+  return names.filter((n) => {
+    const rule = out.match(new RegExp(`\\.text-${suffix(n)}\\s*\\{([^}]*)\\}`))
+    return !rule || !rule[1].includes(`var(${n})`)
+  })
+}
+
+describe('globals.css colour tokens', () => {
+  const names = darkOverrides(GLOBALS)
+
+  it('finds the dark overrides it checks (the reader is not silently empty)', () => {
+    expect(names).toContain('--color-spert-text-muted')
+    expect(names.length).toBeGreaterThan(10)
+  })
+
+  it('catches a colour declared inline (known-bad controls)', async () => {
+    const probe = '--color-' + 'fcdtok-probe'
+    const dark = `@custom-variant dark (&:is(.dark *));\nhtml.dark { ${probe}: #654321; }\n`
+    // inline with a literal: the utility gets #123456
+    const literal = `@import "tailwindcss";\n@theme inline { ${probe}: #123456; }\n${dark}`
+    // inline pointing at another variable: the utility reads that one, not the overridden one
+    const aliased = `@import "tailwindcss";\n@theme inline { ${probe}: var(--fcdtok-other); }\n${dark}`
+    expect(darkOverrides(literal)).toEqual([probe])
+    expect(await deadOverrides(literal, [probe])).toEqual([probe])
+    expect(await deadOverrides(aliased, [probe])).toEqual([probe])
+  })
+
+  it('gives every dark-overridden colour a utility that reads its variable', async () => {
+    expect(await deadOverrides(GLOBALS, names)).toEqual([])
+  })
+})

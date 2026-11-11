@@ -2,7 +2,7 @@
 // Licensed under the GNU General Public License v3.0.
 // See LICENSE file in the project root for full license text.
 
-// Where focus goes when a row leaves a list (v0.50.3).
+// Where focus goes when a row leaves a list (v0.50.4).
 //
 // Removing a row removes the control that had focus (its Delete, its Revoke), and focus falls to
 // <body>: a keyboard user starts again from the top of the page. Each such control carries

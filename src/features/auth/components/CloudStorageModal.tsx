@@ -23,7 +23,7 @@ interface CloudStorageModalProps {
   isOpen: boolean
   onClose: () => void
   /**
-   * Where focus goes when the window closes (v0.50.3), read at close time. AppShell passes the
+   * Where focus goes when the window closes (v0.50.4), read at close time. AppShell passes the
    * header's account button AS IT IS THEN: signing in or out here swaps that button for another
    * element, so the one that opened the window can be gone. Without it, focus goes back to what
    * opened the window, if that is still on the page.
@@ -59,7 +59,7 @@ export function CloudStorageModal({ isOpen, onClose, returnFocusTo }: CloudStora
   // the only copy of some work, and both exits here remove it — so they warn
   // first and offer a backup. Outside the window both behave as they always have.
   const beforeFirstCloudLoad = useFirstCloudLoadWindow()
-  // v0.50.3 (F6): open, focus goes to the window itself, so its title is read; closed, it goes
+  // v0.50.4 (F6): open, focus goes to the window itself, so its title is read; closed, it goes
   // back to the header's account button (`returnFocusTo`). Before, focus never moved: it stayed
   // behind the window on the button that opened it, and was lost when a sign-out removed that.
   const dialogRef = useRef<HTMLDivElement>(null)

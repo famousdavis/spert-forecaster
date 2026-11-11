@@ -2,7 +2,7 @@
 // Licensed under the GNU General Public License v3.0.
 // See LICENSE file in the project root for full license text.
 
-// Focus after Delete Sprint (v0.50.3, F1). Only the latest sprint can be deleted, so once it is
+// Focus after Delete Sprint (v0.50.4, F1). Only the latest sprint can be deleted, so once it is
 // gone focus goes to the Delete of the sprint that is now the latest, in either sort order; with
 // none left, to Add Sprint. Known-bad (measured on a production build in v0.50.2): <body>.
 import { describe, it, expect, afterEach, beforeEach } from 'vitest'

@@ -40,7 +40,7 @@ export function ConnectAiLauncher() {
   const [showConsent, setShowConsent] = useState(false)
   const [showPanel, setShowPanel] = useState(false)
   const [startError, setStartError] = useState(false)
-  // v0.50.3: where focus goes when either modal closes. A ref, not the element that had focus when
+  // v0.50.4: where focus goes when either modal closes. A ref, not the element that had focus when
   // one opened: after Connect in the consent modal, the panel opens from nothing.
   const buttonRef = useRef<HTMLButtonElement>(null)
   const returnFocusTo = useCallback(() => buttonRef.current, [])

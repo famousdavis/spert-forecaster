@@ -31,7 +31,7 @@ interface ProjectsToolbarProps {
   /** Import's gate, unchanged: an import being read or applied, or the first cloud load pending. */
   importDisabled: boolean
   fileInputRef: RefObject<HTMLInputElement | null>
-  /** Where focus goes once an import preview has gone (useImportFocusReturn, v0.50.3). */
+  /** Where focus goes once an import preview has gone (useImportFocusReturn, v0.50.4). */
   importRef: RefObject<HTMLButtonElement | null>
   newProjectRef: RefObject<HTMLButtonElement | null>
   onExportAll: () => void

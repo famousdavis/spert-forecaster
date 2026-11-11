@@ -98,7 +98,7 @@ export function CollapsibleCrudPanel<T extends CrudItem>({
     itemId: string | null
     itemName: string
   }>({ isOpen: false, itemId: null, itemName: '' })
-  // v0.50.3 (F2): after a Delete, focus goes to the Delete of the row that moved into its place,
+  // v0.50.4 (F2): after a Delete, focus goes to the Delete of the row that moved into its place,
   // else the row above, else + Add, else (the form is open, so + Add is hidden) the header toggle.
   // The rows' Deletes carry the item's id (`rowKey` on ListRowActions).
   const rootRef = useRef<HTMLDivElement>(null)
