@@ -5,7 +5,8 @@
 'use client'
 
 import { useMemo } from 'react'
-import { useProjectStore, selectViewingProject } from '@/shared/state/project-store'
+import { useProjectStore } from '@/shared/state/project-store'
+import { useViewedProject } from '@/shared/state/viewed-project'
 import { deriveSprintData } from '@/shared/lib/forecast-derivations'
 
 /**
@@ -19,7 +20,7 @@ import { deriveSprintData } from '@/shared/lib/forecast-derivations'
  * what would let the two drift.
  */
 export function useSprintData() {
-  const selectedProject = useProjectStore(selectViewingProject)
+  const selectedProject = useViewedProject()
   const allSprints = useProjectStore((state) => state.sprints)
 
   return useMemo(

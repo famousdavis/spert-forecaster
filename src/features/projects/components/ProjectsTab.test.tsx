@@ -221,6 +221,11 @@ describe('ProjectsTab — import wiring', () => {
     '../hooks/useProjectTileActions.ts',
     '../lib/tile-meta.ts',
     '../lib/tile-focus.ts',
+    // v0.50.0
+    'ArchiveControls.tsx',
+    'ProjectColorControl.tsx',
+    'tile-color-styles.ts',
+    '../hooks/useProjectArchive.ts',
   ]
   const dashboardSources = () => DASHBOARD_FILES.map((f) => readFileSync(resolve(__dirname, f), 'utf8'))
 

@@ -22,6 +22,8 @@ import { useProjectStore } from '@/shared/state/project-store'
 import { useCallback, useMemo, useState } from 'react'
 import type { DistributionType } from '@/shared/types/burn-up'
 import { ProjectsEmptyState } from '@/shared/components/ProjectsEmptyState'
+import { AllArchivedNotice } from '@/shared/components/AllArchivedNotice'
+import { useUnarchivedProjects } from '@/shared/state/viewed-project'
 import { ForecastDateBlockNotice } from './ForecastDateBlockNotice'
 import { useProjectAccess } from '@/features/auth/hooks/useProjectAccess'
 import { ViewOnlyNotice } from '@/features/auth/components/ViewOnlyNotice'
@@ -115,6 +117,7 @@ export function ForecastTab({ onTabChange }: ForecastTabProps = {}) {
     handleExportCsv,
     handleProjectChange,
   } = useForecastState()
+  const pickerProjects = useUnarchivedProjects() // v0.50.0 (D30): archived projects leave the picker
 
   const distributionsEnabled = useSettingsStore((s) => s.distributionsEnabled)
   // Brief 39: the read-only banner for the project shown (nothing when the user may change it).
@@ -167,6 +170,7 @@ export function ForecastTab({ onTabChange }: ForecastTabProps = {}) {
       />
     )
   }
+  if (pickerProjects.length === 0) return <AllArchivedNotice />
 
   // ⚠️ "Entire Project" — the summary, the deadline panel, the results table —
   // reads the OVERALL scope. `simulationData` is the dropdown's selection and
@@ -189,7 +193,7 @@ export function ForecastTab({ onTabChange }: ForecastTabProps = {}) {
           onChange={handleProjectChange}
           className="text-xl text-spert-text dark:text-gray-100 border-none bg-transparent cursor-pointer font-inherit font-semibold p-0 outline-none ml-0"
         >
-          {projects.map((project) => (
+          {pickerProjects.map((project) => (
             <option key={project.id} value={project.id}>
               {project.name}
             </option>

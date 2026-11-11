@@ -351,20 +351,26 @@ describe('Brief 39 v3 — V1, the account change, E2, F4, W3, W4', () => {
     ['', 'kept'], // no tag: local data, or a copy from before the tag existed
   ] as const)('V1-U4 a mount with account tag %j keeps the stored projects, Export Attribution and running simulations (%s)', async (tag, _kept) => {
     useProjectStore.setState({ projects: [project('p')], sprints: [], cloudAccountId: tag })
-    useSettingsStore.setState({ exportName: 'Alice Example', exportId: 'A-12345' })
+    // v0.50.0: the fixture holds tile colour and archive entries too.
+    useSettingsStore.setState({ exportName: 'Alice Example', exportId: 'A-12345', projectPrefs: { p: { color: 'teal', archived: true }, q: { color: 'pink' } } })
     const generation = currentSimulationGeneration()
     renderHook(() => useCloudSync(user, 'cloud'))
     const s = useSettingsStore.getState()
     expect([order(), s.exportName, s.exportId, currentSimulationGeneration() - generation]).toEqual(['p', 'Alice Example', 'A-12345', 0])
+    // The same account keeps its map (the first load also keeps it when the account has no settings document).
+    expect(s.projectPrefs).toEqual({ p: { color: 'teal', archived: true }, q: { color: 'pink' } })
   })
 
   it('V1-U7 an account change also clears Export Attribution and discards running simulations, as a sign-out does (known-bads K-ACCT-ATTR, K-ACCT-GEN)', async () => {
     useProjectStore.setState({ projects: [project('a-proj')], sprints: [], cloudAccountId: 'user-0' })
-    useSettingsStore.setState({ exportName: 'Alice Example', exportId: 'A-12345' })
+    // v0.50.0: the fixture holds tile colour and archive entries too.
+    useSettingsStore.setState({ exportName: 'Alice Example', exportId: 'A-12345', projectPrefs: { 'a-proj': { color: 'teal', archived: true } } })
     const generation = currentSimulationGeneration()
     renderHook(() => useCloudSync(user, 'cloud'))
     const s = useSettingsStore.getState()
     expect([s.exportName, s.exportId, currentSimulationGeneration() - generation]).toEqual(['', '', 1])
+    // Another account inherits none of the previous account's colours or archive (RISK-G2).
+    expect(s.projectPrefs).toEqual({})
   })
 
   it('V1-U5 an edit never creates a not-in-cloud project: nothing is sent and the user is told once (known-bad K-NIC-CREATE); a project added after that load IS created (control)', async () => {

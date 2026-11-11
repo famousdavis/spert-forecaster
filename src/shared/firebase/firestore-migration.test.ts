@@ -12,11 +12,14 @@ const mockSaveProjectImmediate = vi.fn()
 const mockSaveSettingsImmediate = vi.fn()
 const mockUpsertProfile = vi.fn()
 const mockProjectExists = vi.fn()
+// v0.50.0: the upload's tile colour and archive write (firestore-migration.prefs.test.ts tests it).
+const mockUploadProjectPrefs = vi.fn()
 
 vi.mock('./firestore-driver', () => ({
   saveProjectImmediate: (...args: unknown[]) => mockSaveProjectImmediate(...args),
   saveSettingsImmediate: (...args: unknown[]) => mockSaveSettingsImmediate(...args),
   projectExists: (...args: unknown[]) => mockProjectExists(...args),
+  uploadProjectPrefs: (...args: unknown[]) => mockUploadProjectPrefs(...args),
 }))
 
 vi.mock('./profileWrites', () => ({
@@ -105,6 +108,7 @@ describe('migrateLocalToCloud', () => {
     mockProjectExists.mockResolvedValue(false)
     mockSaveProjectImmediate.mockResolvedValue(undefined)
     mockSaveSettingsImmediate.mockResolvedValue(undefined)
+    mockUploadProjectPrefs.mockResolvedValue(undefined)
     mockUpsertProfile.mockResolvedValue(undefined)
   })
 

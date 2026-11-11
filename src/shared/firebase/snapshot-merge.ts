@@ -8,9 +8,9 @@
 // replace lost data or misattributed it (Brief 40):
 //   1. The STORE's order is kept. A project already in the store stays at its
 //      index; a project new to the store is appended. The cloud has no order
-//      field, and the Sprint History / Forecast tabs show projects[0] whenever
-//      nothing is selected — so a reorder here moves the user's next sprint
-//      into a different project.
+//      field, and the Sprint History / Forecast tabs show the first UNARCHIVED
+//      project whenever nothing is selected (v0.50.0, resolveViewedProject) —
+//      so a reorder here moves the user's next sprint into a different project.
 //   2. A PROTECTED project (a local change not yet in any cloud view) keeps the
 //      store's version, at its own index.
 //   3. A project ABSENT from the cloud view is kept only while its create is

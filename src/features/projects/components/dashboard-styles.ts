@@ -43,12 +43,17 @@ export const TILE_HOVER =
   'hover:border-[#93c5fd] hover:shadow-[0_2px_10px_rgba(15,23,42,0.10)] dark:hover:border-[#3b82f6] dark:hover:shadow-[0_2px_10px_rgba(0,0,0,0.35)]'
 /** The drop box on the hovered tile (B25): the only border colour while it shows, in both themes. */
 export const TILE_DROP = 'border-spert-blue'
+/** An archived tile's border at rest (D20): dashed. Swapped out whole for TILE_DROP, like TILE_BORDER. */
+export const TILE_ARCHIVED_BORDER = 'border-dashed border-[#ddd] dark:border-[#4a5568]'
 
 export const NAME_ROW = 'flex items-start gap-1.5'
 /** The drag grip, lifted above the name button's `::after`: under it, no drag can start (measured). */
 export const GRIP = 'relative z-[1] flex-none inline-flex mt-[5px] cursor-grab'
 export const NAME =
-  'flex-auto min-w-0 m-0 pt-px text-[1.05rem] font-semibold leading-[1.35] [overflow-wrap:anywhere] text-[#333] dark:text-[#e2e8f0]'
+  'flex-auto min-w-0 m-0 pt-px text-[1.05rem] font-semibold leading-[1.35] [overflow-wrap:anywhere]'
+/** The name's colour; an archived tile's name takes the meta colour instead (D20). */
+export const NAME_COLOR = 'text-[#333] dark:text-[#e2e8f0]'
+export const NAME_ARCHIVED = 'text-[#666] dark:text-[#a0aec0]'
 /** The name button. Its `::after` covers the whole tile, so a click anywhere on the tile opens Sprint History (D15). */
 export const OPEN =
   "bg-transparent border-0 p-0 m-0 text-left font-semibold cursor-pointer underline-offset-[3px] group-hover/tile:underline focus-visible:underline focus-visible:outline-none after:absolute after:inset-0 after:rounded-[6px] after:content-[''] focus-visible:after:shadow-[0_0_0_2px_#ffffff,0_0_0_4px_#0070f3] dark:focus-visible:after:shadow-[0_0_0_2px_var(--color-gray-900),0_0_0_4px_#60a5fa]"
@@ -58,11 +63,23 @@ export const BADGE =
 export const ABOVE_OPEN = 'relative z-[1]'
 export const META = 'm-0 pl-4 text-[0.85rem] leading-[1.45] text-[#666] dark:text-[#a0aec0]'
 export const ACTIONS = 'flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5 mt-auto pt-1.5 pl-2.5'
-/** The revealed row: hidden at rest, shown on tile hover, on focus inside the tile, and always where there is no hover. */
+/**
+ * The revealed row: hidden at rest, shown on tile hover, on focus inside the tile, while the
+ * tile's colour popover is open (`data-popopen="true"` on the tile root, v0.50.0, GanttApp
+ * parity), and always where there is no hover.
+ */
 export const REVEAL =
-  'flex flex-wrap items-center gap-0.5 opacity-0 transition-opacity duration-[120ms] ease-in-out group-hover/tile:opacity-100 group-focus-within/tile:opacity-100 [@media(hover:none)]:opacity-100'
+  'flex flex-wrap items-center gap-0.5 opacity-0 transition-opacity duration-[120ms] ease-in-out group-hover/tile:opacity-100 group-focus-within/tile:opacity-100 group-data-[popopen=true]/tile:opacity-100 [@media(hover:none)]:opacity-100'
+/** An archived tile's Unarchive group: always shown (D4). Carries ABOVE_OPEN where it is used. */
+export const STAY = 'flex flex-wrap items-center gap-0.5'
 
 export const NOTE = 'text-sm text-spert-text-secondary dark:text-gray-300'
+
+/** "Show archived (N)" (v0.50.0, GanttApp's `.pt-check`). */
+export const CHECK = 'inline-flex items-center gap-2 text-[0.9rem] leading-[normal] cursor-pointer text-[#666] dark:text-[#a0aec0]'
+export const CHECKBOX = 'size-4 m-0 accent-spert-blue'
+// "All projects are archived…" takes ALL_ARCHIVED_CLASS (`@/shared/components/AllArchivedNotice`),
+// one string for Projects, Sprint History and Forecast.
 
 // ── The project dialog (GanttApp's ProjectDialog shape; Forecaster's fields) ──
 export const OVERLAY = 'fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50'

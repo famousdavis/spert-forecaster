@@ -6,10 +6,9 @@
 
 import { useId, useState, useMemo, useCallback } from 'react'
 import { cn } from '@/lib/utils'
-import {
-  useProjectStore,
-  selectViewingProject,
-} from '@/shared/state/project-store'
+import { useProjectStore } from '@/shared/state/project-store'
+import { useUnarchivedProjects, useViewedProject } from '@/shared/state/viewed-project'
+import { AllArchivedNotice } from '@/shared/components/AllArchivedNotice'
 import { useIsClient } from '@/shared/hooks'
 import { ConfirmDialog } from '@/shared/components/ConfirmDialog'
 import { useProjectAccess } from '@/features/auth/hooks/useProjectAccess'
@@ -42,7 +41,9 @@ function addSprintTitle(project: Project | undefined, configComplete: boolean): 
 export function SprintHistoryTab() {
   const isClient = useIsClient()
   const projects = useProjectStore((state) => state.projects)
-  const selectedProject = useProjectStore(selectViewingProject)
+  // v0.50.0 (D30): this person's archived projects leave the picker.
+  const pickerProjects = useUnarchivedProjects()
+  const selectedProject = useViewedProject()
   const allSprints = useProjectStore((state) => state.sprints)
   const addSprint = useProjectStore((state) => state.addSprint)
   const updateSprint = useProjectStore((state) => state.updateSprint)
@@ -164,6 +165,8 @@ export function SprintHistoryTab() {
     )
   }
 
+  if (pickerProjects.length === 0) return <AllArchivedNotice />
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -176,7 +179,7 @@ export function SprintHistoryTab() {
             onChange={handleProjectChange}
             className="text-xl text-spert-text border-none bg-transparent cursor-pointer font-inherit font-semibold p-0 outline-none ml-0"
           >
-            {projects.map((project) => (
+            {pickerProjects.map((project) => (
               <option key={project.id} value={project.id}>
                 {project.name}
               </option>

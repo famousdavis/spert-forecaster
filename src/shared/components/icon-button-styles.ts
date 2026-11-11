@@ -2,7 +2,8 @@
 // Licensed under the GNU General Public License v3.0.
 // See LICENSE file in the project root for full license text.
 
-// The look of the five shared icon buttons (Trash, Pencil, Export, Clone, Share), v0.48.2:
+// The look of the shared icon buttons (Trash, Pencil, Export, Clone, Share, v0.48.2; Archive,
+// v0.50.0):
 // the values GanttApp's five components set inline at d437e84, with two differences in where
 // a value comes from or how it reaches the screen:
 // - the keyboard focus outline is not in those components; it is a rule of GanttApp's Projects
@@ -53,3 +54,7 @@ export const ICON_HUE_VIOLET =
 /** Share. */
 export const ICON_HUE_CYAN =
   'enabled:hover:text-[#0e7490] enabled:hover:bg-[#ecfeff] enabled:hover:shadow-[0_0_0_1.5px_rgba(6,182,212,0.5)] enabled:focus:text-[#0e7490] enabled:focus:bg-[#ecfeff] enabled:focus:shadow-[0_0_0_1.5px_rgba(6,182,212,0.5)] dark:enabled:hover:text-[#22d3ee] dark:enabled:hover:bg-[rgba(6,182,212,0.15)] dark:enabled:focus:text-[#22d3ee] dark:enabled:focus:bg-[rgba(6,182,212,0.15)]'
+
+/** Archive and Unarchive (v0.50.0): GanttApp's slate (`ArchiveIconButton.tsx` at d437e84). */
+export const ICON_HUE_SLATE =
+  'enabled:hover:text-[#475569] enabled:hover:bg-[#f1f5f9] enabled:hover:shadow-[0_0_0_1.5px_rgba(100,116,139,0.5)] enabled:focus:text-[#475569] enabled:focus:bg-[#f1f5f9] enabled:focus:shadow-[0_0_0_1.5px_rgba(100,116,139,0.5)] dark:enabled:hover:text-[#cbd5e1] dark:enabled:hover:bg-[rgba(148,163,184,0.15)] dark:enabled:focus:text-[#cbd5e1] dark:enabled:focus:bg-[rgba(148,163,184,0.15)]'

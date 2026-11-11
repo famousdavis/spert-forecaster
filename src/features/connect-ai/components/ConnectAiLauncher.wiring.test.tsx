@@ -46,6 +46,7 @@ vi.mock('../hooks/useAiConnectivity', () => ({
 import { describe, it, expect, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { useProjectStore } from '@/shared/state/project-store'
+import { useSettingsStore } from '@/shared/state/settings-store'
 import { ConnectAiLauncher } from './ConnectAiLauncher'
 import { AiConnectivityProvider } from '../AiConnectivityProvider'
 
@@ -69,6 +70,7 @@ function seedProjects(count: number) {
 
 beforeEach(() => {
   seedProjects(1)
+  useSettingsStore.setState({ projectPrefs: {} })
 })
 
 describe('ConnectAiLauncher does not own the connection', () => {
@@ -116,6 +118,32 @@ describe('the button is hidden when there is nothing to share', () => {
         <ConnectAiLauncher />
       </AiConnectivityProvider>
     )
+    expect(screen.getByRole('button', { name: 'AI session active' })).toBeTruthy()
+  })
+})
+
+// v0.50.0: the launcher counts UNARCHIVED projects. With every project archived there is no viewed
+// project, so startSession would refuse the start the button offers (an active session's button
+// included, as at no project today: accepted, C-10).
+describe('the button with archived projects (v0.50.0)', () => {
+  const mount = () =>
+    render(
+      <AiConnectivityProvider>
+        <ConnectAiLauncher />
+      </AiConnectivityProvider>
+    )
+
+  it('renders nothing with every project archived', () => {
+    seedProjects(2)
+    useSettingsStore.setState({ projectPrefs: { p0: { archived: true }, p1: { archived: true, color: 'teal' } } })
+    const { container } = mount()
+    expect(container.innerHTML).toBe('')
+  })
+
+  it('MUST-DIFFER: renders with one of them unarchived, or with only a colour set', () => {
+    seedProjects(2)
+    useSettingsStore.setState({ projectPrefs: { p0: { archived: true }, p1: { color: 'teal' } } })
+    mount()
     expect(screen.getByRole('button', { name: 'AI session active' })).toBeTruthy()
   })
 })

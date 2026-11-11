@@ -25,8 +25,9 @@ import { db, isFirebaseAvailable } from '@/shared/firebase/config'
 import { sanitizeForFirestore } from '@/shared/firebase/firestore-sanitize'
 import { syncBus } from '@/shared/firebase/sync-bus'
 import { APP_VERSION } from '@/shared/constants'
-import { useProjectStore, selectViewingProject } from '@/shared/state/project-store'
+import { useProjectStore } from '@/shared/state/project-store'
 import { useSettingsStore } from '@/shared/state/settings-store'
+import { getViewedProject, resolveViewedProject, useViewedProject } from '@/shared/state/viewed-project'
 import { useForecastResultsStore, selectRecordFor } from '@/shared/state/forecast-results-store'
 import { readForecastInputSnapshot } from '@/shared/state/forecast-snapshot-source'
 import { buildSnapshot } from '../lib/build-snapshot'
@@ -72,7 +73,8 @@ export function useAiConnectivity(): UseAiConnectivityResult {
   // The resolved viewed project, mirrored into a ref. Effect C's 30-second
   // timer MUST read this rather than a closure, or a timer scheduled before a
   // project switch pins the previous project id onto the session document.
-  const viewedProject = useProjectStore(selectViewingProject)
+  // Archive-aware (v0.50.0): the same project Sprint History and Forecast show.
+  const viewedProject = useViewedProject()
   const viewedProjectRef = useRef(viewedProject)
   useEffect(() => { viewedProjectRef.current = viewedProject }, [viewedProject])
   useEffect(() => { consentReadRef.current = sessionState.consentRead }, [sessionState.consentRead])
@@ -99,7 +101,7 @@ export function useAiConnectivity(): UseAiConnectivityResult {
 
     const sessionId = activeSessionIdRef.current
     const projectState = useProjectStore.getState()
-    const project = selectViewingProject(projectState)
+    const project = resolveViewedProject(projectState, useSettingsStore.getState().projectPrefs)
     if (!project) {
       deleteDoc(doc(db, SESSIONS_COL, sessionId, 'snapshot', 'current')).catch(() => {})
       return
@@ -293,7 +295,7 @@ export function useAiConnectivity(): UseAiConnectivityResult {
   const startSession = useCallback(async (consentRead: boolean): Promise<boolean> => {
     if (!db || !isFirebaseAvailable) return false
     if (startInFlightRef.current) return false
-    const project = selectViewingProject(useProjectStore.getState())
+    const project = getViewedProject()
     if (!project) return false
     startInFlightRef.current = true
     try {

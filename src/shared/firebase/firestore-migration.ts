@@ -9,7 +9,8 @@ import { useProjectStore } from '@/shared/state/project-store'
 import { useSettingsStore } from '@/shared/state/settings-store'
 import { getWorkspaceId, appendChangeLogEntry } from '@/shared/state/storage'
 import { projectToFirestoreDoc, settingsToFirestoreDoc } from './firestore-converters'
-import { saveProjectImmediate, saveSettingsImmediate, projectExists } from './firestore-driver'
+import { saveProjectImmediate, saveSettingsImmediate, projectExists, uploadProjectPrefs } from './firestore-driver'
+import { projectPrefOf } from '@/shared/lib/project-prefs'
 import { upsertProfile } from './profileWrites'
 import type { FirestoreProfileDoc } from './types'
 
@@ -41,6 +42,9 @@ export async function migrateLocalToCloud(
   const settingsState = useSettingsStore.getState()
   const { projects, sprints, _originRef, _changeLog } = projectState
   const originRef = _originRef || getWorkspaceId()
+  // v0.50.0: each project this upload writes, under the id it has in the cloud (reassigned on a
+  // collision below). Only these projects' tile colours and archives go up.
+  const uploaded: { localId: string; cloudId: string }[] = []
 
   // Append migration event to changelog
   const migrationLog = appendChangeLogEntry(_changeLog, {
@@ -105,16 +109,39 @@ export async function migrateLocalToCloud(
       )
       await saveProjectImmediate(projectId, doc)
       result.projectsUploaded++
+      uploaded.push({ localId: project.id, cloudId: projectId })
     } catch (err) {
       result.errors.push(`Failed to upload project "${project.name}": ${err}`)
     }
   }
 
-  // Upload settings
+  // Upload settings. The seven ordinary fields never carry the map (Brief 20 trap 3); the tile
+  // colours and archives go in their own write, and settings count as uploaded only once both
+  // have landed.
   try {
     const settingsDoc = settingsToFirestoreDoc(settingsState)
     await saveSettingsImmediate(uid, settingsDoc)
-    result.settingsUploaded = true
+    // ⚠️ Immediate and awaited, never the debounced write: a failure must land in
+    // result.errors, which keeps the mode local (UploadConfirmPanel). A debounced write would
+    // fail after the switch with no error, and the first cloud load would then replace the
+    // local map with the cloud's — every colour and archive lost, reported as a success.
+    //
+    // Exactly the uploaded projects' entries, each under its cloud id, both fields masked (a
+    // field the local entry lacks is cleared there). Every other cloud entry stays as it is, and
+    // no other local entry goes up: a cloud→local switch keeps the map, so it can hold a cloud
+    // account's entries under live cloud ids.
+    try {
+      await uploadProjectPrefs(
+        uid,
+        uploaded.map(({ localId, cloudId }) => ({
+          projectId: cloudId,
+          pref: projectPrefOf(settingsState.projectPrefs, localId),
+        })),
+      )
+      result.settingsUploaded = true
+    } catch (err) {
+      result.errors.push(`Tile colours and archive upload failed: ${err}`)
+    }
   } catch (err) {
     result.errors.push(`Settings upload failed: ${err}`)
   }

@@ -7,6 +7,8 @@ import type {
   MilestoneFigureChange,
   UpdateDisclosure,
 } from '@/shared/state/import-utils'
+import type { Project } from '@/shared/types'
+import { isProjectArchived, type ProjectPrefs } from '@/shared/lib/project-prefs'
 
 const plural = (n: number, one: string, many = `${one}s`) => (n === 1 ? one : many)
 
@@ -155,4 +157,19 @@ export function buildImportBannerDetails(result: ImportDecisionResult): string[]
     )
   }
   return details
+}
+
+/**
+ * D35 (v0.50.0): one line for each project the import WROTE that is archived here afterwards — an
+ * Update, an id-conflict replace, a name-conflict replace whose entry followed it (D36), an add
+ * whose id already had an entry, and Replace all. Entries follow the project id through an import
+ * (D34) and are never cleared by one, so such a project lands hidden; without the line the message
+ * would name a project the person cannot see. The same words by file and by crosslink: both reach
+ * here through the same apply path, and nothing here reads the transport.
+ */
+export function archivedImportNotes(writtenIds: string[], projects: Project[], prefs: ProjectPrefs): string[] {
+  const written = new Set(writtenIds)
+  return projects
+    .filter((p) => written.has(p.id) && isProjectArchived(prefs, p.id))
+    .map((p) => `"${p.name}" is archived: Show archived lists it.`)
 }

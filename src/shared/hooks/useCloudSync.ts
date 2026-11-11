@@ -19,6 +19,7 @@ import {
   subscribeToUserProjects,
   loadSettings,
   saveSettings,
+  saveProjectPrefs,
   flushPendingSaves,
   isProjectSaveOutstanding,
   cancelPendingProjectSaves,
@@ -779,6 +780,11 @@ export function useCloudSync(user: User | null, mode: 'local' | 'cloud') {
           const settingsState = useSettingsStore.getState()
           const doc = settingsToFirestoreDoc(settingsState)
           saveSettings(currentUser.uid, doc)
+          break
+        }
+        case 'prefs:save': {
+          // Per entry, under its own debounce key; the values are read when the timer fires.
+          saveProjectPrefs(currentUser.uid, event.changes, () => useSettingsStore.getState().projectPrefs)
           break
         }
       }

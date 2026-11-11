@@ -6,6 +6,7 @@
 
 import type { Sprint, ProductivityAdjustment, Milestone } from '@/shared/types'
 import type { ChangeLogEntry } from '@/shared/state/storage'
+import type { ProjectPrefField, ProjectPrefs } from '@/shared/lib/project-prefs'
 
 export type ProjectRole = 'editor' | 'viewer'
 export type StorageMode = 'local' | 'cloud'
@@ -50,6 +51,10 @@ export interface FirestoreSettingsDoc {
   // Optional for backward compatibility — pre-v0.31.0 docs won't have this field.
   // firestoreDocToSettings coerces missing/empty/invalid to ['truncatedNormal'].
   distributionsEnabled?: string[]
+  // v0.50.0: this person's tile colours and archived projects, keyed by project id. Never in
+  // SETTINGS_MERGE_FIELDS: it is written entry by entry (saveProjectPrefs, uploadProjectPrefs),
+  // so an ordinary settings save never touches it. Read through sanitizeProjectPrefs.
+  projectPrefs?: ProjectPrefs
   // exportName/exportId NOT synced (local-only, per-device)
   // theme NOT synced (per-device preference)
 }
@@ -161,6 +166,13 @@ export type SyncEvent =
       deletedIds: string[]
     }
   | { type: 'settings:save' }
+  /**
+   * v0.50.0: tile colour or archive changed, for these (project id, field) pairs only. Its own
+   * event, never `settings:save`: the cloud write is per entry, and its type does not start
+   * with `project:`, so it is not held before the first cloud load (holdBeforeBaseline) — the
+   * cloud-loading panel covers every control that emits it until then.
+   */
+  | { type: 'prefs:save'; changes: { projectId: string; field: ProjectPrefField }[] }
   /**
    * The AI pairing must drop its uploaded snapshot.
    *

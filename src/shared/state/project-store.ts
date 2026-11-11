@@ -46,7 +46,7 @@ export { validateImportData, type ExportData } from './import-validation'
 // @/shared/types in v0.36.0 so deriveForecastInputs in shared/lib can take it
 // as a parameter without shared/lib importing shared/state.
 
-interface ProjectState {
+export interface ProjectState {
   projects: Project[]
   sprints: Sprint[]
   viewingProjectId: string | null // Shared across Sprint History and Forecast tabs
@@ -296,8 +296,10 @@ function anyDecisionNowRefused(
  * nothing else. Saved: each project the import added, copied, replaced or
  * updated (a name-conflict replace's winner has a new id). Deleted: the
  * original of each name-conflict replace, whose place the winner took.
+ * Exported (v0.50.0) so the import's message names exactly the projects the
+ * import wrote (D35), by the same rule.
  */
-function importWriteSet(
+export function importWriteSet(
   mergedProjects: Project[],
   existingIds: Set<string>,
   result: ImportDecisionResult,
@@ -859,6 +861,15 @@ export const useProjectStore = create<ProjectState>()(
           for (const existingId of outcome.result.updatedExistingIds) {
             forecastResults.clearRecordForProject(existingId)
           }
+          // D36 (v0.50.0): this person's tile colour and archive follow a name-conflict replace
+          // to the replacing id, as forecastInputs and viewingProjectId do above. Exact: the
+          // target becomes the displaced project's entry, and loses any entry of its own when
+          // the displaced project had none. Only on success, and before the hook reads the map
+          // for the banner's archived note (D35).
+          const settings = useSettingsStore.getState()
+          for (const [existingId, incomingId] of outcome.result.replacedIdMap) {
+            settings.moveProjectPref(existingId, incomingId)
+          }
         }
         // C28: syncBus only fires on success. A no-op set() should not trigger
         // cloud sync of unchanged data. replacedIdMap powers owner/members
@@ -987,7 +998,17 @@ export const useProjectStore = create<ProjectState>()(
 export const selectActiveProject = (state: ProjectState): Project | undefined =>
   state.projects[0]
 
-export const selectViewingProject = (state: ProjectState): Project | undefined => {
+/**
+ * The viewed project among `state.projects`, IGNORING ARCHIVE: `viewingProjectId` if that project
+ * is in the list, else the first. Renamed in v0.50.0 (it was `selectViewingProject`) so that `tsc`
+ * listed every reader. ⚠️ Not for a screen: what Sprint History, Forecast and Connect AI show is
+ * archive-aware, and is `resolveViewedProject` / `useViewedProject` (`./viewed-project`), which
+ * apply this rule to the UNARCHIVED projects. This store alone cannot know what is archived: the
+ * map is this person's, in the settings store.
+ */
+export const selectViewingProjectIgnoringArchive = (
+  state: Pick<ProjectState, 'projects' | 'viewingProjectId'>,
+): Project | undefined => {
   if (state.viewingProjectId) {
     return state.projects.find((p) => p.id === state.viewingProjectId) || state.projects[0]
   }

@@ -14,6 +14,17 @@ function makeProject(id: string, name: string): Project {
 
 const NOOP = () => {}
 
+/** v0.50.0's props with nothing archived or coloured: every project shown, no popover open. */
+const NO_ARCHIVE = (projects: Project[]) => ({
+  allProjects: projects,
+  prefs: {},
+  colorOpenFor: null,
+  onColorOpenChange: NOOP,
+  onPickColor: () => true,
+  onArchive: NOOP,
+  onUnarchive: NOOP,
+})
+
 /**
  * jsdom implements no DragEvent, so testing-library falls back to a plain Event.
  * dataTransfer is the one init key it does attach to the event, and ProjectList
@@ -30,14 +41,16 @@ function fireDrag(type: 'dragStart' | 'dragOver' | 'drop', el: Element) {
 }
 
 function renderList(onReorder: (ids: string[]) => void) {
+  const projects = [
+    makeProject('p-1', 'Alpha'),
+    makeProject('p-2', 'Bravo'),
+    makeProject('p-3', 'Charlie'),
+    makeProject('p-4', 'Delta'),
+  ]
   const { container } = render(
     <ProjectList
-      projects={[
-        makeProject('p-1', 'Alpha'),
-        makeProject('p-2', 'Bravo'),
-        makeProject('p-3', 'Charlie'),
-        makeProject('p-4', 'Delta'),
-      ]}
+      projects={projects}
+      {...NO_ARCHIVE(projects)}
       onEdit={NOOP}
       onDelete={NOOP}
       onExport={NOOP}
@@ -147,9 +160,11 @@ describe('ProjectList — drag to reorder lands the project in the boxed slot', 
 const classes = (el: Element | null) => (el?.getAttribute('class') ?? '').split(/\s+/).filter(Boolean)
 
 function renderTiles(opts: { canShare?: (id: string) => boolean } = {}) {
+  const projects = [makeProject('p-1', 'Alpha'), makeProject('p-2', 'Bravo')]
   const { container } = render(
     <ProjectList
-      projects={[makeProject('p-1', 'Alpha'), makeProject('p-2', 'Bravo')]}
+      projects={projects}
+      {...NO_ARCHIVE(projects)}
       sprints={[]}
       onEdit={NOOP}
       onDelete={NOOP}
@@ -174,8 +189,9 @@ describe('ProjectList — the revealed row (v0.49.0; was the Share slot, v0.48.2
     // Until v0.49.0 a 28 px placeholder lined rows up in a single-column list (B37).
     const { tiles } = renderTiles({ canShare: (id) => id === 'p-1' })
     const labels = (tile: Element) => Array.from(revealRowOf(tile).children).map((el) => el.getAttribute('aria-label'))
-    expect(labels(tiles[0])).toEqual(['Share project', 'Export Alpha', 'Edit Alpha', 'Clone Alpha'])
-    expect(labels(tiles[1])).toEqual(['Export Bravo', 'Edit Bravo', 'Clone Bravo'])
+    // v0.50.0 (D4): Archive and Tile color follow Clone. REWRITTEN in v0.50.0 from the four and three labels of v0.49.0.
+    expect(labels(tiles[0])).toEqual(['Share project', 'Export Alpha', 'Edit Alpha', 'Clone Alpha', 'Archive Alpha', 'Tile color for Alpha: No color'])
+    expect(labels(tiles[1])).toEqual(['Export Bravo', 'Edit Bravo', 'Clone Bravo', 'Archive Bravo', 'Tile color for Bravo: No color'])
     expect(tiles[1].querySelector('[aria-hidden="true"].size-7')).toBeNull()
   })
 })
@@ -230,5 +246,109 @@ describe('ProjectList — class guards (the pairs, not just the strings)', () =>
     const { tiles } = renderTiles()
     fireDrag('dragStart', tiles[0].querySelector('[draggable="true"]')!)
     expect([classes(tiles[0]).includes('opacity-50'), classes(tiles[1]).includes('opacity-50')]).toEqual([true, false])
+  })
+})
+
+// v0.50.0: archived tiles hidden. `reorderProjects` deletes every id it is not given (B29), so a
+// drag among the SHOWN tiles must hand it the FULL list, each hidden project in its own slot.
+describe('ProjectList — a drag with archived tiles hidden (v0.50.0)', () => {
+  function renderShown(all: Project[], shownIds: string[], onReorder: (ids: string[]) => void) {
+    const shown = all.filter((p) => shownIds.includes(p.id))
+    const { container } = render(
+      <ProjectList
+        projects={shown}
+        {...NO_ARCHIVE(all)}
+        onEdit={NOOP}
+        onDelete={NOOP}
+        onExport={NOOP}
+        onClone={NOOP}
+        onReorder={onReorder}
+        sprints={[]}
+        onViewHistory={NOOP}
+        accessOf={() => 'owner'}
+        canShare={() => false}
+      />,
+    )
+    return Array.from(container.querySelectorAll('[data-tile="true"]'))
+  }
+  const ALL = ['a', 'x', 'b', 'y', 'c'].map((id) => makeProject(id, id.toUpperCase()))
+
+  it.each([
+    { from: 0, onto: 2, expected: ['b', 'x', 'c', 'y', 'a'], label: 'first shown onto last shown' },
+    { from: 2, onto: 0, expected: ['c', 'x', 'a', 'y', 'b'], label: 'last shown onto first shown' },
+    { from: 1, onto: 2, expected: ['a', 'x', 'c', 'y', 'b'], label: 'middle onto last' },
+  ])('$label: every project is handed over, and each hidden one keeps its slot', ({ from, onto, expected }) => {
+    const onReorder = vi.fn()
+    const tiles = renderShown(ALL, ['a', 'b', 'c'], onReorder)
+    expect(tiles).toHaveLength(3)
+    dragTileOnto(tiles, from, onto)
+    expect(onReorder.mock.calls).toEqual([[expected]])
+  })
+
+  it('with nothing hidden, the order is the shown order', () => {
+    const onReorder = vi.fn()
+    const all = ['a', 'b', 'c'].map((id) => makeProject(id, id))
+    dragTileOnto(renderShown(all, ['a', 'b', 'c'], onReorder), 0, 2)
+    expect(onReorder.mock.calls).toEqual([[['b', 'c', 'a']]])
+  })
+})
+
+describe('ProjectList — the z-[1] guard covers the archived tile\'s Unarchive group (v0.50.0)', () => {
+  it('Unarchive sits in an always-shown group raised above the name button\'s ::after, like the grip, Delete and the revealed row', () => {
+    const projects = [makeProject('p-1', 'Alpha')]
+    const { container } = render(
+      <ProjectList
+        projects={projects}
+        {...NO_ARCHIVE(projects)}
+        prefs={{ 'p-1': { archived: true } }}
+        onEdit={NOOP}
+        onDelete={NOOP}
+        onExport={NOOP}
+        onClone={NOOP}
+        onReorder={NOOP}
+        sprints={[]}
+        onViewHistory={NOOP}
+        accessOf={() => 'owner'}
+        canShare={() => false}
+      />,
+    )
+    const tile = container.querySelector('[data-tile="true"]')!
+    const unarchiveGroup = tile.querySelector('button[aria-label="Unarchive Alpha"]')!.parentElement!
+    expect(classes(unarchiveGroup)).toEqual(expect.arrayContaining(['relative', 'z-[1]']))
+    expect(classes(unarchiveGroup)).not.toContain('opacity-0')
+  })
+})
+
+describe('ProjectList — the drop box on a tinted and on an archived tile (v0.50.0)', () => {
+  it.each([
+    ['tinted', { 'p-2': { color: 'pink' as const } }],
+    ['archived', { 'p-2': { archived: true as const } }],
+    ['tinted and archived', { 'p-2': { color: 'teal' as const, archived: true as const } }],
+  ])('%s: the box is the only border colour, and no dashes survive it', (_label, prefs) => {
+    const projects = [makeProject('p-1', 'Alpha'), makeProject('p-2', 'Bravo')]
+    const { container } = render(
+      <ProjectList
+        projects={projects}
+        {...NO_ARCHIVE(projects)}
+        prefs={prefs}
+        onEdit={NOOP}
+        onDelete={NOOP}
+        onExport={NOOP}
+        onClone={NOOP}
+        onReorder={NOOP}
+        sprints={[]}
+        onViewHistory={NOOP}
+        accessOf={() => 'owner'}
+        canShare={() => false}
+      />,
+    )
+    const tiles = Array.from(container.querySelectorAll('[data-tile="true"]'))
+    const border = (el: Element) => classes(el).filter((c) => /^(dark:)?(hover:)?border-(?!2$)/.test(c))
+    const atRest = border(tiles[1])
+    fireDrag('dragStart', tiles[0].querySelector('[draggable="true"]')!)
+    fireDrag('dragOver', tiles[1])
+    expect(border(tiles[1])).toEqual(['border-spert-blue'])
+    // Control: at rest an archived tile carries its dashes (and a tinted one its rest colour).
+    expect(atRest.length).toBeGreaterThan(1)
   })
 })

@@ -6,10 +6,8 @@
 
 import { useMemo, useRef, useEffect } from 'react'
 import { toast } from 'sonner'
-import {
-  useProjectStore,
-  selectViewingProject,
-} from '@/shared/state/project-store'
+import { useProjectStore } from '@/shared/state/project-store'
+import { getViewedProject, useViewedProject } from '@/shared/state/viewed-project'
 import {
   useForecastResultsStore,
   selectRecordFor,
@@ -117,7 +115,7 @@ export function useForecastState() {
   const isClient = useIsClient()
   const { runSimulation, runMilestoneSimulation } = useSimulationWorker()
   const projects = useProjectStore((state) => state.projects)
-  const selectedProject = useProjectStore(selectViewingProject)
+  const selectedProject = useViewedProject()
   const setViewingProjectId = useProjectStore((state) => state.setViewingProjectId)
 
   // Global settings
@@ -331,7 +329,7 @@ export function useForecastState() {
     // Resolve from the store rather than the closure: this is the same value
     // the publish-time re-resolution compares against, and the auto-recalc
     // effect reaches this function through a ref.
-    const project = selectViewingProject(useProjectStore.getState())
+    const project = getViewedProject()
     if (!project || !canRun) return
 
     // canRun already guarantees cadence + firstSprintStartDate are set, but the
@@ -392,7 +390,7 @@ export function useForecastState() {
     /**
      * Publish, unless the resolved project changed under us.
      *
-     * TRAP 2: selectViewingProject falls back to projects[0]. If a
+     * TRAP 2: the viewed project falls back to the first unarchived one. If a
      * collaborator deletes the viewed project mid-run, publishing under the
      * PUBLISH-time resolved id would stamp project B's arrays with project
      * A's id — the D13 read gate would then match, and the results would be
@@ -405,7 +403,7 @@ export function useForecastState() {
       simData: QuadSimulationData[],
       scopes: ForecastScope[]
     ): boolean => {
-      const stillCurrent = selectViewingProject(useProjectStore.getState())
+      const stillCurrent = getViewedProject()
       if (stillCurrent?.id !== runProjectId) return false
       publishRecord({
         projectId: runProjectId,
@@ -502,7 +500,7 @@ export function useForecastState() {
     // from a reactive value. Reading the undebounced derivations directly here
     // would either trip react-hooks/exhaustive-deps or, with the dep array
     // widened to satisfy it, fire a simulation on every keystroke.
-    const project = selectViewingProject(useProjectStore.getState())
+    const project = getViewedProject()
     if (!project) return
     const resultsState = useForecastResultsStore.getState()
     if (resultsState.isSimulating) return

@@ -20,7 +20,7 @@ import {
   useForecastResultsStore,
   VIEW_STATE_LITERAL_SEEDS,
 } from '@/shared/state/forecast-results-store'
-import { useProjectStore, selectViewingProject } from '@/shared/state/project-store'
+import { useViewedProject } from '@/shared/state/viewed-project'
 
 interface ForecastSummaryProps {
   /** The OVERALL scope — what "Entire Project" shows. Never the chart
@@ -191,7 +191,7 @@ export function ForecastSummary({
   // The actual RENDERED selections are effectiveDistribution and
   // effectiveScope below, which fall back when the stored choice is no longer
   // offered. Lifting a cell does not make it equal to what is on screen.
-  const summaryProjectId = useProjectStore(selectViewingProject)?.id
+  const summaryProjectId = useViewedProject()?.id
   const view = useForecastResultsStore((s) =>
     summaryProjectId ? s.viewState[summaryProjectId] : undefined
   )

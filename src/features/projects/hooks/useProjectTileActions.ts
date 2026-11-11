@@ -16,7 +16,9 @@ import { exportSingleProject } from '../lib/export-project'
 
 /**
  * A tile's Clone and Export, each with its toast (moved out of ProjectsTab.tsx unchanged in
- * v0.49.0). Export also hands the file to the export check (`reportExportCheck`).
+ * v0.49.0). Export also hands the file to the export check (`reportExportCheck`). Clone copies
+ * the source's tile colour to the copy (v0.50.0); exported files carry neither colour nor
+ * archive (D29).
  */
 export function useProjectTileActions() {
   const projects = useProjectStore((state) => state.projects)
@@ -29,6 +31,8 @@ export function useProjectTileActions() {
     (project: Project) => {
       const newId = cloneProject(project.id)
       if (newId) {
+        // v0.50.0: a clone takes this person's tile colour, never the archive.
+        useSettingsStore.getState().copyProjectColor(project.id, newId)
         toast.success(`Cloned: ${project.name}`)
       } else {
         toast.error('Clone failed: project not found')

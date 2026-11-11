@@ -6,7 +6,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import {
   useProjectStore,
   selectActiveProject,
-  selectViewingProject,
+  selectViewingProjectIgnoringArchive,
   selectProjectSprints,
   selectIncludedSprints,
   selectProjectAdjustments,
@@ -80,10 +80,12 @@ describe('selectActiveProject', () => {
   })
 })
 
-describe('selectViewingProject', () => {
+// Renamed in v0.50.0 (was selectViewingProject): the rule resolveViewedProject applies to the
+// unarchived projects (viewed-project.test.ts covers the archive-aware answer).
+describe('selectViewingProjectIgnoringArchive', () => {
   it('returns first project when viewingProjectId is null', () => {
     useProjectStore.setState({ projects: [makeProject({ id: 'a' })] })
-    const result = selectViewingProject(useProjectStore.getState())
+    const result = selectViewingProjectIgnoringArchive(useProjectStore.getState())
     expect(result?.id).toBe('a')
   })
 
@@ -92,7 +94,7 @@ describe('selectViewingProject', () => {
       projects: [makeProject({ id: 'a' }), makeProject({ id: 'b' })],
       viewingProjectId: 'b',
     })
-    const result = selectViewingProject(useProjectStore.getState())
+    const result = selectViewingProjectIgnoringArchive(useProjectStore.getState())
     expect(result?.id).toBe('b')
   })
 
@@ -101,12 +103,12 @@ describe('selectViewingProject', () => {
       projects: [makeProject({ id: 'a' })],
       viewingProjectId: 'deleted-id',
     })
-    const result = selectViewingProject(useProjectStore.getState())
+    const result = selectViewingProjectIgnoringArchive(useProjectStore.getState())
     expect(result?.id).toBe('a')
   })
 
   it('returns undefined when no projects and viewingProjectId is null', () => {
-    const result = selectViewingProject(useProjectStore.getState())
+    const result = selectViewingProjectIgnoringArchive(useProjectStore.getState())
     expect(result).toBeUndefined()
   })
 })
