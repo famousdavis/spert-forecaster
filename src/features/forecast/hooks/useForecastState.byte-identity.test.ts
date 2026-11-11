@@ -87,7 +87,9 @@ beforeEach(() => {
     sprints: [],
     viewingProjectId: PROJECT_ID,
     forecastInputs: {
-      [PROJECT_ID]: { remainingBacklog: '100', velocityMean: '20', velocityStdDev: '4' },
+      // No sprints, so Subjective: mean 20, SD 20 × 0.2 = 4 (overrides until v0.50.7, which
+      // Subjective no longer reads).
+      [PROJECT_ID]: { remainingBacklog: '100', velocityMean: '', velocityStdDev: '', velocityEstimate: '20', selectedCV: 0.2 },
     },
     burnUpConfigs: {},
   })
@@ -269,7 +271,7 @@ describe('the record round-trip is lossless (milestone scopes)', () => {
         ],
       }],
       forecastInputs: {
-        [PROJECT_ID]: { remainingBacklog: backlog, velocityMean: '20', velocityStdDev: '4' },
+        [PROJECT_ID]: { remainingBacklog: backlog, velocityMean: '', velocityStdDev: '', velocityEstimate: '20', selectedCV: 0.2 },
       },
     })
     vi.mocked(useSimulationWorker).mockReturnValue({

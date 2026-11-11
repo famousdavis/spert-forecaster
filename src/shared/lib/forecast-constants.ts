@@ -21,8 +21,14 @@
 /** Minimum included sprints required for bootstrap simulation. */
 export const MIN_SPRINTS_FOR_BOOTSTRAP = 5
 
-/** Minimum included sprints for history-based forecasting (also enables bootstrap). */
+/**
+ * Included sprints from which a project with no stored mode STARTS in History (also enables
+ * bootstrap). Subject to `historyModeAvailable` in forecast-derivations.ts as well.
+ */
 export const MIN_SPRINTS_FOR_HISTORY = MIN_SPRINTS_FOR_BOOTSTRAP
+
+/** Included sprints from which the History button may be pressed at all. */
+export const MIN_SPRINTS_TO_CHOOSE_HISTORY = 2
 
 /** Default coefficient of variation for subjective mode. */
 export const DEFAULT_CV = 0.35

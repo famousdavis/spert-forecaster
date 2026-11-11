@@ -41,8 +41,12 @@ beforeEach(() => {
     forecastInputs: {
       [PROJECT_ID]: {
         remainingBacklog: '10',  // parseable > 0
-        velocityMean: '20',      // effectiveMean = 20 > 0
-        velocityStdDev: '4',
+        // No sprints, so Subjective: mean = the estimate, SD = 20 × 0.2 = 4. (Until v0.50.7
+        // this used Velocity/Variability overrides, which Subjective no longer reads.)
+        velocityMean: '',
+        velocityStdDev: '',
+        velocityEstimate: '20',  // effectiveMean = 20 > 0
+        selectedCV: 0.2,
       },
     },
     burnUpConfigs: {},

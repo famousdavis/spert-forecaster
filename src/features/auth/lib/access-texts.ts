@@ -56,6 +56,14 @@ export const VIEW_ONLY_LOCK_NOTE = '(View only)'
 export const PROJECT_LEFT_TEXT = (name: string) =>
   `"${name}" is no longer in your list, so what you were typing wasn't saved. It may have been unshared from you or deleted.`
 
+/**
+ * The Edit Project dialog closed, read only, because the project it showed left the list
+ * (v0.50.7): T15 without the clause about typing, since nothing could be typed. An editable
+ * Edit Project dialog closing says T15.
+ */
+export const PROJECT_LEFT_VIEW_TEXT = (name: string) =>
+  `"${name}" is no longer in your list. It may have been unshared from you or deleted.`
+
 // Each reads the store guard's own predicates (project-access.ts), so the UI
 // disables exactly what the guard refuses, and an access this file does not
 // name fails closed, as the guard does.

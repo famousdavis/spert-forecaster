@@ -42,6 +42,7 @@ import {
   DEFAULT_VOLATILITY_MULTIPLIER,
   MIN_SPRINTS_FOR_HISTORY,
   MIN_SPRINTS_FOR_BOOTSTRAP,
+  MIN_SPRINTS_TO_CHOOSE_HISTORY,
 } from './forecast-constants'
 
 // ============================================================================
@@ -238,13 +239,39 @@ export function resolveScopeGrowthPerSprint(
   return averageScopeInjection
 }
 
-/** Stored value, else auto-detect from the included sprint count. */
+/**
+ * History mode can be chosen: 2+ included sprints whose velocities are not all the same. At a
+ * standard deviation of 0 every trial draws the same velocity, a certainty the data cannot
+ * support. The History button (ForecastModeToggle) is disabled exactly when this is false.
+ */
+export function historyModeAvailable(includedSprintCount: number, calculatedStdDev: number): boolean {
+  return includedSprintCount >= MIN_SPRINTS_TO_CHOOSE_HISTORY && calculatedStdDev > 0
+}
+
+/**
+ * Stored value, else auto-detect: History from 5 included sprints, provided History is available
+ * at all; otherwise Subjective.
+ *
+ * The ONE place the mode is resolved. useForecastState reads `resolvedMode` from
+ * deriveForecastInputs, and the staleness snapshot and the AI snapshot call the same function,
+ * so the mode on screen, the mode a run is recorded with, and the mode the AI is told cannot
+ * differ. Until v0.50.7 useForecastState kept its own copy of the sprint-count rule, and both
+ * copies started five identical velocities in History at standard deviation 0, which the
+ * History button refuses.
+ *
+ * A stored choice is returned as stored, even where History is no longer available: the user
+ * picked it, and it applies again once the sprints allow it.
+ */
 export function resolveForecastMode(
   storedMode: ForecastMode | undefined,
-  includedSprintCount: number
+  includedSprintCount: number,
+  calculatedStdDev: number
 ): ForecastMode {
   if (storedMode) return storedMode
-  return includedSprintCount >= MIN_SPRINTS_FOR_HISTORY ? 'history' : 'subjective'
+  return includedSprintCount >= MIN_SPRINTS_FOR_HISTORY &&
+    historyModeAvailable(includedSprintCount, calculatedStdDev)
+    ? 'history'
+    : 'subjective'
 }
 
 export interface DerivedForecastInputs {
@@ -300,27 +327,39 @@ export function deriveForecastInputs(
   const selectedCV = stored?.selectedCV ?? DEFAULT_CV
   const volatilityMultiplier = stored?.volatilityMultiplier ?? DEFAULT_VOLATILITY_MULTIPLIER
 
-  const resolvedMode = resolveForecastMode(forecastMode, includedSprintCount)
+  const resolvedMode = resolveForecastMode(
+    forecastMode,
+    includedSprintCount,
+    calculatedStats.standardDeviation
+  )
 
-  // Effective values depend on forecast mode.
-  // Subjective: derived from velocity estimate + CV, pre-seeded from history
-  // when no estimate is entered. History: calculated stats, manual overrides,
-  // or the volatility multiplier.
+  // Effective values depend on forecast mode, and each mode reads only its own inputs.
+  // Subjective: the velocity estimate (pre-seeded from history when none is entered) and the
+  // CV. History: the calculated stats, the Velocity and Variability overrides, or the
+  // volatility multiplier.
+  //
+  // The overrides are History inputs. Until v0.50.7 they won in Subjective too, ahead of the
+  // estimate, while Reset overrides is offered in History only — so an override typed in
+  // History silently replaced every estimate typed in Subjective, with no way to clear it
+  // there. They stay stored, and apply again on a switch back to History, as the volatility
+  // multiplier always has.
   const velocityEstimateNum = Number(velocityEstimate) || 0
   const subjectiveMean =
     velocityEstimateNum > 0 ? velocityEstimateNum : calculatedStats.mean
 
-  const effectiveMean = velocityMean
-    ? Number(velocityMean)
-    : resolvedMode === 'subjective'
+  const effectiveMean =
+    resolvedMode === 'subjective'
       ? subjectiveMean
-      : calculatedStats.mean
+      : velocityMean
+        ? Number(velocityMean)
+        : calculatedStats.mean
 
-  const effectiveStdDev = velocityStdDev
-    ? Number(velocityStdDev)
-    : resolvedMode === 'subjective'
+  const effectiveStdDev =
+    resolvedMode === 'subjective'
       ? subjectiveMean * selectedCV
-      : calculatedStats.standardDeviation * volatilityMultiplier
+      : velocityStdDev
+        ? Number(velocityStdDev)
+        : calculatedStats.standardDeviation * volatilityMultiplier
 
   return {
     remainingBacklog,

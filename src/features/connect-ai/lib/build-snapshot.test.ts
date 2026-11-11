@@ -1174,3 +1174,27 @@ describe('the Entire Project scope in the snapshot', () => {
     expect((b.deadlineProbability as Record<string, unknown>).scope).toBe('project')
   })
 })
+
+// v0.50.7: Velocity and Variability overrides are History inputs. In Subjective they stay
+// stored but set nothing, so the snapshot must not tell the AI the effective values came from
+// them. PROJECT + SPRINTS (6 varied sprints) start in History; STORED_INPUTS overrides 43 / 5.
+describe('the override flags say whether an override set the effective values', () => {
+  const flags = (b: Record<string, unknown>) => {
+    const fc = b.forecastInputs as Record<string, unknown>
+    return [fc.mode, fc.effectiveMean, fc.effectiveStdDev, fc.velocityMeanOverridden, fc.velocityStdDevOverridden]
+  }
+
+  it('History, no run: both overrides applied and flagged (control)', () => {
+    expect(flags(buildSnapshot(input({ record: null })))).toEqual(['history', 43, 5, true, true])
+  })
+
+  it('Subjective, no run: the estimate applies, and neither override is flagged (known-bad: [subjective, 43, 5, true, true])', () => {
+    const storedInputs = { ...STORED_INPUTS, forecastMode: 'subjective' as const, velocityEstimate: '30', selectedCV: 0.25 }
+    expect(flags(buildSnapshot(input({ record: null, storedInputs })))).toEqual(['subjective', 30, 7.5, false, false])
+  })
+
+  it('a Subjective run is reported as one, whatever is stored now (known-bad: flagged from the stored strings alone)', () => {
+    const run = record({ runConfig: runConfig({ forecastMode: 'subjective', velocityMean: 30, velocityStdDev: 7.5 }) })
+    expect(flags(buildSnapshot(input({ record: run })))).toEqual(['subjective', 30, 7.5, false, false])
+  })
+})

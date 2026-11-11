@@ -34,7 +34,7 @@ import { currentSimulationGeneration } from '@/shared/lib/simulation-generation'
 import { preCalculateSprintFactors } from '../lib/productivity'
 import { generateForecastCsv, downloadCsv, generateFilename, buildMilestoneCsvData } from '../lib/export-csv'
 import { safeParseNumber } from '@/shared/lib/validation'
-import { MIN_SPRINTS_FOR_HISTORY, DEFAULT_SELECTED_PERCENTILES } from '../constants'
+import { DEFAULT_SELECTED_PERCENTILES } from '../constants'
 import type { ForecastMode } from '@/shared/types'
 import {
   computeMilestoneCompletionInfo,
@@ -190,11 +190,10 @@ export function useForecastState() {
   // field so the next reader does not restore the effect.
   const targetDate = view?.targetDate ?? ''
 
-  // Forecast mode: auto-detect or user override
-  const canUseHistory = sprintData.includedSprintCount >= MIN_SPRINTS_FOR_HISTORY
-  const effectiveForecastMode: ForecastMode = inputs.forecastMode
-    ? inputs.forecastMode
-    : (canUseHistory ? 'history' : 'subjective')
+  // Forecast mode: the user's choice, else auto-detected. Read from the shared derivation
+  // (resolveForecastMode), the one the run's recorded config and the AI snapshot use; until
+  // v0.50.7 this hook kept its own copy of the rule.
+  const effectiveForecastMode: ForecastMode = inputs.resolvedMode
 
   // Productivity adjustments for the selected project
   const productivityAdjustments = useMemo(

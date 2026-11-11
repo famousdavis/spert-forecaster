@@ -96,6 +96,8 @@ export function useForecastInputs(
     effectiveMean: derived.effectiveMean,
     effectiveStdDev: derived.effectiveStdDev,
     forecastMode: derived.forecastMode,
+    /** The stored mode, else auto-detected (resolveForecastMode): the mode in force. */
+    resolvedMode: derived.resolvedMode,
     velocityEstimate: derived.velocityEstimate,
     selectedCV: derived.selectedCV,
     setRemainingBacklog,

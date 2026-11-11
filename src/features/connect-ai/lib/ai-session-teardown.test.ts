@@ -73,11 +73,17 @@ describe('endServerSession', () => {
 
   it('parks a retry marker when the server call fails', async () => {
     hoisted.callable.mockRejectedValue(new Error('unavailable'))
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
 
     const ok = await endServerSession(SID)
 
     expect(ok).toBe(false)
     expect(getPendingAiTeardownSessionId()).toBe(SID)
+    // Disconnect calls this too, so the log names neither action (v0.50.7; known-bad:
+    // "[AI] Sign-out could not reach the server…").
+    expect(logged.mock.calls.map((c) => String(c[0]).slice(0, 53)))
+      .toEqual(['[AI] Could not reach the server to end the AI session'])
+    logged.mockRestore()
   })
 
   it('fails fast and parks a marker when offline (no server call)', async () => {

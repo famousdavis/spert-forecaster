@@ -48,7 +48,10 @@ describe('AiTeardownBanner', () => {
     render(<AiTeardownBanner />)
 
     expect(await screen.findByText(/AI assistant may still be connected/i)).toBeTruthy()
-    expect(screen.getByText(/could not reach the server to end your Connect AI session/i)).toBeTruthy()
+    expect(screen.getByText(/^Forecaster could not reach the server to end your Connect AI session\. /)).toBeTruthy()
+    // Disconnect and sign-out park the same marker, so the banner names neither (v0.50.7).
+    // Known-bad: "Signing out could not reach…" after a failed Disconnect.
+    expect(screen.queryByText(/sign(ing|ed)?[ -]?out/i)).toBeNull()
     expect(screen.getByText(/keeps trying whenever you are online/i)).toBeTruthy()
     expect(screen.getByText(/ends on its own within 7 days/i)).toBeTruthy()
     expect(screen.getByRole('button', { name: /try again/i })).toBeTruthy()

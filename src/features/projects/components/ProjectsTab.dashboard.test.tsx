@@ -151,12 +151,13 @@ describe('focus when the project dialog closes', () => {
     expect(focused()).toBe(button('Edit View'))
   })
 
-  it('an Edit whose tile left the list while open falls back to New Project', () => {
+  // v0.50.7: the dialog closes by itself when its project leaves (until then it stayed open, and
+  // this test pressed Cancel); ProjectsTab.edit-left.test.tsx covers the message and the save.
+  it('an Edit whose tile left the list while open closes, and falls back to New Project', () => {
     renderTab(ABC)
     fireEvent.click(button('Edit Bravo'))
     act(() => { useProjectStore.setState({ projects: [ABC[0], ABC[2]] }) })
-    fireEvent.click(button('Cancel'))
-    expect(focused()).toBe(button('New Project'))
+    expect([screen.queryByRole('dialog'), focused() === button('New Project')]).toEqual([null, true])
   })
 })
 

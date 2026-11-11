@@ -154,7 +154,7 @@ export function SettingsTab() {
                 Auto-recalculate
               </label>
               <p className={descriptionClass}>
-                Automatically re-run the forecast when inputs change. Takes effect after the first manual run.
+                Runs the forecast by itself as soon as a project has what it needs, and again whenever an input changes.
               </p>
             </div>
           </div>

@@ -13,11 +13,15 @@ import {
 } from '../lib/ai-session-teardown'
 
 /**
- * Tells the user, in plain words, when sign-out could NOT end their Connect AI
- * session on the server (e.g. they were offline). Mounted once in AppShell, so
- * it shows wherever the user lands after signing out. Returns null when nothing
- * is pending. Retries on mount and when the browser comes back online, so the
+ * Tells the user, in plain words, when Disconnect or sign-out could NOT end
+ * their Connect AI session on the server (e.g. they were offline). Mounted once
+ * in AppShell, so it shows wherever the user lands. Returns null when nothing is
+ * pending. Retries on mount and when the browser comes back online, so the
  * common offline-then-online case clears itself with no user action.
+ *
+ * The wording names neither action: both park the same marker (a session id,
+ * nothing more), so the banner cannot know which one failed. Until v0.50.7 it
+ * said "Signing out could not reach the server" after a failed Disconnect too.
  */
 export function AiTeardownBanner() {
   const [pending, setPending] = useState<boolean>(
@@ -77,7 +81,7 @@ export function AiTeardownBanner() {
           Your AI assistant may still be connected.
         </p>
         <p className="text-sm text-amber-800 dark:text-amber-200">
-          Signing out could not reach the server to end your Connect AI session.
+          Forecaster could not reach the server to end your Connect AI session.
           Until it does, a paired AI assistant can still read your last-open
           project. Forecaster keeps trying whenever you are online, and you can
           retry now with Try again. Otherwise the session ends on its own within
