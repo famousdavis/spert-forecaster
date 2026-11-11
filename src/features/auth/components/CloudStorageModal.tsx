@@ -55,6 +55,8 @@ export function CloudStorageModal({ isOpen, onClose, returnFocusTo }: CloudStora
   const [showUploadConfirm, setShowUploadConfirm] = useState(false)
   const [showSwitchToLocalConfirm, setShowSwitchToLocalConfirm] = useState(false)
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false)
+  // The agreement shown before a first sign-in, as SignInButtons reports it (v0.50.6).
+  const [signInAgreementOpen, setSignInAgreementOpen] = useState(false)
   // Brief 40: until the first cloud load succeeds, this browser's copy may be
   // the only copy of some work, and both exits here remove it — so they warn
   // first and offer a backup. Outside the window both behave as they always have.
@@ -78,26 +80,30 @@ export function CloudStorageModal({ isOpen, onClose, returnFocusTo }: CloudStora
     onClose()
   }, [onClose])
 
-  // A confirmation opened over this window (switch to local, the sign-out warning) owns Escape.
-  const confirmationOpen = showSwitchToLocalConfirm || showSignOutConfirm
+  // A dialog opened over this window owns Escape: a confirmation (switch to local, the sign-out
+  // warning) or the sign-in agreement.
+  const innerDialogOpen = showSwitchToLocalConfirm || showSignOutConfirm || signInAgreementOpen
 
   // Escape to close; body scroll lock when open.
   //
-  // ⚠️ While a confirmation is open, one Escape closes only it (v0.50.2). Before, this listener
-  // closed the window too, in either order with the confirmation's own document listener. The
-  // flag is read from this render's closure, never from a ref: in a browser React re-renders
-  // between the two listeners, so a ref would already read "closed" when this one runs second.
-  // The closure re-registers this listener on that render, and a listener removed during
-  // dispatch is skipped.
+  // ⚠️ While a dialog over this window is open, one Escape closes only it: a confirmation since
+  // v0.50.2, the sign-in agreement since v0.50.6. Before, this listener closed the window too, in
+  // either order with the inner dialog's own document listener. The flag is read from this
+  // render's closure, never from a ref: in a browser React re-renders between the two listeners,
+  // so a ref would already read "closed" when this one runs second. The closure re-registers this
+  // listener on that render, and a listener removed during dispatch is skipped.
+  // Skipping an Escape already handled (`defaultPrevented`) is not enough on its own: this
+  // listener usually runs FIRST, because the window opens before the dialog over it does, and
+  // then nothing has handled the Escape yet.
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
-      if (!isOpen || confirmationOpen) return
+      if (!isOpen || innerDialogOpen) return
       if (e.key === 'Escape') {
         e.preventDefault()
         handleClose()
       }
     },
-    [isOpen, confirmationOpen, handleClose]
+    [isOpen, innerDialogOpen, handleClose]
   )
 
   useEffect(() => {
@@ -257,7 +263,7 @@ export function CloudStorageModal({ isOpen, onClose, returnFocusTo }: CloudStora
                     <p className={`${descriptionClass} mt-3 mb-3`}>
                       Sign in to enable cloud storage and sharing.
                     </p>
-                    <SignInButtons fullLabel />
+                    <SignInButtons fullLabel onAgreementOpenChange={setSignInAgreementOpen} />
                   </>
                 )}
 
