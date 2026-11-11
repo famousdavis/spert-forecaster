@@ -87,9 +87,11 @@ describe('the panel buttons', () => {
 
 describe('U-P3 AppShell wiring (structural; known-bad: the panel unwired)', () => {
   const SOURCE = readFileSync(join(import.meta.dirname, 'AppShell.tsx'), 'utf8')
+  // Anchored to whole lines (v0.50.2): unanchored, `{false && awaitingCloud && …}`,
+  // `{!awaitingCloud && …}` and `const awaitingCloud = false && awaitsFirstCloudLoad(…)` all passed.
   it('renders the panel instead of a project tab while the first load is outstanding', () => {
-    expect(SOURCE).toMatch(/awaitsFirstCloudLoad\(\{ mode, authLoading, signedIn: !!user, cloudDataLoaded \}\)/)
-    expect(SOURCE).toMatch(/awaitingCloud && PROJECT_DATA_TABS\.has\(activeTab\) \?\s*\(\s*<CloudLoadingPanel/)
+    expect(SOURCE).toMatch(/^\s*const awaitingCloud = awaitsFirstCloudLoad\(\{ mode, authLoading, signedIn: !!user, cloudDataLoaded \}\)$/m)
+    expect(SOURCE).toMatch(/^\s*\{awaitingCloud && PROJECT_DATA_TABS\.has\(activeTab\) \?\s*\(\s*<CloudLoadingPanel\b/m)
   })
   it('hands the panel the store\'s failure state, Try again and the shared export', () => {
     const panel = SOURCE.slice(SOURCE.indexOf('<CloudLoadingPanel'), SOURCE.indexOf('/>', SOURCE.indexOf('<CloudLoadingPanel')))

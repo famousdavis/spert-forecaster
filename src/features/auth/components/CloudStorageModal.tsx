@@ -65,16 +65,26 @@ export function CloudStorageModal({ isOpen, onClose }: CloudStorageModalProps) {
     onClose()
   }, [onClose])
 
+  // A confirmation opened over this window (switch to local, the sign-out warning) owns Escape.
+  const confirmationOpen = showSwitchToLocalConfirm || showSignOutConfirm
+
   // Escape to close; body scroll lock when open.
+  //
+  // ⚠️ While a confirmation is open, one Escape closes only it (v0.50.2). Before, this listener
+  // closed the window too, in either order with the confirmation's own document listener. The
+  // flag is read from this render's closure, never from a ref: in a browser React re-renders
+  // between the two listeners, so a ref would already read "closed" when this one runs second.
+  // The closure re-registers this listener on that render, and a listener removed during
+  // dispatch is skipped.
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
-      if (!isOpen) return
+      if (!isOpen || confirmationOpen) return
       if (e.key === 'Escape') {
         e.preventDefault()
         handleClose()
       }
     },
-    [isOpen, handleClose]
+    [isOpen, confirmationOpen, handleClose]
   )
 
   useEffect(() => {
