@@ -18,6 +18,9 @@ simulation, working from recorded sprint history or from subjective estimates wh
 - Ordered milestones forecast individually, and productivity adjustments that scale velocity over
   named date ranges such as holidays
 - CSV export, a print-friendly report, and JSON project import/export
+- A Projects dashboard of tiles: give a tile a colour, or archive a finished project to take it out of
+  the Sprint History and Forecast lists. Both are your own settings, so they never change a shared
+  project for anyone else, and exported files carry neither
 - Local-first: everything runs in your browser. Optional Google or Microsoft sign-in adds cloud sync
   and project sharing; a connected AI assistant can be given a read-only snapshot.
 
