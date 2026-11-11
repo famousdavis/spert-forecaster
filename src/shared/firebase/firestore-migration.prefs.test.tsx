@@ -106,6 +106,19 @@ describe('migrateLocalToCloud: the uploaded projects\' entries, and no others', 
     expect(prefsWrites()[0].mask?.map((m) => m[1])).toEqual(['mine', 'mine'])
   })
 
+  it("a project whose upload FAILED keeps its entry out of the cloud: the prefs write masks only the other project's two paths (GAP-1)", async () => {
+    seedLocal(['a', 'b'], { a: { color: 'teal', archived: true }, b: { color: 'pink' } })
+    fake.current.refuseWhen((path) => (path === 'spertforecaster_projects/a' ? new Error('permission-denied') : null))
+    const result = await migrateLocalToCloud('u1', PROFILE)
+    expect(result.errors.some((e) => e.includes('Failed to upload project "Project a"'))).toBe(true)
+    expect(prefsWrites()).toHaveLength(1)
+    expect(prefsWrites()[0].mask).toEqual([
+      ['projectPrefs', 'b', 'color'],
+      ['projectPrefs', 'b', 'archived'],
+    ])
+    expect(cloudPrefs()).toEqual({ b: { color: 'pink' } })
+  })
+
   it('the seven ordinary settings never carry the map', async () => {
     seedLocal(['a'], { a: { color: 'teal' } })
     await migrateLocalToCloud('u1', PROFILE)
