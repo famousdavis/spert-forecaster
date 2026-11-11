@@ -388,6 +388,7 @@ export function MilestoneList({
                 deleteLabel={`Delete ${m.name}`}
                 disabled={!!readOnlyReason}
                 reason={readOnlyReason}
+                rowKey={m.id}
               />
             </tr>
           ))}

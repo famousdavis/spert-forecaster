@@ -4,15 +4,18 @@
 
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { AI_PRIVACY_URL } from '../constants'
 import { modalSurfaceProps } from '@/shared/lib/modal-surface'
+import { useDialogFocus } from '@/shared/hooks/useDialogFocus'
 
 interface ConnectAiConsentModalProps {
   open: boolean
   onCancel: () => void
   onConfirm: (consentRead: boolean) => void
+  /** Where focus goes when the modal closes (v0.50.4): the launcher's button. */
+  returnFocusTo?: () => HTMLElement | null
 }
 
 /**
@@ -23,19 +26,36 @@ interface ConnectAiConsentModalProps {
  * enforces that independently of anything this dialog records.
  */
 export function ConnectAiConsentModal({
-  open, onCancel, onConfirm,
+  open, onCancel, onConfirm, returnFocusTo,
 }: ConnectAiConsentModalProps) {
   const [consentRead, setConsentRead] = useState(true)
+  // v0.50.4: open, focus goes to the modal itself, so its title is read; closed, back to the
+  // launcher. Escape cancels, as in every other dialog here; preventDefault so an import preview
+  // behind it does not cancel too (modal-surface.ts). Before, it had neither.
+  const dialogRef = useRef<HTMLDivElement>(null)
+  useDialogFocus(open, () => dialogRef.current, returnFocusTo)
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      e.preventDefault()
+      onCancel()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [open, onCancel])
 
   if (!open) return null
 
   return (
     <div
       {...modalSurfaceProps}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      ref={dialogRef}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 focus:outline-none"
       role="dialog"
       aria-modal="true"
       aria-labelledby="connect-ai-consent-title"
+      tabIndex={-1}
     >
       <div className="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl dark:bg-gray-800">
         <h3
@@ -59,6 +79,7 @@ export function ConnectAiConsentModal({
           <label className="flex items-start gap-3 rounded border border-spert-border p-3 dark:border-gray-600">
             <input
               type="checkbox"
+              name="aiReadMode"
               checked={consentRead}
               onChange={(e) => setConsentRead(e.target.checked)}
               className="mt-1"

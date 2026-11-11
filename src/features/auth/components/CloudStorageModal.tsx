@@ -5,7 +5,7 @@
 'use client'
 
 import { syncBus } from '@/shared/firebase/sync-bus'
-import { useEffect, useCallback, useState } from 'react'
+import { useEffect, useCallback, useRef, useState } from 'react'
 import { useAuth } from '@/shared/providers/AuthProvider'
 import { useStorageMode } from '@/shared/hooks/useStorageMode'
 import { useProjectStore } from '@/shared/state/project-store'
@@ -17,10 +17,18 @@ import { EXPORT_BACKUP_LABEL, SIGN_OUT_WARNING, SWITCH_TO_LOCAL_WARNING } from '
 import { SignInButtons } from './SignInButtons'
 import { UploadConfirmPanel } from './UploadConfirmPanel'
 import { modalSurfaceProps } from '@/shared/lib/modal-surface'
+import { useDialogFocus } from '@/shared/hooks/useDialogFocus'
 
 interface CloudStorageModalProps {
   isOpen: boolean
   onClose: () => void
+  /**
+   * Where focus goes when the window closes (v0.50.4), read at close time. AppShell passes the
+   * header's account button AS IT IS THEN: signing in or out here swaps that button for another
+   * element, so the one that opened the window can be gone. Without it, focus goes back to what
+   * opened the window, if that is still on the page.
+   */
+  returnFocusTo?: () => HTMLElement | null
 }
 
 const sectionHeadingClass = 'text-sm font-semibold text-spert-text dark:text-gray-100 mb-2'
@@ -39,7 +47,7 @@ function CloseIcon() {
   )
 }
 
-export function CloudStorageModal({ isOpen, onClose }: CloudStorageModalProps) {
+export function CloudStorageModal({ isOpen, onClose, returnFocusTo }: CloudStorageModalProps) {
   const { user, isFirebaseAvailable, signOut } = useAuth()
   const { mode, setMode } = useStorageMode()
   const projects = useProjectStore((s) => s.projects)
@@ -51,6 +59,11 @@ export function CloudStorageModal({ isOpen, onClose }: CloudStorageModalProps) {
   // the only copy of some work, and both exits here remove it — so they warn
   // first and offer a backup. Outside the window both behave as they always have.
   const beforeFirstCloudLoad = useFirstCloudLoadWindow()
+  // v0.50.4 (F6): open, focus goes to the window itself, so its title is read; closed, it goes
+  // back to the header's account button (`returnFocusTo`). Before, focus never moved: it stayed
+  // behind the window on the button that opened it, and was lost when a sign-out removed that.
+  const dialogRef = useRef<HTMLDivElement>(null)
+  useDialogFocus(isOpen, () => dialogRef.current, returnFocusTo)
 
   const isSignedIn = !!user
   const isSignedInLocal = isSignedIn && mode === 'local'
@@ -170,10 +183,12 @@ export function CloudStorageModal({ isOpen, onClose }: CloudStorageModalProps) {
 
       {/* Dialog */}
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="cloud-storage-dialog-title"
-        className="relative z-10 w-full max-w-[460px] rounded-lg bg-white dark:bg-gray-800 shadow-xl mx-4 max-h-[90vh] overflow-y-auto"
+        tabIndex={-1}
+        className="relative z-10 w-full max-w-[460px] rounded-lg bg-white dark:bg-gray-800 shadow-xl mx-4 max-h-[90vh] overflow-y-auto focus:outline-none"
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-spert-border dark:border-gray-700">

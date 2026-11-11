@@ -4,9 +4,10 @@
 
 'use client'
 
-import { useEffect, useLayoutEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef, useCallback } from 'react'
 import { cn } from '@/lib/utils'
 import { modalSurfaceProps } from '@/shared/lib/modal-surface'
+import { useDialogFocus } from '@/shared/hooks/useDialogFocus'
 
 interface ConfirmDialogProps {
   isOpen: boolean
@@ -62,30 +63,10 @@ export function ConfirmDialog({
   const extraButtonRef = useRef<HTMLButtonElement>(null)
   const hasExtra = extraAction !== undefined
 
-  // The latest returnFocusTo. A layout effect, so the close below (a passive effect's cleanup,
-  // which runs before any passive effect of the same commit) reads the closing render's.
-  const returnFocusRef = useRef(returnFocusTo)
-  useLayoutEffect(() => {
-    returnFocusRef.current = returnFocusTo
-  })
-
-  // Open: remember what had focus, then focus Cancel (the safer default). Close, or unmount while
-  // open: focus goes back to it, or where the caller says (v0.50.2). Until then it fell to <body>
-  // (measured on a production build: Escape in "Replace all data" on the Projects tab).
-  // The cleanup runs after the commit that closed the dialog, so the dialog is gone and the page
-  // behind it is current. A caller that moves focus in its own effect (useProjectDelete) still
-  // has the last word: in a commit, every passive-effect cleanup runs before any passive effect.
-  useEffect(() => {
-    if (!isOpen) return
-    const opener = document.activeElement
-    cancelButtonRef.current?.focus()
-    return () => {
-      // An opener that has left the page (a deleted row's Delete) takes no focus: focus() on a
-      // detached element does nothing, so focus stays on <body>, as before.
-      const target = returnFocusRef.current ? returnFocusRef.current() : opener
-      if (target instanceof HTMLElement) target.focus()
-    }
-  }, [isOpen])
+  // Open: focus Cancel (the safer default). Close: back to what opened it, or where the caller
+  // says (v0.50.2; the rule, and why its timing lets useProjectDelete have the last word, is in
+  // useDialogFocus).
+  useDialogFocus(isOpen, () => cancelButtonRef.current, returnFocusTo)
 
   // Handle keyboard events
   const handleKeyDown = useCallback(

@@ -21,6 +21,8 @@ interface ListRowActionsProps {
    * their description: a screen-reader-only element they name.
    */
   reason?: string | null
+  /** The row's id, on its Delete: see TrashIconButton (v0.50.4). */
+  rowKey?: string
 }
 
 export function ListRowActions({
@@ -31,6 +33,7 @@ export function ListRowActions({
   deleteLabel = 'Delete',
   disabled = false,
   reason,
+  rowKey,
 }: ListRowActionsProps) {
   // One id per row (useId), so rows never share a description's id.
   const reasonId = useId()
@@ -54,6 +57,7 @@ export function ListRowActions({
           title={shownReason ?? deleteLabel}
           disabled={disabled}
           describedBy={describedBy}
+          rowKey={rowKey}
         />
       </div>
     </td>

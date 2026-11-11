@@ -4,12 +4,13 @@
 
 'use client'
 
-import { useId, useState, useMemo, useCallback } from 'react'
+import { useId, useRef, useState, useMemo, useCallback } from 'react'
 import { cn } from '@/lib/utils'
 import { useProjectStore } from '@/shared/state/project-store'
 import { useUnarchivedProjects, useViewedProject } from '@/shared/state/viewed-project'
 import { AllArchivedNotice } from '@/shared/components/AllArchivedNotice'
 import { useIsClient } from '@/shared/hooks'
+import { useRowRemovalFocus } from '@/shared/hooks/useRowRemovalFocus'
 import { ConfirmDialog } from '@/shared/components/ConfirmDialog'
 import { useProjectAccess } from '@/features/auth/hooks/useProjectAccess'
 import { accessReason, VIEW_ONLY_LOCK_NOTE } from '@/features/auth/lib/access-texts'
@@ -77,6 +78,11 @@ export function SprintHistoryTab() {
     isOpen: false,
     sprintId: null,
   })
+  // v0.50.4 (F1): after Delete Sprint, focus goes to the Delete of the sprint that is now the latest
+  // (only the latest can be deleted, so it is always the row beside the one removed), else Add Sprint.
+  const rootRef = useRef<HTMLDivElement>(null)
+  const addSprintRef = useRef<HTMLButtonElement>(null)
+  const { remember: rememberDeletedRow, returnFocusTo: afterDeleteFocus } = useRowRemovalFocus(rootRef, [addSprintRef])
 
   const handleProjectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newProjectId = e.target.value
@@ -127,8 +133,9 @@ export function SprintHistoryTab() {
   }
 
   const handleDeleteRequest = useCallback((sprintId: string) => {
+    rememberDeletedRow(sprintId)
     setDeleteConfirm({ isOpen: true, sprintId })
-  }, [])
+  }, [rememberDeletedRow])
 
   const handleDeleteConfirm = useCallback(() => {
     if (deleteConfirm.sprintId) {
@@ -168,7 +175,7 @@ export function SprintHistoryTab() {
   if (pickerProjects.length === 0) return <AllArchivedNotice />
 
   return (
-    <div className="space-y-6">
+    <div ref={rootRef} className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-xl text-spert-text flex items-baseline">
           <span className="font-semibold">Sprint History for </span>
@@ -189,6 +196,7 @@ export function SprintHistoryTab() {
         {reason && <span id={reasonId} className="sr-only">{reason}</span>}
         {!isFormOpen && (
           <button
+            ref={addSprintRef}
             onClick={handleCreate}
             disabled={!canAddSprint}
             title={reason ?? addSprintTitle(selectedProject, isSprintConfigComplete)}
@@ -276,6 +284,7 @@ export function SprintHistoryTab() {
         onConfirm={handleDeleteConfirm}
         onCancel={handleDeleteCancel}
         variant="danger"
+        returnFocusTo={afterDeleteFocus}
       />
     </div>
   )

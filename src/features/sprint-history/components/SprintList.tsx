@@ -188,6 +188,7 @@ export function SprintList({
                       title={readOnlyReason ?? (canDelete ? 'Delete sprint' : 'Only the most recent sprint can be deleted')}
                       disabled={!canDelete || !!readOnlyReason}
                       describedBy={describedBy}
+                      rowKey={sprint.id}
                     />
                   </div>
                 </td>
