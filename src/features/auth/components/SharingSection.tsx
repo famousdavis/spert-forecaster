@@ -4,7 +4,7 @@
 
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAuth } from '@/shared/providers/AuthProvider'
 import { useStorageMode } from '@/shared/hooks/useStorageMode'
 import {
@@ -22,6 +22,7 @@ import {
 } from '@/shared/firebase/firestore-invitations'
 import { callSendInvitationEmail } from '@/shared/firebase/callables'
 import { ConfirmDialog } from '@/shared/components/ConfirmDialog'
+import { useRowRemovalFocus } from '@/shared/hooks/useRowRemovalFocus'
 import { INVITATIONS_ENABLED } from '@/lib/feature-flags'
 import type {
   ProjectMember,
@@ -73,6 +74,12 @@ export function SharingSection({ projectId, projectName }: SharingSectionProps) 
   const [actionBusy, setActionBusy] = useState<string | null>(null)
   const [revokeConfirmTokenId, setRevokeConfirmTokenId] = useState<string | null>(null)
   const [ownerStatus, setOwnerStatus] = useState<OwnerStatus>('loading')
+  // v0.50.3 (F3): after a revoke removes its row, focus goes to the Revoke of the invitation that
+  // moved into its place, else the one above, else the invite email box. A revoke that fails
+  // keeps its row, and focus goes back to its Revoke.
+  const rootRef = useRef<HTMLDivElement>(null)
+  const inviteEmailsRef = useRef<HTMLTextAreaElement>(null)
+  const { remember: rememberRevokedRow, returnFocusTo: afterRevokeFocus } = useRowRemovalFocus(rootRef, [inviteEmailsRef])
 
   const isOwner = ownerStatus === 'owner'
 
@@ -238,7 +245,7 @@ export function SharingSection({ projectId, projectName }: SharingSectionProps) 
   }
 
   return (
-    <div className="space-y-3">
+    <div ref={rootRef} className="space-y-3">
       <h4 className="text-sm font-semibold text-spert-text-secondary dark:text-gray-300">
         Sharing: {projectName}
       </h4>
@@ -296,8 +303,10 @@ export function SharingSection({ projectId, projectName }: SharingSectionProps) 
             <>
               <div className="space-y-2">
                 <textarea
+                  ref={inviteEmailsRef}
                   name="bulkInviteEmails"
                   aria-label="Invite email addresses"
+                  autoComplete="off"
                   value={bulkEmails}
                   onChange={(e) => {
                     setBulkEmails(e.target.value)
@@ -370,8 +379,12 @@ export function SharingSection({ projectId, projectName }: SharingSectionProps) 
                         Resend ({inv.emailSendCount}/5)
                       </button>
                       <button
-                        onClick={() => setRevokeConfirmTokenId(inv.tokenId)}
+                        onClick={() => {
+                          rememberRevokedRow(inv.tokenId)
+                          setRevokeConfirmTokenId(inv.tokenId)
+                        }}
                         disabled={actionBusy !== null}
+                        data-row-key={inv.tokenId}
                         className="text-red-600 dark:text-red-400 hover:underline disabled:opacity-50 cursor-pointer"
                       >
                         Revoke
@@ -392,6 +405,7 @@ export function SharingSection({ projectId, projectName }: SharingSectionProps) 
                 variant="danger"
                 onConfirm={() => revokeConfirmTokenId && handleRevoke(revokeConfirmTokenId)}
                 onCancel={() => setRevokeConfirmTokenId(null)}
+                returnFocusTo={afterRevokeFocus}
               />
             </>
           ) : (

@@ -128,6 +128,7 @@ export function ProductivityAdjustmentList({
                   deleteLabel={`Delete ${adj.name}`}
                   disabled={!!readOnlyReason}
                   reason={readOnlyReason}
+                  rowKey={adj.id}
                 />
               </tr>
             )

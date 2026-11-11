@@ -10,6 +10,7 @@ import { functionsInstance } from '@/shared/firebase/config'
 import { buildPairingPrompt } from '../copyPrompt'
 import type { AiSessionState } from '../hooks/useAiConnectivity'
 import { modalSurfaceProps } from '@/shared/lib/modal-surface'
+import { useDialogFocus } from '@/shared/hooks/useDialogFocus'
 
 interface ConnectAiPanelProps {
   open: boolean
@@ -17,6 +18,11 @@ interface ConnectAiPanelProps {
   sessionState: AiSessionState
   onChangePermissions: (consentRead: boolean) => Promise<boolean>
   onDisconnect: () => Promise<void>
+  /**
+   * Where focus goes when the panel closes (v0.50.3): the launcher's button. Without it, focus goes
+   * back to what had it when the panel opened, which after the consent step is nothing.
+   */
+  returnFocusTo?: () => HTMLElement | null
 }
 
 /** Ten minutes; a code expires in fifteen. */
@@ -31,7 +37,7 @@ const CODE_REFRESH_MS = 10 * 60 * 1000
  * moved.
  */
 export function ConnectAiPanel({
-  open, onClose, sessionState, onChangePermissions, onDisconnect,
+  open, onClose, sessionState, onChangePermissions, onDisconnect, returnFocusTo,
 }: ConnectAiPanelProps) {
   const [code, setCode] = useState<string | null>(null)
   const [codeLoading, setCodeLoading] = useState(false)
@@ -40,6 +46,10 @@ export function ConnectAiPanel({
   const [permError, setPermError] = useState(false)
   const [disconnecting, setDisconnecting] = useState(false)
   const refreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  // v0.50.3 (F6): open, focus goes to the panel itself, so its title is read; closed (Close, Done,
+  // Escape, the backdrop, Disconnect), back to the launcher. Before, focus never moved in.
+  const dialogRef = useRef<HTMLDivElement>(null)
+  useDialogFocus(open, () => dialogRef.current, returnFocusTo)
 
   const sessionId = sessionState.sessionId
 
@@ -124,10 +134,12 @@ export function ConnectAiPanel({
     <div {...modalSurfaceProps} className="fixed inset-0 z-50 flex items-center justify-center" role="presentation">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} aria-hidden="true" />
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="connect-ai-panel-title"
-        className="relative z-10 mx-4 w-full max-w-lg rounded-lg bg-white p-6 shadow-xl dark:bg-gray-800"
+        tabIndex={-1}
+        className="relative z-10 mx-4 w-full max-w-lg rounded-lg bg-white p-6 shadow-xl focus:outline-none dark:bg-gray-800"
       >
       <div className="mb-3 flex items-start justify-between">
         <h3
@@ -205,6 +217,7 @@ export function ConnectAiPanel({
       <label className="mt-4 flex items-start gap-3 text-sm">
         <input
           type="checkbox"
+          name="aiReadMode"
           checked={sessionState.consentRead}
           onChange={() => void handleToggleRead()}
           className="mt-1"

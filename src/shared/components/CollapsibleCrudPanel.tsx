@@ -4,9 +4,10 @@
 
 'use client'
 
-import { useId, useState, useCallback, type ReactNode } from 'react'
+import { useId, useRef, useState, useCallback, type ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 import { ConfirmDialog } from './ConfirmDialog'
+import { useRowRemovalFocus } from '@/shared/hooks/useRowRemovalFocus'
 
 interface CrudItem {
   id: string
@@ -97,6 +98,13 @@ export function CollapsibleCrudPanel<T extends CrudItem>({
     itemId: string | null
     itemName: string
   }>({ isOpen: false, itemId: null, itemName: '' })
+  // v0.50.3 (F2): after a Delete, focus goes to the Delete of the row that moved into its place,
+  // else the row above, else + Add, else (the form is open, so + Add is hidden) the header toggle.
+  // The rows' Deletes carry the item's id (`rowKey` on ListRowActions).
+  const rootRef = useRef<HTMLDivElement>(null)
+  const toggleRef = useRef<HTMLButtonElement>(null)
+  const addRef = useRef<HTMLButtonElement>(null)
+  const { remember: rememberDeletedRow, returnFocusTo: afterDeleteFocus } = useRowRemovalFocus(rootRef, [addRef, toggleRef])
 
   const showForm = form !== null
   const canAdd = maxItems === undefined || items.length < maxItems
@@ -110,13 +118,14 @@ export function CollapsibleCrudPanel<T extends CrudItem>({
   const handleDeleteRequest = useCallback(
     (id: string) => {
       const item = items.find((i) => i.id === id)
+      rememberDeletedRow(id)
       setDeleteConfirm({
         isOpen: true,
         itemId: id,
         itemName: (item?.name as string) ?? 'Unknown',
       })
     },
-    [items]
+    [items, rememberDeletedRow]
   )
 
   const handleDeleteConfirm = useCallback(() => {
@@ -131,8 +140,9 @@ export function CollapsibleCrudPanel<T extends CrudItem>({
   }, [])
 
   return (
-    <div className="rounded-lg border bg-card">
+    <div ref={rootRef} className="rounded-lg border bg-card">
       <button
+        ref={toggleRef}
         onClick={() => setIsExpanded(!isExpanded)}
         className="w-full p-4 flex items-center gap-2 text-left hover:bg-muted/50 transition-colors"
         aria-expanded={isExpanded}
@@ -178,6 +188,7 @@ export function CollapsibleCrudPanel<T extends CrudItem>({
             <>
               {readOnlyReason && <span id={addReasonId} className="sr-only">{readOnlyReason}</span>}
               <button
+                ref={addRef}
                 onClick={() => setForm({ editingItem: null })}
                 disabled={readOnlyReason !== null}
                 title={readOnlyReason ?? undefined}
@@ -228,6 +239,7 @@ export function CollapsibleCrudPanel<T extends CrudItem>({
         onConfirm={handleDeleteConfirm}
         onCancel={handleDeleteCancel}
         variant="danger"
+        returnFocusTo={afterDeleteFocus}
       />
     </div>
   )

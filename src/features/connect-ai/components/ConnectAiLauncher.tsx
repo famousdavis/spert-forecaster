@@ -22,7 +22,7 @@
 // — which is the honest claim, and adding a project name would imply a
 // per-project pairing that does not exist.
 
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { isFirebaseAvailable } from '@/shared/firebase/config'
 import { useIsClient } from '@/shared/hooks'
 import { useUnarchivedProjects } from '@/shared/state/viewed-project'
@@ -40,6 +40,10 @@ export function ConnectAiLauncher() {
   const [showConsent, setShowConsent] = useState(false)
   const [showPanel, setShowPanel] = useState(false)
   const [startError, setStartError] = useState(false)
+  // v0.50.3: where focus goes when either modal closes. A ref, not the element that had focus when
+  // one opened: after Connect in the consent modal, the panel opens from nothing.
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const returnFocusTo = useCallback(() => buttonRef.current, [])
 
   const sessionState = connectivity?.sessionState
   const startSession = connectivity?.startSession
@@ -100,6 +104,7 @@ export function ConnectAiLauncher() {
   return (
     <>
       <button
+        ref={buttonRef}
         type="button"
         onClick={handleClick}
         title={active ? 'AI session active' : 'Connect an AI assistant'}
@@ -130,6 +135,7 @@ export function ConnectAiLauncher() {
         open={showConsent}
         onCancel={() => setShowConsent(false)}
         onConfirm={(consentRead) => void handleConsentConnect(consentRead)}
+        returnFocusTo={returnFocusTo}
       />
 
       {sessionState && connectivity && (
@@ -139,6 +145,7 @@ export function ConnectAiLauncher() {
           sessionState={sessionState}
           onChangePermissions={connectivity.changePermissions}
           onDisconnect={connectivity.stopSession}
+          returnFocusTo={returnFocusTo}
         />
       )}
     </>

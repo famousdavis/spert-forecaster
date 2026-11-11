@@ -31,6 +31,8 @@ interface ProjectsToolbarProps {
   /** Import's gate, unchanged: an import being read or applied, or the first cloud load pending. */
   importDisabled: boolean
   fileInputRef: RefObject<HTMLInputElement | null>
+  /** Where focus goes once an import preview has gone (useImportFocusReturn, v0.50.3). */
+  importRef: RefObject<HTMLButtonElement | null>
   newProjectRef: RefObject<HTMLButtonElement | null>
   onExportAll: () => void
   onImportClick: () => void
@@ -52,6 +54,7 @@ export function ProjectsToolbar({
   hasProjects,
   importDisabled,
   fileInputRef,
+  importRef,
   newProjectRef,
   onExportAll,
   onImportClick,
@@ -73,6 +76,7 @@ export function ProjectsToolbar({
       </button>
       <button
         type="button"
+        ref={importRef}
         onClick={onImportClick}
         disabled={importDisabled}
         aria-label="Import projects from JSON"

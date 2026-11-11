@@ -7,6 +7,7 @@
 import { useEffect, useRef } from 'react'
 import { formatShortcut, type KeyboardShortcut } from '@/shared/hooks/useKeyboardShortcuts'
 import { modalSurfaceProps } from '@/shared/lib/modal-surface'
+import { useDialogFocus } from '@/shared/hooks/useDialogFocus'
 
 interface KeyboardShortcutsHelpProps {
   isOpen: boolean
@@ -31,6 +32,10 @@ export function KeyboardShortcutsHelp({ isOpen, onClose, shortcuts }: KeyboardSh
 
     const handleClickOutside = (e: MouseEvent) => {
       if (dialogRef.current && !dialogRef.current.contains(e.target as Node)) {
+        // Handled: a mousedown's default action moves focus to what was clicked, or to <body>
+        // when that cannot take focus (the overlay). It runs AFTER the close has put focus back
+        // on what opened the help, so unprevented it undid that (measured in Chrome, v0.50.3).
+        e.preventDefault()
         onClose()
       }
     }
@@ -44,11 +49,9 @@ export function KeyboardShortcutsHelp({ isOpen, onClose, shortcuts }: KeyboardSh
     }
   }, [isOpen, onClose])
 
-  // Focus trap
-  useEffect(() => {
-    if (!isOpen || !dialogRef.current) return
-    dialogRef.current.focus()
-  }, [isOpen])
+  // Open: focus the help itself. Closed: back to what had focus when `?` opened it (v0.50.3;
+  // before, focus fell to <body>).
+  useDialogFocus(isOpen, () => dialogRef.current)
 
   if (!isOpen) return null
 
