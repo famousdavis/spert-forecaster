@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.50.1 - 2026-11-10
+
+A wording fix on the About tab, and the repository's developer documentation brought up to date with the Projects dashboard of v0.49.0 and v0.50.0. Nothing else in the app changes.
+
+### Fixed
+- **About tab, "How It Works": the first step now says where the sprint cadence is set.** The list's first step read "Create a project with your sprint cadence", but a project has not been given its cadence when it is created since v0.5.0: the New Project dialog asks for a Project Name, a Unit of Measure and optional Start and Finish dates, and the Sprint Cadence and First Sprint Start Date fields are on the Sprint History tab. The step now reads "Create a project, then set its sprint cadence on the Sprint History tab", so someone following the list looks for the cadence where it is. The other three steps are unchanged.
+
+### Documentation
+- **`ARCHITECTURE.md` describes the Projects dashboard.** It now lists the dashboard's files (`ProjectsTab`, `ProjectList`, `ProjectTile`, `ProjectDialog`, `ProjectColorControl`, `ArchiveControls` and their hooks); explains the one New Project / Edit Project dialog that replaced the inline form, and why it is rendered once at the tab rather than inside a tile; records where each person's tile colours and archived projects are kept (the `projectPrefs` map, in `spert-settings` and in that person's cloud settings document, written there entry by entry); and describes the archive-aware viewed project that Sprint History, Forecast and Connect AI share. Its drag-to-reorder note now says that the order handed to `reorderProjects` is the full project list, with archived projects that are hidden kept in their own places. It also stops listing two files that no longer exist, `MergeImportDialog` and `merge-import`, both removed in v0.30.0. The file is for anyone reading the source and is not shown in the app.
+- **`README.md`'s feature list mentions the dashboard.** A new line says a tile can be given a colour and a finished project archived to take it out of the Sprint History and Forecast lists, that both are each person's own settings and never change a shared project for anyone else, and that exported files carry neither.
+
 ## v0.50.0 - 2026-11-10
 
 Each project tile can now take a colour, and a project can be archived, as on SPERT® GanttApp's Projects tab. Both are your own choices: they change how the tiles look to you and which projects you see, never the project itself, so colouring or archiving a shared project changes nothing for anyone else. An archived project also leaves the Sprint History and Forecast project lists until you bring it back.

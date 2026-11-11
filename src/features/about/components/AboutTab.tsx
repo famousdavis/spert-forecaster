@@ -43,7 +43,7 @@ export function AboutTab() {
       <section className="mb-8">
         <h3 className="text-xl mb-3 text-spert-blue">How It Works</h3>
         <ul className="pl-8 leading-loose text-spert-text-secondary list-disc">
-          <li>Create a project with your sprint cadence</li>
+          <li>Create a project, then set its sprint cadence on the Sprint History tab</li>
           <li>Record your sprint history with &quot;done&quot; values</li>
           <li>Enter your remaining backlog size</li>
           <li>Run a Monte Carlo simulation to get probabilistic finish dates</li>
