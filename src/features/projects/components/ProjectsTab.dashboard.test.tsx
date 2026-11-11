@@ -192,6 +192,43 @@ describe('focus when the delete dialog closes (known-bad: B44, focus fell to <bo
   })
 })
 
+describe('focus when "Replace all data" closes with the import still waiting (v0.50.2; known-bad: it fell to <body>)', () => {
+  // Measured on a production build before the fix (FCD-Rev-R1, TEXT-2): Escape closed the
+  // confirmation, the preview stayed, and focus was <body>.
+  let importState: ReturnType<typeof useImportState> | null = null
+  async function openReplaceAll() {
+    useStorageModeStore.setState({ mode: 'local' })
+    useProjectStore.setState({ projects: ABC, sprints: [], cloudDataLoaded: false, projectRoles: {} })
+    const file = JSON.stringify(useProjectStore.getState().exportData()) // Export All: a workspace file
+    function Harness() {
+      importState = useImportState()
+      return <ProjectsTab importState={importState} />
+    }
+    render(<Harness />)
+    await act(async () => {
+      await importState!.ingestPayload(file, 'file')
+    })
+    // The action button; the mode toggle of the same name is a radio.
+    const replace = within(preview()!).getByRole('button', { name: 'Replace all data' })
+    replace.focus()
+    fireEvent.click(replace)
+    expect(screen.getByRole('alertdialog', { name: 'Replace all data' })).not.toBeNull()
+    return replace
+  }
+  const preview = () => screen.queryByRole('region', { name: 'Review import' })
+  const dialog = () => screen.getByRole('alertdialog')
+
+  it.each([
+    ['Escape', escape],
+    ['Cancel', () => fireEvent.click(within(dialog()).getByRole('button', { name: 'Cancel' }))],
+    ['the backdrop', () => fireEvent.click(dialog().previousElementSibling!)],
+  ])('%s returns focus to the preview\'s Replace all data, and the import still waits', async (_how, close) => {
+    const replace = await openReplaceAll()
+    close()
+    expect([screen.queryByRole('alertdialog'), preview() !== null, focused() === replace]).toEqual([null, true, true])
+  })
+})
+
 describe('spacing (D23): 16 px from the heading row to the grid, 24 px around every notice', () => {
   // jsdom computes no layout, so this pins the classes that produce the gaps: the root's
   // `space-y-6` (24 px below each child), the heading row's `mb-4` overriding it to 16, and

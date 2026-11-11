@@ -4,7 +4,7 @@
 
 'use client'
 
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useLayoutEffect, useRef, useCallback } from 'react'
 import { cn } from '@/lib/utils'
 import { modalSurfaceProps } from '@/shared/lib/modal-surface'
 
@@ -25,6 +25,13 @@ interface ConfirmDialogProps {
    * default. Without it the dialog is exactly the two-button dialog it always was.
    */
   extraAction?: { label: string; onClick: () => void }
+  /**
+   * Where focus goes once the dialog has closed, for a caller that needs a target other than
+   * what opened it (v0.50.2). Read at close time, from the render that closed it; null leaves
+   * focus where it is. Without it, focus goes back to what had it when the dialog opened, if
+   * that is still on the page.
+   */
+  returnFocusTo?: () => HTMLElement | null
 }
 
 const secondaryButtonClass =
@@ -32,7 +39,7 @@ const secondaryButtonClass =
 
 /**
  * Accessible confirmation dialog that replaces window.confirm()
- * - Traps focus within the dialog
+ * - Traps focus within the dialog, and returns it on close (see `returnFocusTo`)
  * - Supports keyboard navigation: Escape cancels; Enter activates the focused
  *   button, and focus opens on Cancel (there is no dialog-level Enter shortcut)
  * - Uses proper ARIA attributes for screen readers
@@ -47,6 +54,7 @@ export function ConfirmDialog({
   onCancel,
   variant = 'danger',
   extraAction,
+  returnFocusTo,
 }: ConfirmDialogProps) {
   const dialogRef = useRef<HTMLDivElement>(null)
   const confirmButtonRef = useRef<HTMLButtonElement>(null)
@@ -54,10 +62,28 @@ export function ConfirmDialog({
   const extraButtonRef = useRef<HTMLButtonElement>(null)
   const hasExtra = extraAction !== undefined
 
-  // Focus the cancel button when dialog opens (safer default)
+  // The latest returnFocusTo. A layout effect, so the close below (a passive effect's cleanup,
+  // which runs before any passive effect of the same commit) reads the closing render's.
+  const returnFocusRef = useRef(returnFocusTo)
+  useLayoutEffect(() => {
+    returnFocusRef.current = returnFocusTo
+  })
+
+  // Open: remember what had focus, then focus Cancel (the safer default). Close, or unmount while
+  // open: focus goes back to it, or where the caller says (v0.50.2). Until then it fell to <body>
+  // (measured on a production build: Escape in "Replace all data" on the Projects tab).
+  // The cleanup runs after the commit that closed the dialog, so the dialog is gone and the page
+  // behind it is current. A caller that moves focus in its own effect (useProjectDelete) still
+  // has the last word: in a commit, every passive-effect cleanup runs before any passive effect.
   useEffect(() => {
-    if (isOpen) {
-      cancelButtonRef.current?.focus()
+    if (!isOpen) return
+    const opener = document.activeElement
+    cancelButtonRef.current?.focus()
+    return () => {
+      // An opener that has left the page (a deleted row's Delete) takes no focus: focus() on a
+      // detached element does nothing, so focus stays on <body>, as before.
+      const target = returnFocusRef.current ? returnFocusRef.current() : opener
+      if (target instanceof HTMLElement) target.focus()
     }
   }, [isOpen])
 
