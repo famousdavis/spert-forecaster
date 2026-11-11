@@ -148,3 +148,18 @@ describe('percentile2 input buffering (A3)', () => {
     await waitFor(() => expect((input as HTMLInputElement).value).toBe('3'))
   })
 })
+
+// v0.50.7: until then the help text said "Takes effect after the first manual run", but the
+// auto-recalculate effect (useForecastState) runs whenever the project has no run recorded, the
+// first time included, and results are not kept between sessions. The literal text, so a
+// changed text is red here too.
+describe('Auto-recalculate help text', () => {
+  it('says what the setting does (known-bad: "Takes effect after the first manual run")', () => {
+    render(<SettingsTab />)
+    const box = screen.getByRole('checkbox', { name: 'Auto-recalculate' })
+    const help = box.parentElement!.querySelector('p')!
+    expect(help.textContent).toBe(
+      'Runs the forecast by itself as soon as a project has what it needs, and again whenever an input changes.',
+    )
+  })
+})

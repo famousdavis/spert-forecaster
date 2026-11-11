@@ -19,6 +19,7 @@ import {
   NOT_IN_CLOUD_REASON,
   OWNER_ONLY_DELETE_REASON,
   PROJECT_LEFT_TEXT,
+  PROJECT_LEFT_VIEW_TEXT,
   VIEW_ONLY_BADGE,
   VIEW_ONLY_BANNER,
   VIEW_ONLY_LOCK_NOTE,
@@ -37,6 +38,7 @@ describe('the approved texts, word for word (known-bad: a text changed without t
     ['T4c', NOT_IN_CLOUD_LIST_NOTE, 'Projects marked "Not in cloud" aren\'t in your cloud account and are view only. Export any you want to keep: they leave this list when your projects next update — adding, copying or importing a project counts.'],
     ['T5', VIEW_ONLY_LOCK_NOTE, '(View only)'],
     ['T15', PROJECT_LEFT_TEXT('Q3 Launch'), '"Q3 Launch" is no longer in your list, so what you were typing wasn\'t saved. It may have been unshared from you or deleted.'],
+    ['T15b', PROJECT_LEFT_VIEW_TEXT('Q3 Launch'), '"Q3 Launch" is no longer in your list. It may have been unshared from you or deleted.'],
   ])('%s', (_id, actual, approved) => {
     expect(actual).toBe(approved)
   })

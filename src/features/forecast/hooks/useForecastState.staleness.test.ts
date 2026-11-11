@@ -71,7 +71,9 @@ function seedStores() {
     sprints: [],
     viewingProjectId: PROJECT_ID,
     forecastInputs: {
-      [PROJECT_ID]: { remainingBacklog: '10', velocityMean: '20', velocityStdDev: '4' },
+      // No sprints, so Subjective: mean 20 (the estimate), SD 20 × 0.2 = 4. Until v0.50.7 these
+      // were Velocity/Variability overrides, which Subjective no longer reads.
+      [PROJECT_ID]: { remainingBacklog: '10', velocityMean: '', velocityStdDev: '', velocityEstimate: '20', selectedCV: 0.2 },
     },
     burnUpConfigs: {},
   })
@@ -195,7 +197,7 @@ describe('Gate 1 — a publish makes its own record fresh, through the real path
     act(() => {
       useProjectStore.setState({
         forecastInputs: {
-          [PROJECT_ID]: { remainingBacklog: '40', velocityMean: '20', velocityStdDev: '4' },
+          [PROJECT_ID]: { remainingBacklog: '40', velocityMean: '', velocityStdDev: '', velocityEstimate: '20', selectedCV: 0.2 },
         },
       })
     })

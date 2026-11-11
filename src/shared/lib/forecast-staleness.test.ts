@@ -101,7 +101,8 @@ describe('sentinels for un-runnable states — never NaN', () => {
 
   it('an unparseable velocity override yields 0, not NaN', () => {
     const snap = buildForecastInputSnapshot(
-      source({ storedInputs: { remainingBacklog: '10', velocityMean: 'xyz', velocityStdDev: 'xyz' } })
+      // History: overrides are History inputs, and Subjective ignores them (v0.50.7).
+      source({ storedInputs: { remainingBacklog: '10', velocityMean: 'xyz', velocityStdDev: 'xyz', forecastMode: 'history' } })
     )
     expect(snap.velocityMean).toBe(0)
     expect(snap.velocityStdDev).toBe(0)
@@ -173,7 +174,8 @@ describe('Gate 2 — the three digests', () => {
   it('includedVelocitiesDigest reacts to an inclusion change under a manual override', () => {
     // With a manual velocity override the effective mean/SD do NOT move when a
     // sprint is excluded, so this digest is the only thing that notices.
-    const overridden = { remainingBacklog: '100', velocityMean: '20', velocityStdDev: '4' }
+    // History: overrides are History inputs, and Subjective ignores them (v0.50.7).
+    const overridden = { remainingBacklog: '100', velocityMean: '20', velocityStdDev: '4', forecastMode: 'history' as const }
     const all = buildForecastInputSnapshot(source({ storedInputs: overridden }))
     const oneExcluded = buildForecastInputSnapshot(
       source({

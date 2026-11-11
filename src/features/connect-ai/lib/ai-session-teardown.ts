@@ -116,7 +116,7 @@ export async function runServerTeardown(sessionId: string, deleteSession: boolea
   } catch (err) {
     if (deleteSession) {
       console.error(
-        '[AI] Sign-out could not reach the server to end the AI session; it may ' +
+        '[AI] Could not reach the server to end the AI session; it may ' +
           'stay live until it TTL-expires in 7 days unless retried:',
         err,
       )

@@ -303,8 +303,11 @@ export function buildSnapshot(input: SnapshotInput): Record<string, unknown> {
       remainingBacklogSource: storedInputs?.remainingBacklog ? 'user' : 'derived-from-sprints',
       effectiveMean: record?.runConfig.velocityMean ?? comparand.velocityMean,
       effectiveStdDev: record?.runConfig.velocityStdDev ?? comparand.velocityStdDev,
-      velocityMeanOverridden: !!storedInputs?.velocityMean,
-      velocityStdDevOverridden: !!storedInputs?.velocityStdDev,
+      // An override is a History input (deriveForecastInputs): in Subjective it stays stored
+      // but sets nothing, so it is reported only where it applies — the same `mode` as the
+      // effective values above.
+      velocityMeanOverridden: mode === 'history' && !!storedInputs?.velocityMean,
+      velocityStdDevOverridden: mode === 'history' && !!storedInputs?.velocityStdDev,
       volatilityMultiplier: inputs.volatilityMultiplier,
       velocityEstimate: safeParseNumber(inputs.velocityEstimate),
       selectedCV: inputs.selectedCV,

@@ -6,6 +6,7 @@
 
 import { cn } from '@/lib/utils'
 import { HelpTooltip } from '@/shared/components/HelpTooltip'
+import { historyModeAvailable } from '@/shared/lib/forecast-derivations'
 import type { ForecastMode } from '@/shared/types'
 
 interface ForecastModeToggleProps {
@@ -21,8 +22,9 @@ export function ForecastModeToggle({
   includedSprintCount,
   calculatedStdDev,
 }: ForecastModeToggleProps) {
-  // Need 2+ sprints AND non-zero SD (identical velocities → SD=0 → false certainty)
-  const canSelectHistory = includedSprintCount >= 2 && calculatedStdDev > 0
+  // Need 2+ sprints AND non-zero SD (identical velocities → SD=0 → false certainty). The same
+  // predicate decides whether a project with no stored mode may start in History.
+  const canSelectHistory = historyModeAvailable(includedSprintCount, calculatedStdDev)
 
   return (
     <div className="flex items-center gap-2 mb-3">
