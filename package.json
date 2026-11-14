@@ -1,6 +1,6 @@
 {
   "name": "spert-forecaster",
-  "version": "0.50.7",
+  "version": "0.50.8",
   "private": true,
   "engines": {
     "node": "24.x"
@@ -25,8 +25,8 @@
     "firebase": "12.12.1",
     "html-to-image": "^1.11.13",
     "lucide-react": "1.11.0",
-    "next": "16.2.9",
-    "radix-ui": "^1.4.3",
+    "next": "16.4.1",
+    "radix-ui": "1.4.3",
     "react": "19.2.5",
     "react-dom": "19.2.5",
     "recharts": "3.8.1",
@@ -56,6 +56,6 @@
   },
   "overrides": {
     "vite": "7.3.5",
-    "postcss": "^8.5.10"
+    "postcss": "8.5.23"
   }
 }
