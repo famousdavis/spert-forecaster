@@ -3,77 +3,40 @@
 // See LICENSE file in the project root for full license text.
 
 // Firebase Authentication helpers — Google and Microsoft OAuth.
-// Uses signInWithPopup as primary, with signInWithRedirect fallback
-// when popup is blocked (e.g., by CSP or browser settings).
+//
+// Popup only. There is deliberately no signInWithRedirect fallback (removed in
+// v0.50.10): the redirect flow reads its result through a hidden iframe on the
+// authDomain (spert-suite.firebaseapp.com), a different site from the app, and
+// browsers that partition third-party storage give that iframe an empty storage
+// area. The user came back signed out, with no error. Every popup error now
+// reaches the caller: SignInButtons shows "Allow pop-ups…" for auth/popup-blocked
+// and stays silent for a closed or superseded popup (see sign-in-errors.ts).
 
 import {
   GoogleAuthProvider,
   OAuthProvider,
   signInWithPopup,
-  signInWithRedirect,
-  getRedirectResult,
   signOut as firebaseSignOut,
   type User,
 } from 'firebase/auth'
 import { auth } from './config'
 
-// Redirect fallback fires only when the popup was structurally unavailable.
-// All other errors (user-dismissed popup, network failure, etc.) rethrow so
-// the caller can surface them instead of navigating the user away from the app.
-const REDIRECT_FALLBACK_CODES = new Set([
-  'auth/popup-blocked',
-  'auth/cancelled-popup-request',
-])
-
-function isRedirectFallbackError(err: unknown): boolean {
-  if (!err || typeof err !== 'object') return false
-  const code = (err as { code?: unknown }).code
-  return typeof code === 'string' && REDIRECT_FALLBACK_CODES.has(code)
-}
-
-export async function signInWithGoogle(): Promise<User | null> {
+export async function signInWithGoogle(): Promise<User> {
   if (!auth) throw new Error('Firebase not available')
   const provider = new GoogleAuthProvider()
   provider.addScope('openid')
   provider.addScope('profile')
   provider.addScope('email')
-  try {
-    const result = await signInWithPopup(auth, provider)
-    return result.user
-  } catch (err) {
-    if (isRedirectFallbackError(err)) {
-      await signInWithRedirect(auth, provider)
-      return null
-    }
-    throw err
-  }
+  const result = await signInWithPopup(auth, provider)
+  return result.user
 }
 
-export async function signInWithMicrosoft(): Promise<User | null> {
+export async function signInWithMicrosoft(): Promise<User> {
   if (!auth) throw new Error('Firebase not available')
   const provider = new OAuthProvider('microsoft.com')
   provider.setCustomParameters({ prompt: 'select_account' })
-  try {
-    const result = await signInWithPopup(auth, provider)
-    return result.user
-  } catch (err) {
-    if (isRedirectFallbackError(err)) {
-      await signInWithRedirect(auth, provider)
-      return null
-    }
-    throw err
-  }
-}
-
-/** Check for pending redirect result on page load */
-export async function checkRedirectResult(): Promise<User | null> {
-  if (!auth) return null
-  try {
-    const result = await getRedirectResult(auth)
-    return result?.user ?? null
-  } catch {
-    return null
-  }
+  const result = await signInWithPopup(auth, provider)
+  return result.user
 }
 
 export async function signOut(): Promise<void> {

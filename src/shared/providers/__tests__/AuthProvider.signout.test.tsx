@@ -42,7 +42,6 @@ vi.mock('@/shared/firebase/config', () => ({
 }))
 
 vi.mock('@/shared/firebase/auth', () => ({
-  checkRedirectResult: vi.fn().mockResolvedValue(null),
   signOut: vi.fn().mockResolvedValue(undefined),
   signInWithGoogle: vi.fn(),
   signInWithMicrosoft: vi.fn(),
