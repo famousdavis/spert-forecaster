@@ -13,14 +13,9 @@ A security release for the tools used to check and test Forecaster, not for the 
 
 ### Notes
 - What the dependency audit shows (`npm audit`, counted as distinct advisories): 59 before this release and 28 after, with none critical and no advisory added. The 2 in the packages the app ships or builds with are unchanged since v0.50.8. Both are in `@grpc/grpc-js`, which Firebase's Firestore library holds at a version without the fix.
-- The other 26 are all in testing and checking tools:
-  - Waiting for their fixed releases to reach 60 days: vite 5, undici 8, fast-uri 4, the Vitest test runner 2, esbuild 1 and zod 1. These are planned for a release around 2026-12-18.
-  - No fixed release that the packages depending on them accept yet: qs 4 (through Stryker) and minimatch 1.
+- The other 26 are all in testing and checking tools. 21 of them are waiting for their fixed releases to reach 60 days (vite 5, undici 8, fast-uri 4, the Vitest test runner 2, esbuild 1 and zod 1), and are planned for a release around 2026-12-18. The remaining 5 have no fixed release that the packages depending on them accept yet (qs 4, through Stryker, and minimatch 1).
 - How it was installed: one command that changes only `package-lock.json` (`npm update brace-expansion browserslist js-yaml fast-uri undici --package-lock-only --ignore-scripts`), limited to versions published at least 60 days earlier (`--before`). It moved 12 lockfile entries, the same 12 measured beforehand in a separate copy of the project. Every one of the 10 distinct new versions was published before the cutoff. `package.json` and the lockfile's own top-level entry are unchanged apart from the version number. `npm ci` then installed exactly the lockfile: 0 of 883 entries differ.
-- Checked beyond the release gate:
-  - `npm run lint` reports the accepted 9 problems, all `sonarjs/cognitive-complexity`.
-  - `npm run cc` measures a file normally (`parseChangelog` at 22).
-  - `npx stryker run --dryRunOnly` found its 3 configured files out of 477, prepared 717 mutants, and passed its 362 tests.
+- Checked beyond the release gate, because these tools are the ones that moved. `npm run lint` reports the accepted 9 problems, all `sonarjs/cognitive-complexity`, and `npm run cc` measures a file normally (`parseChangelog` at 22). `npx stryker run --dryRunOnly` found its 3 configured files out of 477, prepared 717 mutants, and passed its 362 tests.
 - No source code changed apart from the version number. Tests: 3,304, unchanged.
 
 ## v0.50.8 - 2026-11-14
