@@ -19,7 +19,7 @@ import { onAuthStateChanged, type User } from 'firebase/auth'
 import { toast } from 'sonner'
 import { auth, isFirebaseAvailable, functionsInstance } from '@/shared/firebase/config'
 import { callClaimPendingInvitations } from '@/shared/firebase/callables'
-import { signInWithGoogle, signInWithMicrosoft, signOut, checkRedirectResult } from '@/shared/firebase/auth'
+import { signInWithGoogle, signInWithMicrosoft, signOut } from '@/shared/firebase/auth'
 import { cancelPendingSaves } from '@/shared/firebase/firestore-driver'
 import { writeUserProfile } from '@/shared/firebase/profileWrites'
 import { useProjectStore } from '@/shared/state/project-store'
@@ -238,8 +238,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsLoading(false)
       return
     }
-    // Check for pending redirect result (from signInWithRedirect fallback)
-    checkRedirectResult().catch(() => {})
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       if (firebaseUser) {
         previousUserRef.current = firebaseUser
