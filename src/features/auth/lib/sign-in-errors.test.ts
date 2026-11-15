@@ -16,7 +16,7 @@ describe('normalizeSignInError', () => {
 
   it('returns pop-up message for popup-blocked', () => {
     expect(normalizeSignInError({ code: 'auth/popup-blocked' })).toBe(
-      'Allow pop-ups in your browser to sign in.'
+      'Your browser blocked the sign-in window. Allow pop-ups for this site and try again.'
     )
   })
 

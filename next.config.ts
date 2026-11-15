@@ -38,7 +38,7 @@ if (!isDev) {
       "connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com https://*.googleapis.com https://*.firebaseio.com https://*.firebaseapp.com wss://*.firebaseio.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://accounts.google.com https://login.microsoftonline.com https://*.cloudfunctions.net https://*.run.app",
       // Web Workers are loaded as blob URLs
       "worker-src 'self' blob:",
-      // Firebase Auth popup/redirect + OAuth provider pages
+      // Firebase Auth's helper iframe (popup sign-in) + OAuth provider pages
       "frame-src 'self' https://*.firebaseapp.com https://accounts.google.com https://login.microsoftonline.com",
       "frame-ancestors 'none'",
       "object-src 'none'",
