@@ -9,7 +9,7 @@
 // authDomain (spert-suite.firebaseapp.com), a different site from the app, and
 // browsers that partition third-party storage give that iframe an empty storage
 // area. The user came back signed out, with no error. Every popup error now
-// reaches the caller: SignInButtons shows "Allow pop-ups…" for auth/popup-blocked
+// reaches the caller: SignInButtons asks the person to allow pop-ups for auth/popup-blocked
 // and stays silent for a closed or superseded popup (see sign-in-errors.ts).
 
 import {

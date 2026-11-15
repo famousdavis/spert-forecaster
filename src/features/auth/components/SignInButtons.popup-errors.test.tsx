@@ -45,7 +45,7 @@ vi.mock('@/shared/providers/AuthProvider', () => ({
 import { SignInButtons } from './SignInButtons'
 import { TOS_LS_KEY, TOS_VERSION } from '@/features/auth/lib/tos'
 
-const POPUP_BLOCKED = 'Allow pop-ups in your browser to sign in.'
+const POPUP_BLOCKED = 'Your browser blocked the sign-in window. Allow pop-ups for this site and try again.'
 const authError = (code: string) => Object.assign(new Error(code), { code })
 const BUTTON = { google: 'Sign in with Google', microsoft: 'Sign in with Microsoft' } as const
 

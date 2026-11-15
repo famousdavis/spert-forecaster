@@ -6,7 +6,7 @@
  * Normalizes Firebase Auth sign-in errors for user display.
  *
  * - popup-closed-by-user, cancelled-popup-request → silent (returns null)
- * - popup-blocked → "Allow pop-ups in your browser to sign in."
+ * - popup-blocked → "Your browser blocked the sign-in window. Allow pop-ups for this site and try again."
  * - all others → sanitized fallback string
  */
 
@@ -16,7 +16,7 @@ const SILENT_CODES = new Set<string>([
   'auth/user-cancelled',
 ])
 
-const POPUP_BLOCKED_MESSAGE = 'Allow pop-ups in your browser to sign in.'
+const POPUP_BLOCKED_MESSAGE = 'Your browser blocked the sign-in window. Allow pop-ups for this site and try again.'
 
 export function sanitizeFirebaseError(err: unknown): string {
   if (!err || typeof err !== 'object') return 'Sign-in failed. Please try again.'
