@@ -22,6 +22,11 @@ const TABS: Tab[] = [
   { id: 'about', label: 'About' },
 ]
 
+// This app's page in the SPERT® Suite Help Center. Module-local, like CONTACT_URL in
+// CloudLoadingPanel.tsx: the link below is its only consumer. Deliberately not exported, so
+// the tests compare the address as a literal and a wrong address here cannot satisfy them.
+const HELP_CENTER_URL = 'https://spertsuite.com/help/forecaster'
+
 interface TabNavigationProps {
   activeTab: TabId
   onTabChange: (tab: TabId) => void
@@ -81,6 +86,24 @@ export function TabNavigation({ activeTab, onTabChange }: TabNavigationProps) {
           {tab.label}
         </button>
       ))}
+      {/* Help Center: a LINK that leaves the app, never a tab. So it is not in TABS, not a
+          <button>, carries no aria-current and has no keyboard shortcut (1–5 stay the five
+          tabs). It sits after About, at the bar's right-hand end, as quiet muted text with
+          none of the tabs' shape or fill, so it never reads as one more view of the app.
+          The arrow is decoration, hidden from assistive technology; the hidden text gives
+          the accessible name "Help Center (opens in a new tab)". ⚠️ The spaces are their own
+          text nodes, outside the spans. With the space inside the hidden span, the tests'
+          name computation (dom-accessibility-api) trimmed it and gave "Help Center(opens in
+          a new tab)" (measured, v0.51.0). */}
+      <a
+        href={HELP_CENTER_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="ml-auto self-center whitespace-nowrap text-sm text-spert-text-muted dark:text-[#a0aec0] underline-offset-2 hover:underline"
+      >
+        Help Center{' '}<span aria-hidden="true">↗</span>{' '}
+        <span className="sr-only">(opens in a new tab)</span>
+      </a>
     </div>
   )
 }
