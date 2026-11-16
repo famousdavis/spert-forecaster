@@ -89,6 +89,36 @@ describe('AppShell — crosslink wiring', () => {
     expect(SOURCE).toMatch(/<KeyboardShortcutsHelp\s+isOpen=\{isShortcutsHelpOpen\}/)
   })
 
+  // v0.51.0 — keys 1–5 select the five tabs, in the tab bar's order, and no other shortcut
+  // selects a tab. Nothing pinned this before: the hook's tests drive probe shortcuts, and the
+  // test above reads the '?' entry only. The Help Center link at the end of the tab bar is a
+  // link, not a tab, so it gets no key; a sixth digit or a swapped pair turns this red. A
+  // WIRING fact, so structural, like the '?' entry. Read within the shortcuts array only.
+  it('maps keys 1–5 to the five tabs, in order, and no other shortcut selects a tab', () => {
+    const start = SOURCE.indexOf('const shortcuts: KeyboardShortcut[]')
+    expect(start, 'the shortcuts array').toBeGreaterThan(-1)
+    const block = SOURCE.slice(start, SOURCE.indexOf('], [])', start))
+    const entries = [...block.matchAll(/\{\s*key: '([^']+)',([\s\S]*?)\n\s*\},?/g)].map((m) => ({
+      key: m[1],
+      body: m[2],
+    }))
+    const tabKeys = entries
+      .filter((e) => e.body.includes('setActiveTab('))
+      .map((e) => [e.key, e.body.match(/action: \(\) => setActiveTab\('([^']+)'\),/)?.[1]])
+    expect(tabKeys).toEqual([
+      ['1', 'projects'],
+      ['2', 'sprint-history'],
+      ['3', 'forecast'],
+      ['4', 'settings'],
+      ['5', 'about'],
+    ])
+    // Counted over the whole array too, so a tab shortcut shaped differently from the entries
+    // above cannot slip past the parse.
+    expect(block.split('setActiveTab(').length - 1).toBe(5)
+    // The parse really saw the array: the '?' entry is in it and selects no tab.
+    expect(entries.map((e) => e.key)).toContain('?')
+  })
+
   // ── The control. Without it every assertion above passes on an empty string ──
   it('CONTROL — the source really was read, and a false claim fails', () => {
     expect(SOURCE.length).toBeGreaterThan(1000)
