@@ -39,6 +39,28 @@ import { useAuth } from '@/shared/providers/AuthProvider'
 import { useStorageMode } from '@/shared/hooks/useStorageMode'
 import { CloudLoadingPanel, PROJECT_DATA_TABS, awaitsFirstCloudLoad } from './CloudLoadingPanel'
 
+/**
+ * The header title's colour (HDR26, v0.51.1): Forecaster's favicon blue, `#0070f3`, as a gradient from its light end
+ * on the left to its dark end on the right, drawn once on each word ("SPERT", "Forecaster"). The ® between them keeps
+ * its own grey. Each theme's ramp is checked at every point against the page behind it, at 3 : 1, because the title
+ * is at least 24 px bold at every width: light `#4a93ff` → `#0056bf` on white, weakest 3.03; dark `#5f9fff` →
+ * `#0060d2` on `gray-900` (`#101828`), weakest 3.04. Both sit just above the bar on purpose; a change to either end,
+ * or to the root `<div>`'s background, needs a new measurement (`AppShell.title-gradient.test.ts`).
+ *
+ * Two fallbacks draw the title as solid text instead: under `prefers-contrast: more`, `gray-900` in light mode and
+ * `gray-100` in dark mode; and in print, `gray-900`, so a print with background graphics off (the default) no longer
+ * drops the title. ⚠️ `dark:print:` is not redundant. This app's `dark` variant is `&:is(.dark *)` (globals.css), which
+ * adds a class's weight to every `dark:` class, so `dark:contrast-more:` outranks a plain `print:` class: a dark-mode
+ * print from a system set to more contrast would put near-white on paper. `dark:print:` ties it and is emitted later.
+ *
+ * ONE literal string, never assembled: Tailwind writes CSS only for class names it finds whole in the source, and
+ * with `text-transparent` and no gradient the title is invisible. The weight is the `<h1>`'s (`font-bold`), not the
+ * string's. The space before "Forecaster" is the `<h1>`'s own text, outside the gradient spans: inside a span,
+ * jsdom's accessible-name computation trims it, and on the `<h1>` it keeps the bold space's width.
+ */
+const TITLE_GRADIENT =
+  'bg-gradient-to-r from-[#4a93ff] to-[#0056bf] dark:from-[#5f9fff] dark:to-[#0060d2] bg-clip-text text-transparent print:bg-none print:text-gray-900 dark:print:text-gray-900 contrast-more:bg-none contrast-more:text-gray-900 dark:contrast-more:text-gray-100'
+
 export function AppShell() {
   const [activeTab, setActiveTab] = useState<TabId>('projects')
   const [isShortcutsHelpOpen, setIsShortcutsHelpOpen] = useState(false)
@@ -132,14 +154,8 @@ export function AppShell() {
                   v0.32.1. Without it the title kept `text-2xl`'s line-height ratio up to
                   2.1rem (44.8 px) and the header stood about 9 px taller. Tailwind's
                   `leading-normal` is 1.5, not `normal`: hence the arbitrary value. */}
-              <h1 className="text-2xl sm:text-[1.75rem] md:text-[2.1rem] leading-[normal]">
-                <span
-                  className="font-bold bg-gradient-to-r from-spert-blue-light to-spert-blue-dark bg-clip-text text-transparent"
-                >
-                  SPERT</span><span className="text-gray-400 dark:text-gray-500 font-normal text-base sm:text-lg align-top">®</span>
-                <span
-                  className="font-bold bg-gradient-to-r from-spert-blue-light to-spert-blue-dark bg-clip-text text-transparent"
-                > Forecaster</span>
+              <h1 className="font-bold text-2xl sm:text-[1.75rem] md:text-[2.1rem] leading-[normal]">
+                <span className={TITLE_GRADIENT}>SPERT</span><span className="text-gray-400 dark:text-gray-500 font-normal text-base sm:text-lg align-top">®</span>{' '}<span className={TITLE_GRADIENT}>Forecaster</span>
               </h1>
             </div>
             <p className="text-sm leading-[normal] text-gray-500 dark:text-gray-400 italic">{APP_DESCRIPTION}</p>
