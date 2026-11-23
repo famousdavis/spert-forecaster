@@ -15,7 +15,7 @@ export function Footer() {
           &copy; {new Date().getFullYear()} William W. Davis, MSPM, PMP |{' '}
           <Link
             href="/changelog"
-            className="text-blue-600 hover:text-blue-700"
+            className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
           >
             Version {APP_VERSION}
           </Link>{' '}
@@ -26,7 +26,7 @@ export function Footer() {
             href="https://spertsuite.com"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-blue-600 hover:text-blue-700"
+            className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
           >
             SPERT® Suite
           </a>
@@ -35,7 +35,7 @@ export function Footer() {
             href={TOS_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-blue-600 hover:text-blue-700"
+            className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
           >
             Terms of Service
           </a>
@@ -44,7 +44,7 @@ export function Footer() {
             href={PRIVACY_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-blue-600 hover:text-blue-700"
+            className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
           >
             Privacy Policy
           </a>
@@ -53,7 +53,7 @@ export function Footer() {
             href={AI_PRIVACY_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-blue-600 hover:text-blue-700"
+            className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
           >
             AI Privacy Notice
           </a>
@@ -62,7 +62,7 @@ export function Footer() {
             href="https://github.com/famousdavis/spert-forecaster/blob/main/LICENSE"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-blue-600 hover:text-blue-700"
+            className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
           >
             License
           </a>
