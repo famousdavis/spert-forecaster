@@ -10,7 +10,7 @@
    Each app sets --app-grad-light and --app-grad-dark to its HDR26 title gradient. */
 
 :root {
-  --sf-version: "1";
+  --sf-version: "2";
   --sf-col-max: 1600px;
   --sf-gutter: 32px;
   --sf-bar-h: 56px;
@@ -112,6 +112,7 @@
 .sf-tab[aria-current="page"] { color: var(--sf-accent-text); border-bottom-color: var(--sf-accent); }
 .sf-help { display: inline-flex; align-items: center; gap: 2px; padding: 0 4px 0 12px; color: var(--sf-text-muted);
   font: 400 14px/20px var(--sf-font); text-decoration: none; white-space: nowrap; }
+.sf-help:hover { text-decoration: underline; }
 .sf-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 .sf-notices { padding-top: 16px; display: flex; flex-direction: column; gap: 12px; }

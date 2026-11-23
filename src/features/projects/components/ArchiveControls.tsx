@@ -55,5 +55,5 @@ export function ArchiveAnnouncer({ text }: { text: string }) {
  * welcome panel, which is for no projects at all, and not a `role="note"`.
  */
 export function AllArchivedLine({ count }: { count: number }) {
-  return <p className={ALL_ARCHIVED_CLASS}>{`All projects are archived. Select "Show archived (${count})" to see them.`}</p>
+  return <p className={ALL_ARCHIVED_CLASS} data-sf="empty">{`All projects are archived. Select "Show archived (${count})" to see them.`}</p>
 }

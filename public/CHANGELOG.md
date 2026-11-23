@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.52.1 - 2026-11-23
+
+The Help Center link at the right of the navigation row now underlines when you point at it, as the footer's links do. Nothing else on screen changes.
+
+### Changed
+- **The Help Center link underlines on hover.** It had no hover cue: the frame's own style for the link outranked the underline Forecaster gave it. The suite frame's stylesheet now draws the underline itself, the same in every SPERT® Suite app. Keyboard focus still shows the frame's focus ring.
+
+### Internal
+- **The frame's stylesheet, `src/styles/spert-frame.css`, is re-vendored at version 2** (md5 `69146fd77679c71e03d2f06cfea96cf1`), byte for byte from the suite's canonical copy; its one new rule is `.sf-help:hover { text-decoration: underline; }`. The md5 and version pins in `frame-stylesheet.test.ts` move with it.
+- **The empty Projects screen carries the frame's empty-collection hook, `data-sf="empty"`:** on the welcome panel when there are no projects, and on the "All projects are archived" line when every project is archived. The suite's frame-check now measures a first visit instead of reporting a missing tile grid. Their look and place are unchanged.
+- **Three new tests** hold the hook: the welcome panel and the all-archived line are each the one empty panel, with no grid; and a shown project brings the grid with no empty panel beside it. Each was seen to fail on purpose.
+- **Checked with the suite's frame-check** in headless Chrome against a local production build, on Projects with the sample, Projects on a first visit, and Forecast: no unregistered deviations.
+
 ## v0.52.0 - 2026-11-23
 
 Forecaster now sits in the SPERT® Suite's shared app frame, the same frame every SPERT app is moving to, so nothing jumps when you switch between them. The title, the navigation, the notices, the page and the footer are in the same places and at the same sizes in every app: a slimmer header row with the title, its tagline, Connect AI, the theme button and the sign-in button; a navigation row under it with Projects, Sprint History and Forecast on the left and Settings, About and Help Center on the right; one 1600 px column; and the footer. Every control is still there with the same name and the same behaviour; what follows is what looks or works differently.
