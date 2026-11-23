@@ -30,10 +30,15 @@ function CloudIcon() {
 }
 
 function LockIcon() {
+  // currentColor + themed classes, not a fixed grey: #9CA3AF measured 2.54 on white, under the 3:1
+  // bar for a glyph that carries state (the only sign of local storage in the signed-in chip).
   return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect x="3" y="11" width="18" height="11" rx="2" stroke="#9CA3AF" strokeWidth="2" />
-      <path d="M7 11V7a5 5 0 0 1 10 0v4" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round" />
+    <svg
+      width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"
+      className="text-gray-500 dark:text-gray-400"
+    >
+      <rect x="3" y="11" width="18" height="11" rx="2" stroke="currentColor" strokeWidth="2" />
+      <path d="M7 11V7a5 5 0 0 1 10 0v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
     </svg>
   )
 }
@@ -135,12 +140,14 @@ export function UserMenu({ onRequestOpen, buttonRef }: UserMenuProps) {
       ref={buttonRef}
       onClick={onRequestOpen}
       aria-label="Sign in"
-      className="flex items-center rounded-full hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
+      className="group flex items-center rounded-full hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
       style={{ border: '0.5px solid #D1D5DB' }}
     >
       <div className="flex items-center gap-1.5 py-1 pl-2.5 pr-2.5">
         <LockIcon />
-        <span style={{ fontSize: 13 }} className="text-gray-400">
+        {/* Themed by class, and stepped on hover: the button's hover ground (gray-50 / gray-700)
+            is lighter in dark mode, where gray-400 measured 3.96. */}
+        <span style={{ fontSize: 13 }} className="text-gray-500 dark:text-gray-400 dark:group-hover:text-gray-300">
           Local only
         </span>
       </div>
@@ -149,7 +156,13 @@ export function UserMenu({ onRequestOpen, buttonRef }: UserMenuProps) {
         style={{ width: '0.5px', backgroundColor: '#D1D5DB' }}
       />
       <span className="flex items-center justify-center px-2.5 py-1">
-        <span style={{ fontSize: 12, fontWeight: 500, color: '#0070f3' }}>Sign in</span>
+        {/* No inline colour: an inline style beats every dark: and hover class. */}
+        <span
+          style={{ fontSize: 12, fontWeight: 500 }}
+          className="text-spert-blue group-hover:text-blue-600 dark:text-blue-400 dark:group-hover:text-blue-300"
+        >
+          Sign in
+        </span>
       </span>
     </button>
   )
