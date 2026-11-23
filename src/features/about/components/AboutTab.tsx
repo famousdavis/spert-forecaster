@@ -17,10 +17,9 @@ function TrademarkedName({ name, bold = false }: { name: string; bold?: boolean 
 
 export function AboutTab() {
   return (
+    // The page's `h1` "About SPERT® Forecaster" is the frame's heading row, rendered by AppShell above this (v0.52.0);
+    // the 800 px width is this element's own, inside the capped body (X4, 896 px).
     <div className="max-w-[800px]">
-      <h2 className="text-2xl mb-2 text-spert-text">
-        About <TrademarkedName name="SPERT" /> Forecaster
-      </h2>
       <p className="text-spert-text-muted italic mb-8">{APP_DESCRIPTION}</p>
 
       <section className="mb-8">

@@ -64,10 +64,11 @@ describe('TabNavigation — the Help Center link', () => {
 
   // ⚠️ Every active tab, not one: the link must not move when the tabs change.
   for (const active of ALL_TABS) {
-    it(`sits directly after About, as the bar's last element, with ${active} active`, () => {
+    it(`sits directly after About, as the right-hand zone's last element, with ${active} active`, () => {
       const { bar, link } = renderBar(active)
       expect(bar.contains(link)).toBe(true)
-      expect(bar.lastElementChild).toBe(link)
+      // v0.52.0: the frame's navigation row has two zones; the link ends the right-hand one (Settings · About · Help).
+      expect(bar.querySelector('[data-sf="nav-app"]')!.lastElementChild).toBe(link)
       const before = link.previousElementSibling
       expect(before?.tagName).toBe('BUTTON')
       expect(before?.textContent?.trim()).toBe('About')

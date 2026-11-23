@@ -37,6 +37,11 @@ async function build(css: string, candidates: string[]): Promise<string> {
     base: HERE,
     loadStylesheet: async (id: string, base: string) => {
       if (id === 'tw-animate-css') return { path: id, base, content: '' }
+      // The SPERT® Suite frame's vendored stylesheet (v0.52.0): plain CSS, read as the build reads it.
+      if (id === '../styles/spert-frame.css') {
+        const path = join(HERE, '..', 'styles', 'spert-frame.css')
+        return { path, base: dirname(path), content: readFileSync(path, 'utf8') }
+      }
       if (id !== 'tailwindcss') throw new Error(`unexpected @import ${id}`)
       const path = resolve('tailwindcss/index.css')
       return { path, base: dirname(path), content: readFileSync(path, 'utf8') }
@@ -144,7 +149,8 @@ describe('spert-* colour classes in the app source', () => {
   const BG_HIGHLIGHT = 'bg' + '-highlight'
 
   it('finds the classes it checks (the reader is not silently empty)', () => {
-    expect(used.get(TEXT_MUTED)?.some((at) => at.startsWith(join('shell', 'components', 'TabNavigation.tsx')))).toBe(true)
+    // A file that uses the muted token (TabNavigation.tsx until v0.52.0, when the tab bar took the frame's colours).
+    expect(used.get(TEXT_MUTED)?.some((at) => at.startsWith(join('features', 'settings', 'components', 'SettingsTab.tsx')))).toBe(true)
     expect(used.size).toBeGreaterThan(20)
   })
 

@@ -17,6 +17,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 const SOURCE = readFileSync(join(import.meta.dirname, 'AppShell.tsx'), 'utf8')
+const HEADER = readFileSync(join(import.meta.dirname, 'AppHeader.tsx'), 'utf8')
 
 describe('AppShell — crosslink wiring', () => {
   it('OWNS the import state rather than leaving it to the tab', () => {
@@ -61,7 +62,8 @@ describe('AppShell — crosslink wiring', () => {
       return i
     }
     const order = [
-      '</header>',
+      // The brand row is AppHeader since v0.52.0 (the SPERT® Suite frame); it was an inline <header> before.
+      '<AppHeader',
       '<TabNavigation',
       '<InvitationBanner />',
       '<AiTeardownBanner />',
@@ -97,14 +99,15 @@ describe('AppShell — crosslink wiring', () => {
   it('maps keys 1–5 to the five tabs, in order, and no other shortcut selects a tab', () => {
     const start = SOURCE.indexOf('const shortcuts: KeyboardShortcut[]')
     expect(start, 'the shortcuts array').toBeGreaterThan(-1)
-    const block = SOURCE.slice(start, SOURCE.indexOf('], [])', start))
+    // v0.52.0: every tab choice goes through selectTab, which also leaves another route (the changelog) for "/".
+    const block = SOURCE.slice(start, SOURCE.indexOf('], [selectTab])', start))
     const entries = [...block.matchAll(/\{\s*key: '([^']+)',([\s\S]*?)\n\s*\},?/g)].map((m) => ({
       key: m[1],
       body: m[2],
     }))
     const tabKeys = entries
-      .filter((e) => e.body.includes('setActiveTab('))
-      .map((e) => [e.key, e.body.match(/action: \(\) => setActiveTab\('([^']+)'\),/)?.[1]])
+      .filter((e) => e.body.includes('selectTab('))
+      .map((e) => [e.key, e.body.match(/action: \(\) => selectTab\('([^']+)'\),/)?.[1]])
     expect(tabKeys).toEqual([
       ['1', 'projects'],
       ['2', 'sprint-history'],
@@ -114,7 +117,8 @@ describe('AppShell — crosslink wiring', () => {
     ])
     // Counted over the whole array too, so a tab shortcut shaped differently from the entries
     // above cannot slip past the parse.
-    expect(block.split('setActiveTab(').length - 1).toBe(5)
+    expect(block.split('selectTab(').length - 1).toBe(5)
+    expect(block, 'a shortcut that bypasses selectTab').not.toContain('setActiveTab(')
     // The parse really saw the array: the '?' entry is in it and selects no tab.
     expect(entries.map((e) => e.key)).toContain('?')
   })
@@ -134,7 +138,10 @@ describe('AppShell — crosslink wiring', () => {
 describe('AppShell — focus when Cloud Storage closes (v0.50.4)', () => {
   it('UserMenu fills the ref the window reads when it closes', () => {
     expect(SOURCE).toMatch(/^\s*const userMenuRef = useRef<HTMLButtonElement>\(null\)$/m)
-    expect(SOURCE).toMatch(/^\s*<UserMenu buttonRef=\{userMenuRef\} onRequestOpen=\{\(\) => setCloudModalOpen\(true\)\} \/>$/m)
+    // v0.52.0: the chip is in the frame's brand row, AppHeader, which hands it both, unchanged.
+    expect(SOURCE).toMatch(/^\s*onOpenAccount=\{\(\) => setCloudModalOpen\(true\)\}$/m)
+    expect(SOURCE).toMatch(/^\s*accountButtonRef=\{userMenuRef\}$/m)
+    expect(HEADER).toMatch(/^\s*<UserMenu buttonRef=\{accountButtonRef\} onRequestOpen=\{onOpenAccount\} \/>$/m)
     const modal = SOURCE.match(/^\s*<CloudStorageModal$([\s\S]*?)^\s*\/>$/m)?.[1] ?? ''
     expect(modal).toMatch(/^\s*returnFocusTo=\{\(\) => userMenuRef\.current\}$/m)
   })

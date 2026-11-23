@@ -211,12 +211,15 @@ describe('ProjectList — class guards (the pairs, not just the strings)', () =>
     expect(classes(tiles[0])).toContain('group/tile')
   })
 
-  it('the grid\'s column queries are answered by an ANCESTOR carrying @container, never by the grid itself', () => {
+  // v0.52.0: the grid is the SPERT® Suite frame's `.sf-tiles` (auto-fill columns of at least 340 px, 16 px gaps: 3 at
+  // 1280 and 1440, 4 at 1920), with its hook, and nothing else: no utility of its own and no container-query wrapper,
+  // which the container-query grid before it needed. The columns are measured in a browser by frame-check.
+  it('the grid is the frame\'s tile grid, with its hook, rendered directly (no wrapper)', () => {
     const { container } = renderTiles()
     const grid = container.querySelector('ul[aria-label="Projects"]')!
-    expect(classes(grid)).toEqual(expect.arrayContaining(['grid-cols-1', '@min-[560px]:grid-cols-2', '@min-[860px]:grid-cols-3', 'gap-4']))
-    expect(classes(grid)).not.toContain('@container')
-    expect(grid.parentElement!.closest('.\\@container')).not.toBeNull()
+    expect(classes(grid)).toEqual(['sf-tiles'])
+    expect(grid.getAttribute('data-sf')).toBe('tiles')
+    expect(grid.parentElement).toBe(container)
   })
 
   it('the name button\'s ::after covers the tile (the root is relative), and the grip, Delete and the revealed row sit above it', () => {

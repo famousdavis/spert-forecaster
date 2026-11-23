@@ -5,6 +5,12 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* The SPERT® Suite app frame (FRAME26): the canonical stylesheet, vendored byte for byte. Never edit the copy: a
+   change goes to the canonical file in spert-suite-docs (suite/frame/), then is copied here, and
+   src/styles/frame-stylesheet.test.ts pins its md5. Imported once, here, and unlayered on purpose: its sf- rules
+   beat any Tailwind utility on the same element (contract §9.2). */
+@import "../styles/spert-frame.css";
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
@@ -95,6 +101,16 @@
   --color-spert-bg-info-light: #e7f3ff;
   --color-spert-bg-info-row: #dbeafe;
   --color-spert-bg-success-row: #d1fae5;
+}
+
+/* Forecaster's HDR26 title ramps, which the frame's .sf-grad draws on each word of "SPERT® Forecaster": the favicon
+   blue #0070f3, light end to dark end, interpolated in Oklab as Tailwind's bg-gradient-to-r was until v0.52.0. Each
+   ramp is measured at every point against the frame's page ground (#ffffff, #101828) at 3 : 1: weakest 3.03 and 3.04,
+   just above the bar on purpose, so a change to either end needs a new measurement
+   (src/shell/components/AppShell.title-gradient.test.ts reads these two lines). */
+:root {
+  --app-grad-light: linear-gradient(to right in oklab, #4a93ff, #0056bf);
+  --app-grad-dark: linear-gradient(to right in oklab, #5f9fff, #0060d2);
 }
 
 :root {
@@ -191,9 +207,6 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
-  }
-  html {
-    overflow-y: scroll;
   }
   body {
     @apply bg-background text-foreground;

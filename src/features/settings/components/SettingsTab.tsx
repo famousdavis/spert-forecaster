@@ -125,13 +125,12 @@ export function SettingsTab() {
   }
 
   return (
+    // The page's `h1` "Settings" is the frame's heading row, rendered by AppShell above this (v0.52.0); the 800 px
+    // width is this element's own, inside the capped body (X4, 896 px).
     <div className="space-y-8 max-w-[800px]">
-      <div>
-        <h2 className="text-xl font-semibold text-spert-text dark:text-gray-100">Settings</h2>
-        <p className="text-sm text-spert-text-muted dark:text-gray-400 italic">
-          Global preferences for simulation and display
-        </p>
-      </div>
+      <p className="text-sm text-spert-text-muted dark:text-gray-400 italic">
+        Global preferences for simulation and display
+      </p>
 
       {/* Storage */}
       <StorageModeSection />

@@ -61,7 +61,8 @@ function renderTab(projects: Project[] = [], opts: { mode?: 'local' | 'cloud'; l
 }
 
 /** The dashboard's first row: the heading's parent. */
-const headingRow = () => screen.getByRole('heading', { name: 'Projects', level: 2 }).parentElement as HTMLElement
+// The page's h1 since v0.52.0 (the SPERT® Suite frame's heading row); an h2 before.
+const headingRow = () => screen.getByRole('heading', { name: 'Projects', level: 1 }).parentElement as HTMLElement
 const toolbarButtons = () => within(headingRow()).getAllByRole('button') as HTMLButtonElement[]
 const button = (name: string) => screen.getByRole('button', { name }) as HTMLButtonElement
 const nameField = () => screen.queryByLabelText('Project Name') as HTMLInputElement | null
@@ -92,7 +93,7 @@ describe('the toolbar row', () => {
     expect(buttons.map((b) => b.getAttribute('aria-label') ?? b.textContent)).toEqual(NAMES)
     // The row is the first thing in the dashboard, and the heading comes first in it.
     expect(container.firstElementChild?.firstElementChild).toBe(headingRow())
-    expect(headingRow().firstElementChild?.tagName).toBe('H2')
+    expect(headingRow().firstElementChild?.tagName).toBe('H1')
   })
 
   it('every accessible name begins with its visible label (WCAG 2.5.3, Label in Name)', () => {

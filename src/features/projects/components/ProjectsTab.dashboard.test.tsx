@@ -69,7 +69,8 @@ describe('a tile opens Sprint History (GAP-B31)', () => {
     expect(shell).toMatch(/<ProjectsTab\s[^>]*onViewHistory=\{handleViewHistory\}/)
     const handler = shell.match(/const handleViewHistory = useCallback\(\(projectId: string\) => \{([\s\S]*?)\}, /)?.[1] ?? ''
     expect(handler).toMatch(/setViewingProjectId\(projectId\)/)
-    expect(handler).toMatch(/setActiveTab\('sprint-history'\)/)
+    // v0.52.0: every tab choice goes through selectTab (it also leaves the changelog for "/").
+    expect(handler).toMatch(/selectTab\('sprint-history'\)/)
   })
 
   it('a click on the name button calls onViewHistory with that project (known-bad: GAP-B31, no test)', () => {
@@ -236,7 +237,8 @@ describe('spacing (D23): 16 px from the heading row to the grid, 24 px around ev
   // `mt-6` on each section, whose margin collapses with the one above it. The three local-mode
   // gaps (import banner, welcome panel, import preview) were measured in a browser at release;
   // these three render only in cloud mode and were not.
-  const root = () => screen.getByRole('heading', { name: 'Projects', level: 2 }).parentElement!.parentElement!
+  // The page's h1 since v0.52.0 (the SPERT® Suite frame's heading row); an h2 before.
+  const root = () => screen.getByRole('heading', { name: 'Projects', level: 1 }).parentElement!.parentElement!
   const classes = (el: Element) => (el.getAttribute('class') ?? '').split(/\s+/)
 
   it('the root and the heading row', () => {
@@ -260,6 +262,7 @@ describe('spacing (D23): 16 px from the heading row to the grid, 24 px around ev
     renderTab(ABC, { mode: 'cloud', loaded: true, roles: { a: 'owner', b: 'owner', c: 'owner' } })
     fireEvent.click(screen.getAllByRole('button', { name: 'Share project' })[0])
     const panel = screen.getByRole('button', { name: 'Close sharing' }).closest('div.rounded-lg')!
-    expect([classes(panel).includes('mt-6'), panel.previousElementSibling?.querySelector('ul[aria-label="Projects"]') !== null]).toEqual([true, true])
+    // The grid is the frame's `ul.sf-tiles` itself since v0.52.0, with no container-query wrapper around it.
+    expect([classes(panel).includes('mt-6'), panel.previousElementSibling?.matches('ul[aria-label="Projects"]') === true]).toEqual([true, true])
   })
 })

@@ -71,16 +71,14 @@ export function AiTeardownBanner() {
   if (!pending) return null
 
   return (
-    <div
-      className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4 mb-4 flex items-start gap-4"
-      role="alert"
-      aria-live="assertive"
-    >
+    // An app-wide caution in the frame's notices slot (FRAME26, v0.52.0): `.sf-notice--caution` gives the box and the
+    // text colours. "Dismiss" is the frame's dismiss button; "Try again" keeps its own filled look.
+    <div className="sf-notice sf-notice--caution" role="alert" aria-live="assertive">
       <div className="flex-1">
-        <p className="text-sm font-medium text-amber-900 dark:text-amber-100 mb-1">
+        <p className="font-medium">
           Your AI assistant may still be connected.
         </p>
-        <p className="text-sm text-amber-800 dark:text-amber-200">
+        <p>
           Forecaster could not reach the server to end your Connect AI session.
           Until it does, a paired AI assistant can still read your last-open
           project. Forecaster keeps trying whenever you are online, and you can
@@ -100,7 +98,7 @@ export function AiTeardownBanner() {
         <button
           type="button"
           onClick={() => { clearPendingAiTeardown(); refresh() }}
-          className="text-xs text-amber-700 dark:text-amber-300"
+          className="sf-notice-dismiss"
         >
           Dismiss
         </button>

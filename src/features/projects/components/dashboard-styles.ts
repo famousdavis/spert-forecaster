@@ -9,28 +9,22 @@
 // `@/shared/components/toolbar-button-styles`; the five icon buttons carry their own look
 // (`@/shared/components/icon-button-styles`, v0.48.2).
 //
-// ⚠️ The reveal, the whole-tile click and the grid depend on PAIRS of classes, and a class
-// string is not proof that it renders:
+// ⚠️ The reveal and the whole-tile click depend on PAIRS of classes, and a class string is not
+// proof that it renders:
 // - the revealed row's `group-hover/tile:` and `group-focus-within/tile:` match only inside
 //   an element carrying `group/tile` (the tile root);
-// - the grid's `@min-[560px]:` / `@min-[860px]:` match only inside an ANCESTOR carrying
-//   `@container`; on the grid itself they never match;
 // - the name button's `::after` covers the tile because the tile root is `relative`, and the
 //   grip, Delete and the revealed row sit above it only because each is `relative z-[1]`.
+//
+// The heading row and the tile grid are the SPERT® Suite frame's since v0.52.0 (`HeadingRow`,
+// `.sf-tiles`): the grid is `repeat(auto-fill, minmax(340px, 1fr))` with 16 px gaps, so 3
+// columns at 1280 and 1440 px and 4 at 1920, in every app. Until v0.52.0 it was a container-
+// query grid of at most 3. The tile below is still Forecaster's own (contract §10).
 // `ProjectList.test.tsx` pins each pair; the browser check at release pins the rendering.
 //
 // Hover is `hover:` utilities only: Tailwind 4 wraps them in `@media (hover: hover)`, so a
 // touch screen never shows a hover look, and `[@media(hover:none)]` shows the revealed row
 // there at rest.
-
-/** The heading row: "Projects" on the left, the toolbar on the right; wraps on a narrow screen. */
-export const HEAD_ROW = 'flex flex-wrap items-center justify-between gap-x-4 gap-y-3'
-export const HEADING = 'text-2xl leading-[normal] font-bold text-[#333] dark:text-[#e2e8f0]'
-
-/** The container the grid measures. Must be an ancestor of the grid, never the grid itself. */
-export const GRID_AREA = '@container'
-/** One column, two from 560 px of container width, three from 860; 16 px gaps. */
-export const GRID = 'grid grid-cols-1 gap-4 @min-[560px]:grid-cols-2 @min-[860px]:grid-cols-3 list-none m-0 p-0'
 
 /** The tile root. `group/tile` names the group the revealed row reads; `relative` anchors the name button's `::after`. */
 export const TILE =
