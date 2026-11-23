@@ -20,7 +20,8 @@ import { ProjectDialog } from './ProjectDialog'
 import { ImportBanner } from './ImportBanner'
 import { ImportPreviewSection } from './ImportPreviewSection'
 import { ProjectsToolbar } from './ProjectsToolbar'
-import { HEAD_ROW, HEADING, NOTE } from './dashboard-styles'
+import { NOTE } from './dashboard-styles'
+import { HeadingRow } from '@/shared/components/HeadingRow'
 import { AllArchivedLine, ArchiveAnnouncer, ShowArchivedFilter } from './ArchiveControls'
 import { ProjectsEmptyState } from '@/shared/components/ProjectsEmptyState'
 import { loadSampleProject } from '../lib/sample-project'
@@ -130,21 +131,14 @@ export function ProjectsTab({ onViewHistory, importState }: ProjectsTabProps) {
     loadSampleProject()
   }, [])
 
-  if (!isClient) {
-    return <div className="text-muted-foreground">Loading...</div>
-  }
-
-  // Spacing (D23): the root's `space-y-6` puts 24 px below each child, and the heading row's
-  // own `mb-4` overrides it to 16 px, so the grid sits 16 px below the heading row when it
-  // follows it directly. Every section that can come between them, or after the grid,
-  // carries `mt-6`: adjacent margins collapse, so each keeps 24 px above and below it.
-  return (
-    <div ref={rootRef} className="space-y-6">
-      {/* The dashboard's first row: heading left, toolbar right. Wraps on a narrow
-          screen with the buttons in the same order. Everything the dashboard shows
-          comes after it. */}
-      <div className={cn(HEAD_ROW, 'mb-4')}>
-        <h2 className={HEADING}>Projects</h2>
+  // The dashboard's first row (the frame's heading row, v0.52.0): the page's `h1` "Projects" on the left, the toolbar
+  // on the right. It wraps on a narrow screen with the buttons in the same order, and everything the dashboard shows
+  // comes after it. Rendered before hydration too (contract §7: only the body shows a loading state), with the same
+  // gates: no button appears, disappears or moves.
+  const headingRow = (
+    <HeadingRow
+      className="mb-4"
+      toolbar={
         <ProjectsToolbar
           hasProjects={projects.length > 0}
           importDisabled={applying || isCloudPending}
@@ -157,7 +151,29 @@ export function ProjectsTab({ onViewHistory, importState }: ProjectsTabProps) {
           onLoadSample={handleLoadSample}
           onNewProject={dialog.openNew}
         />
+      }
+    >
+      Projects
+    </HeadingRow>
+  )
+
+  if (!isClient) {
+    return (
+      <div ref={rootRef} className="space-y-6">
+        {headingRow}
+        <div className="text-muted-foreground">Loading...</div>
       </div>
+    )
+  }
+
+  // Spacing (D23): the root's `space-y-6` puts 24 px below each child, and the heading row's
+  // own `mb-4` overrides it to 16 px; the tile grid's own 16 px top margin (`.sf-tiles`, v0.52.0)
+  // collapses with it, so the grid sits 16 px below the heading row when it follows it directly.
+  // Every section that can come between them, or after the grid, carries `mt-6`: adjacent
+  // margins collapse, so each keeps 24 px above and below it.
+  return (
+    <div ref={rootRef} className="space-y-6">
+      {headingRow}
 
       {archive.archivedCount > 0 && (
         <ShowArchivedFilter

@@ -30,6 +30,11 @@ interface ProjectsToolbarProps {
   hasProjects: boolean
   /** Import's gate, unchanged: an import being read or applied, or the first cloud load pending. */
   importDisabled: boolean
+  /**
+   * Load Sample and New Project, disabled only while cloud mode waits for its first load (v0.52.0): the frame keeps
+   * the toolbar on screen then (`ProjectsLoadingHeading`), where until v0.52.0 there was none.
+   */
+  addDisabled?: boolean
   fileInputRef: RefObject<HTMLInputElement | null>
   /** Where focus goes once an import preview has gone (useImportFocusReturn, v0.50.4). */
   importRef: RefObject<HTMLButtonElement | null>
@@ -44,8 +49,13 @@ interface ProjectsToolbarProps {
 // v0.49.0: GanttApp's `.pt-btn` look (grey outline, dark text, grey icons), from the shared
 // strings that the welcome empty state (ProjectsEmptyState.tsx) uses too. The toolbar is the
 // model now; until v0.49.0 it copied the empty state's blue outline.
-const SECONDARY = cn(TOOLBAR_BUTTON, TOOLBAR_SECONDARY)
-const PRIMARY = cn(TOOLBAR_BUTTON, TOOLBAR_PRIMARY)
+//
+// v0.52.0: `sf-btn` (the SPERT® Suite frame, contract §2) sizes every toolbar button the same in every app: 36 px tall,
+// 14 px / 500, with 18 px icons. It is unlayered, so it wins over the shared strings' size, padding and weight
+// (New Project's 600 becomes 500); corners, colours, hover and the disabled look stay Forecaster's own. Only the
+// toolbar carries it: the welcome empty state's buttons keep the shared strings' size.
+const SECONDARY = cn('sf-btn', TOOLBAR_BUTTON, TOOLBAR_SECONDARY)
+const PRIMARY = cn('sf-btn', TOOLBAR_BUTTON, TOOLBAR_PRIMARY)
 const icon = (d: string, primary = false) => (
   <ToolbarIcon d={d} className={primary ? TOOLBAR_ICON_PRIMARY : TOOLBAR_ICON_SECONDARY} />
 )
@@ -53,6 +63,7 @@ const icon = (d: string, primary = false) => (
 export function ProjectsToolbar({
   hasProjects,
   importDisabled,
+  addDisabled = false,
   fileInputRef,
   importRef,
   newProjectRef,
@@ -63,7 +74,8 @@ export function ProjectsToolbar({
   onNewProject,
 }: ProjectsToolbarProps) {
   return (
-    <div className="flex flex-wrap gap-2">
+    // The frame's toolbar (`.sf-toolbar`): flush right on the heading row, wrapping only its own buttons, in order.
+    <div className="sf-toolbar" data-sf="toolbar">
       <button
         type="button"
         onClick={onExportAll}
@@ -93,11 +105,11 @@ export function ProjectsToolbar({
         onChange={onFileChange}
         className="hidden"
       />
-      <button type="button" onClick={onLoadSample} className={SECONDARY}>
+      <button type="button" onClick={onLoadSample} disabled={addDisabled} className={SECONDARY}>
         {icon(TOOLBAR_ICON_PATHS.sample)}
         Load Sample
       </button>
-      <button type="button" ref={newProjectRef} onClick={onNewProject} className={PRIMARY}>
+      <button type="button" ref={newProjectRef} onClick={onNewProject} disabled={addDisabled} className={PRIMARY}>
         {icon(TOOLBAR_ICON_PATHS.plus, true)}
         New Project
       </button>

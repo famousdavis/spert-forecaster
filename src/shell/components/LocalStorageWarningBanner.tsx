@@ -22,16 +22,15 @@ function DismissibleBanner() {
   const [dismissed, setDismissed] = useState(false)
   if (dismissed) return null
 
+  // The frame's caution notice (FRAME26, v0.52.0): `.sf-notice--caution` gives the box, the text and its colours
+  // (6.84 : 1 light, 12.25 dark); "Got it" is the frame's dismiss button.
   return (
-    <div className="mb-4 p-3 bg-amber-50 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 rounded-lg flex items-start justify-between gap-3">
-      <p className="text-sm text-spert-text dark:text-gray-200">
+    <div className="sf-notice sf-notice--caution">
+      <p>
         <strong>Your data exists only in this browser</strong> and can be lost without warning.{' '}
         Export at the end of every session to protect your work.
       </p>
-      <button
-        onClick={() => setDismissed(true)}
-        className="shrink-0 px-3 py-1 text-xs font-medium rounded border border-amber-400 dark:border-amber-600 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-800/50 transition-colors cursor-pointer"
-      >
+      <button type="button" onClick={() => setDismissed(true)} className="sf-notice-dismiss">
         Got it
       </button>
     </div>

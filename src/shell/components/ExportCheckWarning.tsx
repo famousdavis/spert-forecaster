@@ -18,11 +18,11 @@ export function ExportCheckWarning() {
   if (!items) return null
 
   return (
-    <div
-      role="alert"
-      className="mb-4 p-3 bg-amber-50 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 rounded-lg flex items-start justify-between gap-3"
-    >
-      <div className="text-sm text-spert-text dark:text-gray-200 space-y-2">
+    // An app-wide notice in the frame's slot (FRAME26, v0.52.0): exports from the toolbar, a tile and Settings raise
+    // it, and it outlives the tab that raised it. `.sf-notice--caution` gives the box and the text colours; "Dismiss"
+    // is the frame's dismiss button, its wording kept.
+    <div role="alert" className="sf-notice sf-notice--caution">
+      <div className="space-y-2">
         <p>
           <strong>Your file was saved, but it will not restore.</strong>
         </p>
@@ -42,11 +42,7 @@ export function ExportCheckWarning() {
           back up your other projects now, select them in <strong>Settings → Export Projects</strong>.
         </p>
       </div>
-      <button
-        type="button"
-        onClick={dismiss}
-        className="shrink-0 px-3 py-1 text-xs font-medium rounded border border-amber-400 dark:border-amber-600 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-800/50 transition-colors cursor-pointer"
-      >
+      <button type="button" onClick={dismiss} className="sf-notice-dismiss">
         Dismiss
       </button>
     </div>

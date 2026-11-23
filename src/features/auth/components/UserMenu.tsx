@@ -18,24 +18,30 @@ interface UserMenuProps {
   buttonRef?: Ref<HTMLButtonElement>
 }
 
+/** The avatar's fill: white initials on it measure 4.55 : 1. Used only as the avatar's background. */
+const BRAND = '#0070f3'
+
 function CloudIcon() {
+  // currentColor: the chip's action segment draws it in the frame's link colour (5.25 / 6.73 : 1). Until v0.52.0 it was
+  // a fixed #0070f3, 3.90 on the dark ground.
   return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
       <path
         d="M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 0 0 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"
-        fill="#0070f3"
+        fill="currentColor"
       />
     </svg>
   )
 }
 
-function LockIcon() {
-  // currentColor + themed classes, not a fixed grey: #9CA3AF measured 2.54 on white, under the 3:1
-  // bar for a glyph that carries state (the only sign of local storage in the signed-in chip).
+function LockIcon({ className }: { className?: string }) {
+  // currentColor, never a fixed grey: #9CA3AF measured 2.54 on white, under the 3:1 bar for a glyph that carries
+  // state (the only sign of local storage in the signed-in chip). Signed out it takes the state segment's muted colour;
+  // signed in it sits in the action segment, so it names the muted token itself.
   return (
     <svg
-      width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"
-      className="text-gray-500 dark:text-gray-400"
+      width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"
+      className={className}
     >
       <rect x="3" y="11" width="18" height="11" rx="2" stroke="currentColor" strokeWidth="2" />
       <path d="M7 11V7a5 5 0 0 1 10 0v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
@@ -43,6 +49,17 @@ function LockIcon() {
   )
 }
 
+/*
+ * The account chip, on the frame's `.sf-chip` (FRAME26, contract §3 and §7, v0.52.0): 30 px tall in every state,
+ * min-width 163, max-width 240, its right edge at R. Its colours are the frame's, never this file's:
+ *   - the state segment (`.sf-chip-state`) is the muted text colour: 4.84 : 1 on white, 6.82 on #101828;
+ *   - the action segment (`.sf-chip-act`) is the link colour: 5.25 / 6.73;
+ *   - on hover the whole chip takes `--sf-hover` (#f9fafb / #1e2939), where the same two measure 4.63 / 5.64 and
+ *     5.02 / 5.56 (`.sf-chip:hover`, canonical).
+ * No colour is set inline or by a hover utility on the chip or its segments: the stylesheet is unlayered, so it would
+ * win anyway, and an inline colour would also beat the theme. Until v0.52.0 these were stage 0's classes (v0.51.2).
+ * `UserMenu.contrast.test.tsx` holds this.
+ */
 export function UserMenu({ onRequestOpen, buttonRef }: UserMenuProps) {
   const { user } = useAuth()
   const { mode } = useStorageMode()
@@ -52,83 +69,28 @@ export function UserMenu({ onRequestOpen, buttonRef }: UserMenuProps) {
   const firstName = firstNameFromDisplayName(user?.displayName, user?.email ?? '')
   const initial = firstName.charAt(0).toUpperCase() || '?'
 
-  if (isCloudSignedIn && user) {
+  if ((isCloudSignedIn || isSignedInLocal) && user) {
     return (
       <button
         type="button"
         ref={buttonRef}
         onClick={onRequestOpen}
         aria-label="Account menu"
-        className="flex items-center rounded-full hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
-        style={{ border: '0.5px solid #D1D5DB' }}
+        className="sf-chip"
+        data-sf="chip"
       >
-        <div className="flex items-center gap-1.5 py-1 pl-1 pr-2.5">
-          <div
-            className="flex items-center justify-center rounded-full text-white shrink-0"
-            style={{
-              width: 26,
-              height: 26,
-              backgroundColor: '#0070f3',
-              fontSize: 11,
-              fontWeight: 500,
-            }}
+        <span className="sf-chip-state">
+          <span
+            className="flex w-[22px] h-[22px] shrink-0 items-center justify-center rounded-full text-white text-[11px] font-medium"
+            style={{ backgroundColor: BRAND }}
           >
             {initial}
-          </div>
-          <span
-            style={{ fontSize: 13, fontWeight: 500 }}
-            className="text-gray-900 dark:text-gray-100"
-          >
-            {firstName}
           </span>
-        </div>
-        <div
-          className="self-stretch"
-          style={{ width: '0.5px', backgroundColor: '#D1D5DB' }}
-        />
-        <span className="flex items-center justify-center px-2.5 py-1">
-          <CloudIcon />
+          <span className="font-medium text-gray-900 dark:text-gray-100">{firstName}</span>
         </span>
-      </button>
-    )
-  }
-
-  if (isSignedInLocal && user) {
-    return (
-      <button
-        type="button"
-        ref={buttonRef}
-        onClick={onRequestOpen}
-        aria-label="Account menu"
-        className="flex items-center rounded-full hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
-        style={{ border: '0.5px solid #D1D5DB' }}
-      >
-        <div className="flex items-center gap-1.5 py-1 pl-1 pr-2.5">
-          <div
-            className="flex items-center justify-center rounded-full text-white shrink-0"
-            style={{
-              width: 26,
-              height: 26,
-              backgroundColor: '#0070f3',
-              fontSize: 11,
-              fontWeight: 500,
-            }}
-          >
-            {initial}
-          </div>
-          <span
-            style={{ fontSize: 13, fontWeight: 500 }}
-            className="text-gray-900 dark:text-gray-100"
-          >
-            {firstName}
-          </span>
-        </div>
-        <div
-          className="self-stretch"
-          style={{ width: '0.5px', backgroundColor: '#D1D5DB' }}
-        />
-        <span className="flex items-center justify-center px-2.5 py-1">
-          <LockIcon />
+        <span className="sf-chip-act">
+          {/* Cloud: the link colour. Local: the lock says "local only", muted like the signed-out chip's. */}
+          {isCloudSignedIn ? <CloudIcon /> : <LockIcon className="text-(--sf-text-muted)" />}
         </span>
       </button>
     )
@@ -140,30 +102,14 @@ export function UserMenu({ onRequestOpen, buttonRef }: UserMenuProps) {
       ref={buttonRef}
       onClick={onRequestOpen}
       aria-label="Sign in"
-      className="group flex items-center rounded-full hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
-      style={{ border: '0.5px solid #D1D5DB' }}
+      className="sf-chip"
+      data-sf="chip"
     >
-      <div className="flex items-center gap-1.5 py-1 pl-2.5 pr-2.5">
+      <span className="sf-chip-state">
         <LockIcon />
-        {/* Themed by class, and stepped on hover: the button's hover ground (gray-50 / gray-700)
-            is lighter in dark mode, where gray-400 measured 3.96. */}
-        <span style={{ fontSize: 13 }} className="text-gray-500 dark:text-gray-400 dark:group-hover:text-gray-300">
-          Local only
-        </span>
-      </div>
-      <div
-        className="self-stretch"
-        style={{ width: '0.5px', backgroundColor: '#D1D5DB' }}
-      />
-      <span className="flex items-center justify-center px-2.5 py-1">
-        {/* No inline colour: an inline style beats every dark: and hover class. */}
-        <span
-          style={{ fontSize: 12, fontWeight: 500 }}
-          className="text-spert-blue group-hover:text-blue-600 dark:text-blue-400 dark:group-hover:text-blue-300"
-        >
-          Sign in
-        </span>
+        <span>Local only</span>
       </span>
+      <span className="sf-chip-act">Sign in</span>
     </button>
   )
 }

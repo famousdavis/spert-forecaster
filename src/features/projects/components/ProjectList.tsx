@@ -11,7 +11,6 @@ import { isProjectArchived, projectPrefOf, reorderShown, type ProjectColor, type
 import { accessBadge, deleteReason } from '@/features/auth/lib/access-texts'
 import { summarizeSprints, tileMetaLines } from '../lib/tile-meta'
 import { ProjectTile } from './ProjectTile'
-import { GRID, GRID_AREA } from './dashboard-styles'
 
 interface ProjectListProps {
   /** The tiles to render: the projects this person sees (archived ones hidden unless shown). */
@@ -156,8 +155,9 @@ export function ProjectList({
   }
 
   return (
-    <div className={GRID_AREA}>
-      <ul className={GRID} aria-label="Projects">
+    // The frame's tile grid (`.sf-tiles`, contract §3, v0.52.0): auto-fill columns of at least 340 px, 16 px gaps,
+    // 16 px under the heading row. The tiles themselves are Forecaster's own.
+    <ul className="sf-tiles" data-sf="tiles" aria-label="Projects">
         {projects.map((project, index) => (
           <ProjectTile
             key={project.id}
@@ -196,7 +196,6 @@ export function ProjectList({
             onDrop={(e) => handleDrop(e, index)}
           />
         ))}
-      </ul>
-    </div>
+    </ul>
   )
 }

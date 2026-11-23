@@ -1,0 +1,162 @@
+/* Copyright (C) 2026 William W. Davis, MSPM, PMP. All rights reserved.
+   Licensed under the GNU General Public License v3.0.
+   See LICENSE file in the project root for full license text. */
+
+/* spert-frame.css: the SPERT Suite app frame (FRAME26). Canonical copy: spert-suite-docs/suite/frame/.
+   Vendored byte-identical into each app; never edit a vendored copy. The contract is FRAME-CONTRACT.md beside
+   the canonical copy. Every selector below is a custom property on :root or an sf- class: nothing restyles an
+   element the app has not opted in. Dark tokens follow :root.dark (six apps) or :root[data-theme="dark"]
+   (GanttApp), which each app sets after resolving "System"; never the prefers-color-scheme media query.
+   Each app sets --app-grad-light and --app-grad-dark to its HDR26 title gradient. */
+
+:root {
+  --sf-version: "1";
+  --sf-col-max: 1600px;
+  --sf-gutter: 32px;
+  --sf-bar-h: 56px;
+  --sf-nav-h: 44px;
+  --sf-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif,
+             "Apple Color Emoji", "Segoe UI Emoji";
+  --sf-page: #ffffff;
+  --sf-heading: #333333;
+  --sf-text: #333333;
+  --sf-text-muted: #6a7282;
+  --sf-border: #e5e7eb;
+  --sf-accent: #0070f3;
+  --sf-on-accent: #ffffff;
+  --sf-accent-text: #155dfc;
+  --sf-link: #155dfc;
+  --sf-focus: #2563eb;
+  --sf-hover: #f9fafb;
+  --sf-info-bg: #eff6ff;    --sf-info-border: #bedbff;    --sf-info-text: #193cb8;
+  --sf-caution-bg: #fffbeb; --sf-caution-border: #fee685; --sf-caution-text: #973c00;
+  --sf-error-bg: #fef2f2;   --sf-error-border: #ffc9c9;   --sf-error-text: #9f0712;
+  --sf-success-bg: #f0fdf4; --sf-success-border: #b9f8cf; --sf-success-text: #016630;
+}
+:root.dark, :root[data-theme="dark"] {
+  --sf-page: #101828;
+  --sf-heading: #e2e8f0;
+  --sf-text: #e2e8f0;
+  --sf-text-muted: #99a1af;
+  --sf-border: #364153;
+  --sf-accent: #0070f3;
+  --sf-on-accent: #ffffff;
+  --sf-accent-text: #51a2ff;
+  --sf-link: #51a2ff;
+  --sf-focus: #60a5fa;
+  --sf-hover: #1e2939;
+  --sf-info-bg: #162456;    --sf-info-border: #1c398e;    --sf-info-text: #bedbff;
+  --sf-caution-bg: #3a1f04; --sf-caution-border: #7b3306; --sf-caution-text: #fee685;
+  --sf-error-bg: #3c0a0a;   --sf-error-border: #82181a;   --sf-error-text: #ffc9c9;
+  --sf-success-bg: #032e15; --sf-success-border: #016630; --sf-success-text: #b9f8cf;
+}
+:root:has(.sf-app) { scrollbar-gutter: stable; }
+.sf-app { min-height: 100vh; display: flex; flex-direction: column; background: var(--sf-page); color: var(--sf-text);
+  font-family: var(--sf-font); }
+:where(.sf-col, .sf-bar, .sf-nav, .sf-notices, .sf-headrow, .sf-footer),
+:where(.sf-bar, .sf-nav, .sf-notices, .sf-headrow, .sf-footer) * { box-sizing: border-box; }
+:where(.sf-bar, .sf-nav, .sf-notices, .sf-headrow, .sf-footer) :focus-visible,
+.sf-skip:focus-visible { outline: 2px solid var(--sf-focus); outline-offset: 2px; }
+.sf-nav :focus-visible { outline-offset: -2px; }  /* inset: the work zone scrolls, which would clip an outer ring */
+
+.sf-col { width: 100%; max-width: var(--sf-col-max); margin-inline: auto; padding-inline: var(--sf-gutter); }
+
+.sf-skip { position: absolute; left: 8px; top: -64px; z-index: 100; padding: 8px 16px; border-radius: 6px;
+  background: var(--sf-accent); color: var(--sf-on-accent); font: 500 14px/20px var(--sf-font); text-decoration: none; }
+.sf-skip:focus { top: 8px; }
+
+.sf-bar { flex: none; background: var(--sf-page); }
+.sf-bar-row { height: var(--sf-bar-h); display: flex; align-items: center; gap: 16px; }
+.sf-brand { display: flex; align-items: center; gap: 12px; flex: none; text-decoration: none; border-radius: 6px; }
+.sf-icon { width: 28px; height: 28px; border-radius: 8px; display: block; flex: none; }
+.sf-icon--dark { display: none; }
+:root.dark .sf-icon--light, :root[data-theme="dark"] .sf-icon--light { display: none; }
+:root.dark .sf-icon--dark, :root[data-theme="dark"] .sf-icon--dark { display: block; }
+.sf-title { margin: 0; font: 700 24px/32px var(--sf-font); letter-spacing: normal; white-space: nowrap; color: var(--sf-heading); }
+.sf-grad { background-image: var(--app-grad-light); -webkit-background-clip: text; background-clip: text; color: transparent;
+  -webkit-text-fill-color: transparent; }
+:root.dark .sf-grad, :root[data-theme="dark"] .sf-grad { background-image: var(--app-grad-dark); }
+.sf-mark { font-size: 12px; line-height: 0; font-weight: 400; color: var(--sf-text-muted); -webkit-text-fill-color: var(--sf-text-muted);
+  vertical-align: 9px; margin: 0 2px 0 1px; }
+.sf-mark--tm { font-size: 10px; vertical-align: 11px; margin: 0 0 0 1px; }
+.sf-tagline { margin: 0; flex: 0 1 auto; min-width: 0; font: italic 400 13px/18px var(--sf-font); color: var(--sf-text-muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-top: 3px; }
+.sf-utils { margin-left: auto; flex: none; display: flex; align-items: center; gap: 8px; }
+.sf-theme { width: 32px; height: 32px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 6px;
+  background: none; color: var(--sf-text-muted); cursor: pointer; }
+.sf-theme:hover { color: var(--sf-text); }
+.sf-theme svg { width: 20px; height: 20px; }
+.sf-chip { height: 30px; min-width: 163px; max-width: 240px; display: inline-flex; align-items: stretch; padding: 0;
+  border: 1px solid var(--sf-border); border-radius: 999px; background: var(--sf-page); overflow: hidden; cursor: pointer;
+  font: 400 13px/18px var(--sf-font); }
+.sf-chip:hover { background: var(--sf-hover); }
+.sf-chip-state { display: flex; align-items: center; gap: 6px; padding: 0 10px; min-width: 0; color: var(--sf-text-muted); white-space: nowrap; }
+.sf-chip-state span { overflow: hidden; text-overflow: ellipsis; }
+.sf-chip-state svg { width: 14px; height: 14px; flex: none; }
+.sf-chip-act { display: flex; align-items: center; padding: 0 10px; border-left: 1px solid var(--sf-border); color: var(--sf-link);
+  font-weight: 500; white-space: nowrap; }
+
+.sf-nav { flex: none; background: var(--sf-page); border-bottom: 1px solid var(--sf-border); }
+.sf-nav--sticky { position: sticky; top: 0; z-index: 30; }
+.sf-nav-row { height: calc(var(--sf-nav-h) - 1px); display: flex; align-items: stretch; }
+.sf-nav-work, .sf-nav-app { display: flex; align-items: stretch; gap: 4px; }
+.sf-nav-work { margin-left: -12px; flex: 0 1 auto; min-width: 0; overflow-x: auto; overflow-y: hidden; scrollbar-width: none;
+  margin-bottom: -1px; }
+.sf-nav-work::-webkit-scrollbar { display: none; }
+.sf-nav-work > .sf-tab { margin-bottom: 0; }
+.sf-nav-app { flex: none; margin-left: auto; margin-right: -4px; }
+.sf-tab { display: inline-flex; align-items: center; padding: 0 12px; margin-bottom: -1px; border: 0;
+  border-bottom: 2px solid transparent; background: none; color: var(--sf-text-muted); font: 500 14px/20px var(--sf-font);
+  text-decoration: none; white-space: nowrap; cursor: pointer; }
+.sf-tab:hover { color: var(--sf-text); }
+.sf-tab[aria-current="page"] { color: var(--sf-accent-text); border-bottom-color: var(--sf-accent); }
+.sf-help { display: inline-flex; align-items: center; gap: 2px; padding: 0 4px 0 12px; color: var(--sf-text-muted);
+  font: 400 14px/20px var(--sf-font); text-decoration: none; white-space: nowrap; }
+.sf-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.sf-notices { padding-top: 16px; display: flex; flex-direction: column; gap: 12px; }
+.sf-notices:not(:has(> *)) { display: none; }
+.sf-notice { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin: 0; padding: 12px 16px;
+  border: 1px solid; border-radius: 8px; font: 400 14px/20px var(--sf-font); }
+.sf-notice p { margin: 4px 0; }
+.sf-notice-dismiss { flex: none; height: 28px; padding: 0 12px; border-radius: 6px; border: 1px solid currentColor;
+  background: none; color: inherit; font: 500 12px/16px var(--sf-font); cursor: pointer; }
+.sf-notice a { color: inherit; text-decoration: underline; }
+.sf-notice--info { background: var(--sf-info-bg); border-color: var(--sf-info-border); color: var(--sf-info-text); }
+.sf-notice--caution { background: var(--sf-caution-bg); border-color: var(--sf-caution-border); color: var(--sf-caution-text); }
+.sf-notice--error { background: var(--sf-error-bg); border-color: var(--sf-error-border); color: var(--sf-error-text); }
+.sf-notice--success { background: var(--sf-success-bg); border-color: var(--sf-success-border); color: var(--sf-success-text); }
+
+.sf-main { flex: 1 0 auto; padding-top: 24px; padding-bottom: 48px; }
+.sf-main--fit { flex: 1 1 0; min-height: 0; overflow: auto; padding-bottom: 16px; }
+.sf-main--bleed { max-width: none; padding-inline: 0; }
+.sf-main--capped > :not(.sf-headrow) { max-width: 896px; }
+.sf-headrow { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 16px; min-height: 36px; }
+.sf-heading { flex: 1 1 0; margin: 0; min-width: 0; font: 700 24px/32px var(--sf-font); color: var(--sf-heading);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sf-toolbar { display: flex; flex-wrap: wrap; gap: 8px; }
+.sf-btn { height: 36px; display: inline-flex; align-items: center; gap: 6px; padding-block: 0; font-size: 14px; line-height: 20px;
+  font-weight: 500; white-space: nowrap; }
+.sf-btn svg { width: 18px; height: 18px; flex: none; }
+.sf-below { margin-top: 16px; }
+.sf-tiles { list-style: none; margin: 16px 0 0; padding: 0; display: grid; gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); }
+
+.sf-footer { flex: none; border-top: 1px solid var(--sf-border); background: var(--sf-page); padding: 12px 0;
+  font: 400 14px/20px var(--sf-font); color: var(--sf-text-muted); text-align: center; }
+.sf-footer .sf-col > * { margin: 0; }
+.sf-footer .sf-col > * + * { margin-top: 4px; }
+.sf-footer a, .sf-footer .sf-link { color: var(--sf-link); text-decoration: none; background: none; border: 0; padding: 0;
+  font: inherit; cursor: pointer; }
+.sf-footer a:hover, .sf-footer .sf-link:hover { text-decoration: underline; }
+
+/* Last on purpose: these override the base rules above at equal specificity (contrast-more underlines). */
+@media (prefers-contrast: more) {
+  :root { --sf-text-muted: #4a5565; --sf-border: #99a1af; }
+  :root.dark, :root[data-theme="dark"] { --sf-text-muted: #d1d5dc; --sf-border: #6a7282; }
+  .sf-grad { background-image: none !important; -webkit-text-fill-color: currentColor !important; color: var(--sf-heading) !important; }
+  .sf-footer a, .sf-footer .sf-link, .sf-help { text-decoration: underline; }
+}
+@media print {
+  .sf-grad { background-image: none !important; -webkit-text-fill-color: currentColor !important; color: #000 !important; }
+}

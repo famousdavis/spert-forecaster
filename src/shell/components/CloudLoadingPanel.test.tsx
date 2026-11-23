@@ -91,7 +91,13 @@ describe('U-P3 AppShell wiring (structural; known-bad: the panel unwired)', () =
   // `{!awaitingCloud && …}` and `const awaitingCloud = false && awaitsFirstCloudLoad(…)` all passed.
   it('renders the panel instead of a project tab while the first load is outstanding', () => {
     expect(SOURCE).toMatch(/^\s*const awaitingCloud = awaitsFirstCloudLoad\(\{ mode, authLoading, signedIn: !!user, cloudDataLoaded \}\)$/m)
-    expect(SOURCE).toMatch(/^\s*\{awaitingCloud && PROJECT_DATA_TABS\.has\(activeTab\) \?\s*\(\s*<CloudLoadingPanel\b/m)
+    // v0.52.0: the frame keeps the heading row above the panel, so the gate is an `if` around the panel's body, and
+    // the tabs' own bodies come only after it (the `switch`).
+    expect(SOURCE).toMatch(/^\s*if \(awaitingCloud && PROJECT_DATA_TABS\.has\(activeTab\)\) \{$/m)
+    const gate = SOURCE.search(/^\s*if \(awaitingCloud && PROJECT_DATA_TABS\.has\(activeTab\)\) \{$/m)
+    const panel = SOURCE.indexOf('<CloudLoadingPanel', gate)
+    const tabs = SOURCE.indexOf('switch (activeTab)', gate)
+    expect([gate > -1, panel > gate, tabs > panel]).toEqual([true, true, true])
   })
   it('hands the panel the store\'s failure state, Try again and the shared export', () => {
     const panel = SOURCE.slice(SOURCE.indexOf('<CloudLoadingPanel'), SOURCE.indexOf('/>', SOURCE.indexOf('<CloudLoadingPanel')))

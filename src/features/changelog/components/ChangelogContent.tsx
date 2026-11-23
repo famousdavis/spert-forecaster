@@ -14,13 +14,12 @@ interface ChangelogContentProps {
 
 export function ChangelogContent({ entries }: ChangelogContentProps) {
   return (
-    <div className="space-y-10 max-w-2xl mx-auto">
-      <div>
-        <h1 className="text-2xl font-bold">Changelog</h1>
-        <p className="text-muted-foreground italic">
-          Release history for SPERT® Forecaster
-        </p>
-      </div>
+    // The page's `h1` "Changelog" is the frame's heading row (src/app/changelog/page.tsx, v0.52.0). The 672 px prose
+    // width is this element's own, inside the capped body (X4, 896 px), aligned at the column's left edge.
+    <div className="space-y-10 max-w-2xl">
+      <p className="text-muted-foreground italic">
+        Release history for SPERT® Forecaster
+      </p>
 
       {entries.map((entry, entryIndex) => (
         <section

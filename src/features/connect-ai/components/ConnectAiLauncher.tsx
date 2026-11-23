@@ -31,6 +31,9 @@ import { AI_CONSENT_KEY, AI_CONSENT_VERSION, AI_SESSION_ID_KEY } from '../consta
 import { ConnectAiConsentModal } from './ConnectAiConsentModal'
 import { ConnectAiPanel } from './ConnectAiPanel'
 
+/** The button's resting colours: the frame's muted token, then its text token on hover (tokens read, never copied). */
+export const CONNECT_AI_AT_REST = 'text-(--sf-text-muted) hover:text-(--sf-text)'
+
 export function ConnectAiLauncher() {
   const isClient = useIsClient()
   const connectivity = useAiConnectivityContext()
@@ -101,6 +104,10 @@ export function ConnectAiLauncher() {
 
   const active = !!sessionState?.sessionActive
 
+  // In the frame's utilities (FRAME26, v0.52.0), before the theme button and the chip: right-aligned, so the label's
+  // flip to "AI" moves only this button's left edge, never the chip's. Its text is the frame's 13 / 18 (contract §4)
+  // and, at rest, the frame's muted colour (4.84 : 1 on white, 6.82 on #101828), stepping to the text colour on hover.
+  // Until v0.52.0 it was 12 px in gray-400 / gray-500, 2.60 and 3.67 : 1, under the 4.5 floor for text.
   return (
     <>
       <button
@@ -109,10 +116,10 @@ export function ConnectAiLauncher() {
         onClick={handleClick}
         title={active ? 'AI session active' : 'Connect an AI assistant'}
         aria-label={active ? 'AI session active' : 'Connect an AI assistant'}
-        className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+        className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[13px] leading-[18px] font-medium transition-colors ${
           active
             ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400'
-            : 'text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300'
+            : CONNECT_AI_AT_REST
         }`}
       >
         {active && (
@@ -126,7 +133,7 @@ export function ConnectAiLauncher() {
       </button>
 
       {startError && (
-        <span className="text-xs text-red-600 dark:text-red-400">
+        <span className="text-[13px] leading-[18px] text-red-600 dark:text-red-400">
           Connection failed
         </span>
       )}

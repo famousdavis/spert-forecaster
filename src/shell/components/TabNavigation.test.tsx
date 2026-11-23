@@ -59,7 +59,8 @@ describe('TabNavigation — the active tab is programmatically determinable', ()
       const marked = tabButtons(container).filter((b) => b.getAttribute('aria-current') !== null)
       expect(marked).toHaveLength(1)
       expect(marked[0].textContent?.trim()).toBe(TAB_LABELS[active])
-      expect(marked[0].getAttribute('aria-current')).toBe('true')
+      // "page" since v0.52.0: the SPERT® Suite frame's stylesheet draws the active item from aria-current="page" only.
+      expect(marked[0].getAttribute('aria-current')).toBe('page')
     })
   }
 

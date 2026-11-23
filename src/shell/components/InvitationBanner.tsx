@@ -32,14 +32,13 @@ function InvitationBannerInner() {
 
   if (state === 'idle') return null
 
-  // Lesson 56: centered-card layout (max-w-lg mx-auto) for both branches —
-  // InvitationBanner is a primary CTA, NOT a passive informational strip
-  // like FirstRunBanner / LocalStorageWarningBanner. Dismiss button is
-  // anchored to the card via absolute positioning; inner content has pr-6
-  // so text doesn't slide under the dismiss target.
+  // The frame's notice box (FRAME26, v0.52.0): one box at the full column width for every notice in every app
+  // (William's decision for the suite frame), so the centred `max-w-lg` card of Lesson 56 is gone: the contract wins
+  // over it. `.sf-notice--info` (invited) and `--success` (added) give the box and the text colours. The "✕" keeps its
+  // own look, anchored to the box by absolute positioning; the inner content keeps pr-6 so text doesn't slide under it.
   if (state === 'pre_auth') {
     return (
-      <div className="relative max-w-lg mx-auto mb-4 p-5 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg shadow-sm">
+      <div className="sf-notice sf-notice--info relative">
         <button
           type="button"
           onClick={dismiss}
@@ -48,8 +47,8 @@ function InvitationBannerInner() {
         >
           ✕
         </button>
-        <div className="space-y-3 pr-6">
-          <p className="text-sm text-spert-text dark:text-gray-200">
+        <div className="flex-1 space-y-3 pr-6">
+          <p>
             You&apos;ve been invited to collaborate on a project. Sign in with the
             email address that received this invitation.
           </p>
@@ -59,7 +58,7 @@ function InvitationBannerInner() {
             // the SignInButtons.
             <SignInButtons fullLabel />
           ) : (
-            <p className="text-sm text-spert-text-muted dark:text-gray-400">
+            <p>
               Cloud sign-in is unavailable in this build.
             </p>
           )}
@@ -70,7 +69,7 @@ function InvitationBannerInner() {
 
   // state === 'claimed'
   return (
-    <div className="relative max-w-lg mx-auto mb-4 p-5 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg shadow-sm">
+    <div className="sf-notice sf-notice--success relative">
       <button
         type="button"
         onClick={dismiss}
@@ -79,12 +78,12 @@ function InvitationBannerInner() {
       >
         ✕
       </button>
-      <div className="space-y-2 pr-6">
-        <p className="text-sm text-spert-text dark:text-gray-200">
+      <div className="flex-1 space-y-2 pr-6">
+        <p>
           You&apos;ve been added to: <strong>{claimedNames.join(', ')}</strong>
         </p>
         {mode === 'local' && (
-          <p className="text-xs text-spert-text-muted dark:text-gray-400">
+          <p className="text-xs">
             Switch to Cloud Storage in Settings to view this project.
           </p>
         )}

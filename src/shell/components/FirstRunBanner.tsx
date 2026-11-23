@@ -32,25 +32,25 @@ export function FirstRunBanner() {
     setDismissed(true)
   }
 
+  // The frame's info notice (FRAME26, v0.52.0): `.sf-notice--info` gives the box, the 14 / 20 text and its colours
+  // (8.11 : 1 light, 10.39 dark), and underlines the links in the text colour; "Got it" is the frame's dismiss button.
+  // The ® inherits the notice's colour (it was gray-400, 2.39 : 1 on this ground) and keeps its small raised size.
   return (
-    <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg flex items-start justify-between gap-3">
-      <p className="text-sm text-spert-text dark:text-gray-200">
-        SPERT<span className="text-gray-400 dark:text-gray-500 font-normal text-xs align-top">®</span> Suite web apps
+    <div className="sf-notice sf-notice--info">
+      <p>
+        SPERT<span className="font-normal text-xs align-top">®</span> Suite web apps
         are free to use. No account is required to use them. By accessing or using this app, you agree to our{' '}
-        <a href={TOS_URL} target="_blank" rel="noopener noreferrer" className="text-spert-blue dark:text-blue-300 underline hover:no-underline">
+        <a href={TOS_URL} target="_blank" rel="noopener noreferrer">
           Terms of Service
         </a>{' '}
         and{' '}
-        <a href={PRIVACY_URL} target="_blank" rel="noopener noreferrer" className="text-spert-blue dark:text-blue-300 underline hover:no-underline">
+        <a href={PRIVACY_URL} target="_blank" rel="noopener noreferrer">
           Privacy Policy
         </a>
         . If you choose to enable optional Cloud Storage, you&apos;ll be asked to explicitly confirm
         your agreement.
       </p>
-      <button
-        onClick={handleDismiss}
-        className="shrink-0 px-3 py-1 text-xs font-medium rounded border border-blue-300 dark:border-blue-600 text-spert-blue dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-800/50 transition-colors cursor-pointer"
-      >
+      <button type="button" onClick={handleDismiss} className="sf-notice-dismiss">
         Got it
       </button>
     </div>
