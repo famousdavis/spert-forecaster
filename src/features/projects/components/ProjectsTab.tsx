@@ -198,7 +198,7 @@ export function ProjectsTab({ onViewHistory, importState }: ProjectsTabProps) {
 
       {/* Welcome empty-state — only when the user has no projects yet. */}
       {projects.length === 0 && !importPreview && (
-        <div className="mt-6">
+        <div className="mt-6" data-sf="empty">
           <ProjectsEmptyState variant="welcome" onCreateNew={dialog.openNew} onLoadSample={handleLoadSample} />
         </div>
       )}

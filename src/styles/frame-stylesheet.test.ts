@@ -15,8 +15,8 @@ const HERE = import.meta.dirname
 const SRC = join(HERE, '..')
 const VENDORED = join(HERE, 'spert-frame.css')
 const GLOBALS = join(SRC, 'app', 'globals.css')
-/** The canonical file's md5 at spert-suite-docs 63d5a77, --sf-version "1" (Orch-FRAME-1's D10). */
-const CANONICAL_MD5 = '6e1fa767afb862d5f7efc8a216abd29b'
+/** The canonical file's md5 at spert-suite-docs 2875bb1, --sf-version "2" (FRAME26 v2: .sf-help:hover). */
+const CANONICAL_MD5 = '69146fd77679c71e03d2f06cfea96cf1'
 
 const files = (dir: string): string[] =>
   readdirSync(dir).flatMap((n) => { const p = join(dir, n); return statSync(p).isDirectory() ? files(p) : [p] })
@@ -26,8 +26,8 @@ describe('the vendored frame stylesheet', () => {
     expect(createHash('md5').update(readFileSync(VENDORED)).digest('hex')).toBe(CANONICAL_MD5)
   })
 
-  it('declares version "1"', () => {
-    expect(readFileSync(VENDORED, 'utf8')).toMatch(/--sf-version: "1";/)
+  it('declares version "2"', () => {
+    expect(readFileSync(VENDORED, 'utf8')).toMatch(/--sf-version: "2";/)
   })
 
   it('is imported exactly once, by globals.css, unlayered (no layer() on the import)', () => {

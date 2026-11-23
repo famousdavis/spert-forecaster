@@ -165,6 +165,34 @@ describe('every project archived', () => {
   })
 })
 
+// Contract §7 "Empty collection" (frame v2): whatever stands in for the tile grid carries data-sf="empty", so
+// frame-check measures a first visit instead of reporting tiles.found; it never shows beside a grid. The panels'
+// look is an open decision, so only the hook is held here.
+describe('the empty collection’s hook, data-sf="empty" (FRAME26 v2)', () => {
+  const empties = () => Array.from(document.querySelectorAll('[data-sf="empty"]'))
+  const tiles = () => document.querySelector('[data-sf="tiles"]')
+
+  it('no projects at all: the welcome panel is the one empty panel, and there is no grid', () => {
+    renderTab([], {})
+    expect(empties(), 'exactly one empty panel').toHaveLength(1)
+    expect(empties()[0].textContent).toMatch(/Welcome to SPERT/)
+    expect(tiles()).toBeNull()
+  })
+
+  it('every project archived: the all-archived line is the one empty panel, and there is no grid', () => {
+    renderTab([project('A'), project('B')], seed(['A', 'B'], ['A', 'B']))
+    expect(empties(), 'exactly one empty panel').toHaveLength(1)
+    expect(empties()[0].textContent).toBe('All projects are archived. Select "Show archived (2)" to see them.')
+    expect(tiles()).toBeNull()
+  })
+
+  it('a project shown: the grid, and no empty panel beside it', () => {
+    renderTab([project('A'), project('B')], seed(['A', 'B'], ['A']))
+    expect(tiles()).not.toBeNull()
+    expect(empties(), 'no empty panel beside the grid').toHaveLength(0)
+  })
+})
+
 describe('Archive, with "Show archived" off', () => {
   it.each([
     { names: ['A', 'B', 'C'], archived: [], target: 'A', focus: 'B', label: 'first: the next tile' },
