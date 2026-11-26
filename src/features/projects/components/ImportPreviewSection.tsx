@@ -113,10 +113,10 @@ export function ImportPreviewSection({
   }, [applying, onCancel])
 
   const isLegacy = imported.exportType === 'legacy'
+  const isStoryMap = imported.exportType === 'spert-story-map'
   // A Story Map v0.53.8+ file declares that its milestone figures are remaining
   // work, and Update then takes them (SD-5). Said here, before the user decides.
-  const takesMilestoneFigures =
-    imported.exportType === 'spert-story-map' && imported.milestoneBacklog === 'remaining'
+  const takesMilestoneFigures = isStoryMap && imported.milestoneBacklog === 'remaining'
   const showReplaceAllControls = isLegacy && mode === 'replace-all'
   const conflictIncomingIds = new Set(conflicts.map((c) => c.incomingProject.id))
   const nonConflictingCount = imported.projects.filter((p) => !conflictIncomingIds.has(p.id)).length
@@ -299,7 +299,8 @@ export function ImportPreviewSection({
                     <span className="font-medium">Update isn&rsquo;t available here.</span> This
                     project has a sprint that isn&rsquo;t in the imported file, and keeping it
                     would duplicate a sprint number and shift the forecast dates. Either delete
-                    that sprint on the Sprint History tab, or choose Replace.
+                    that sprint on the Sprint History tab, or choose Replace, which keeps your
+                    productivity adjustments, project dates and unit of measure.
                   </p>
                 )}
               </div>
@@ -307,9 +308,22 @@ export function ImportPreviewSection({
           })}
 
           <p className="text-xs italic text-spert-text-muted dark:text-gray-500">
-            Replacing a project substitutes its sprint history with the incoming file&rsquo;s
-            sprints; burn-up configurations are cleared and forecast inputs may need to be
-            re-entered. Updating merges the incoming sprints into the existing project and keeps
+            {isStoryMap ? (
+              // SD-6: a Story Map replace keeps what Story Map cannot send.
+              <>
+                Replacing a project substitutes its sprint history and milestones with Story
+                Map&rsquo;s and keeps your productivity adjustments, project dates and unit of
+                measure; burn-up configurations and sprint-exclusion choices are cleared and
+                forecast inputs may need to be re-entered.
+              </>
+            ) : (
+              <>
+                Replacing a project substitutes its sprint history with the incoming file&rsquo;s
+                sprints; burn-up configurations are cleared and forecast inputs may need to be
+                re-entered.
+              </>
+            )}{' '}
+            Updating merges the incoming sprints into the existing project and keeps
             your burn-up configurations, project dates, productivity adjustments and
             sprint-exclusion choices &mdash; the forecast is re-run.
             {takesMilestoneFigures && (

@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.52.2 - 2026-11-26
+
+When you send a project from SPERT® Story Map to a Forecaster project that already exists and choose Replace, Forecaster now keeps that project's productivity adjustments, project start and finish dates and unit of measure. Before, Replace erased them. Story Map has no productivity adjustments or project dates and always sends "Story Points", so the only copy of those settings was the one in Forecaster, and every Replace lost it.
+
+### Fixed
+- **Replace from Story Map keeps your productivity adjustments.** Replacing a project from a Story Map send took Story Map's copy of the project whole. Story Map's copy never has productivity adjustments, so the holidays and vacations you had entered in Forecaster were gone after every such Replace, by file or by "Send to Forecaster". Replace now takes the sprint history, milestones and sprint cadence from Story Map and keeps the adjustments you entered here. It also keeps the project's start and finish dates and its unit of measure: Story Map sends neither date and always says "Story Points", so a project measured in hours went back to story points on every Replace. These are the same four settings that Update already kept. Burn-up configurations and sprint-exclusion choices are still cleared by Replace, as before; Update keeps those too.
+- **Replace mattered more than its name suggests.** Update, which keeps your whole forecast setup, is not offered when Forecaster holds a sprint the Story Map send does not, or when the project matches only by name and shares no sprints with the send. In those cases Replace was the only way to take Story Map's new progress, and the import screen pointed you to it. It now says that Replace keeps your productivity adjustments, project dates and unit of measure.
+- **Replacing from a Forecaster file is unchanged.** A file exported from Forecaster carries its own productivity adjustments, dates and unit, and Replace still takes all of them from the file.
+
+### Internal
+- **One rule, in `import-utils.ts`.** `replacementProject` builds the project a Replace writes. For a Story Map payload it restores the four fields listed in `STORY_MAP_REPLACE_KEEPS` from the existing project; for any other payload it returns the incoming project unchanged. The rule reads the payload's type, never how it arrived, so a file and a "Send to Forecaster" of the same data give the same result. A Story Map payload that somehow carries any of the four fields has them ignored, as Update ignores them.
+- **The list is tied to Update's.** The four fields are exactly the project fields that Update's field-class table marks as Forecaster's own. A test asserts the two lists agree, so a new Forecaster-only field has to be decided for both actions. The change is recorded as SD-6 in `docs/SPEC_DEVIATIONS.md`.
+- **12 new tests, each seen to fail on purpose.** Unit tests cover a Replace on a matching project ID, on a name-only match (the new project ID keeps the four fields), a crafted payload, a project with no adjustments, and two controls for Forecaster files. An end-to-end test sends a real-shaped Story Map project through both routes, chooses Replace and checks what was written. Two screen tests check the Replace description for each kind of file. Six changes to the rule (never keep, always keep, drop one field, drop the adjustments, bypass the rule, shorten the list) and two to the screen text each turned at least one test red.
+- No dependency, Firestore rules or legal-document change. Tests: 3,422, up from 3,410.
+
 ## v0.52.1 - 2026-11-23
 
 The Help Center link at the right of the navigation row now underlines when you point at it, as the footer's links do. Nothing else on screen changes.

@@ -305,3 +305,49 @@ is recorded beside the guard.
 **The marker is declared, not proven** — exactly like `source`. Only the exact
 string counts; `["remaining"]` (which passes `==`) and `"Remaining"` do not.
 
+
+## SD-6: A Story Map Replace keeps the project fields Story Map never authors (v0.52.2)
+
+**Spec reference:** none. It narrows what `replace` substitutes, for one payload
+type only. Until v0.52.2 every `replace` put the incoming project into the
+existing project's slot whole, whatever the file.
+
+**The defect.** Story Map has no productivity adjustments and no project dates,
+and it hardcodes `unitOfMeasure: 'Story Points'`. So every Replace from a Story
+Map send — by file or by crosslink — erased the project's adjustments and dates
+and reset its unit. Replace is not a rare path: when the existing project holds
+a sprint the send lacks (§4.1), or matches only by name with no shared sprint id,
+`update` is withheld and Replace is the only way to take the new progress. The
+§4.1 explanation even pointed the user to it.
+
+**Change.** `replacementProject` (import-utils.ts) builds the project a `replace`
+claim writes. For a `spert-story-map` payload it takes the incoming project and
+restores `STORY_MAP_REPLACE_KEEPS` from the existing one: `productivityAdjustments`,
+`projectStartDate`, `projectFinishDate`, `unitOfMeasure`. Those are exactly the
+project rows of `PROJECT_UPDATE_FIELD_CLASSES` classed `local-restore-defensive`
+or `local-producer-artifact` — the fields `update` already keeps for the same
+reason — and `import-storymap-replace.test.ts` asserts the two lists agree, so a
+new Forecaster-only field must be decided for both actions. For any other payload
+`replace` is unchanged: a Forecaster file carries its own values, and taking them
+is the point of Replace.
+
+**What Replace still substitutes or clears** for a Story Map send: sprint history
+(and with it the sprint-exclusion choices), milestones, cadence and first sprint
+start date come from Story Map; burn-up configurations and the forecast run and
+view are cleared, as before. That is what keeps it distinct from `update`.
+
+**Keyed on the payload, never the transport.** The choice reads
+`ParsedImportData.exportType`; the same payload imports identically by file or by
+crosslink, and the end-to-end test runs both.
+
+**Crafted payloads.** A payload that declares `source: 'spert-story-map'` and
+carries any of the four fields has them ignored, exactly as `update` ignores them.
+
+**No storage or rules change.** Every kept field was already a `FirestoreProjectDoc`
+field; no field is added, so the rules allowlist needs nothing (all four were in
+`spertForecasterProjectFields()` when measured on 2026-11-26).
+
+**Not changed:** the name-only match with no shared sprint id still withholds
+`update` without an explanation (§3j, "parity declined"). Replace keeping the
+user's setup weakens that decision's premise — there is now a safe exit to name
+for an owner — but revisiting it is the owner's call, not part of this fix.

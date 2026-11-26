@@ -555,6 +555,51 @@ export const MILESTONE_UPDATE_FIELD_CLASSES: Record<keyof Milestone, UpdateField
 // ⚠️ They are STILL not read by the merge functions. The contract test is a
 // SECOND, INDEPENDENT encoding — it does not make these tables authoritative.
 
+// --- Replace from Story Map: the project fields Story Map never authors (SD-6) ---
+//
+// `replace` substitutes the incoming project for the existing one. For a
+// Forecaster export that is the point: the file carries its own adjustments,
+// dates and unit, and the user chose to take them. A Story Map payload cannot
+// carry them — Story Map has no productivity adjustments and no project dates,
+// and it hardcodes 'Story Points' — so a wholesale substitution erased what
+// only this app can hold, on every Story Map Replace.
+//
+// These are exactly the PROJECT_UPDATE_FIELD_CLASSES rows classed
+// `local-restore-defensive` or `local-producer-artifact`: the fields `update`
+// keeps because Story Map never authors them. `field-class-contract.test.ts`
+// asserts the two lists agree, so a new Forecaster-only field must be decided
+// for both actions. Sprint history and milestones still come from Story Map;
+// that is what makes this `replace` rather than `update`.
+//
+// ⚠️ Keyed on the payload's exportType, NEVER on the transport: the same
+// payload must import identically by file or by crosslink.
+export const STORY_MAP_REPLACE_KEEPS = [
+  'productivityAdjustments',
+  'projectStartDate',
+  'projectFinishDate',
+  'unitOfMeasure',
+] as const satisfies readonly (keyof Project)[]
+
+// The project a `replace` claim writes into the existing project's slot.
+// Kept out of applyImportDecisions so its branch adds nothing to that
+// function's complexity.
+export function replacementProject(
+  existing: Project,
+  incoming: Project,
+  exportType: ParsedImportData['exportType'],
+): Project {
+  if (exportType !== 'spert-story-map') return incoming
+  return {
+    ...incoming,
+    // Restored explicitly, as mergeProjectForUpdate does: a crafted Story Map
+    // payload carrying any of these is ignored, exactly as `update` ignores it.
+    productivityAdjustments: existing.productivityAdjustments,
+    projectStartDate: existing.projectStartDate,
+    projectFinishDate: existing.projectFinishDate,
+    unitOfMeasure: existing.unitOfMeasure,
+  }
+}
+
 // --- Update merge: the field-class tables above, plus §4.4's and §4.4a's
 // existence partitions ---
 //
@@ -913,7 +958,8 @@ export function applyImportDecisions(
     // replacedExistingIds, which drives all three of its consumers — sprint
     // drop, burnUpConfigs clear, forecast-store clear.
     if (claim?.action === 'replace') {
-      mergedProjects.push(claim.project)
+      // SD-6: a Story Map replace keeps the fields Story Map never authors.
+      mergedProjects.push(replacementProject(existingProject, claim.project, incoming.exportType))
       replacedExistingIds.add(existingProject.id)
       if (conflictByIncomingId.get(claim.project.id)?.type === 'name') {
         replacedIdMap.set(existingProject.id, claim.project.id)
