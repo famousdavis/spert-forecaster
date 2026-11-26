@@ -50,7 +50,7 @@ async function withPreview() {
   let importState: ReturnType<typeof useImportState> | null = null
   function Harness() {
     importState = useImportState()
-    return <ProjectsTab importState={importState} />
+    return <ProjectsTab onLoadSample={vi.fn()} importState={importState} />
   }
   render(<Harness />)
   await act(async () => {
@@ -108,7 +108,7 @@ describe('focus the user put elsewhere stays there', () => {
   it('the tab opening with no preview moves no focus', () => {
     useProjectStore.setState({ projects: ABC, sprints: [], cloudDataLoaded: false, projectRoles: {} })
     function Harness() {
-      return <ProjectsTab importState={useImportState()} />
+      return <ProjectsTab onLoadSample={vi.fn()} importState={useImportState()} />
     }
     render(<Harness />)
     expect(focused()).toBe(document.body)

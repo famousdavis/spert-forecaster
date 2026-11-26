@@ -49,7 +49,7 @@ afterEach(() => { cleanup(); vi.restoreAllMocks() })
 
 function renderProjects() {
   function Harness() {
-    return (<><ExportCheckWarning /><ProjectsTab importState={useImportState()} /></>)
+    return (<><ExportCheckWarning /><ProjectsTab onLoadSample={vi.fn()} importState={useImportState()} /></>)
   }
   render(<Harness />)
 }

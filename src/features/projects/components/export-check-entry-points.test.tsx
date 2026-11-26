@@ -103,7 +103,7 @@ afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks() })
 function renderProjects() {
   function Harness() {
     const importState = useImportState()
-    return (<><ExportCheckWarning /><ProjectsTab importState={importState} /></>)
+    return (<><ExportCheckWarning /><ProjectsTab onLoadSample={vi.fn()} importState={importState} /></>)
   }
   return render(<Harness />)
 }

@@ -8,9 +8,11 @@ import { ALL_ARCHIVED_CLASS } from '@/shared/components/AllArchivedNotice'
 import { CHECK, CHECKBOX } from './dashboard-styles'
 
 /**
- * "Show archived (N)" (v0.50.0), in GanttApp's place for it: under the heading row, 12 px below
- * it (`-mt-1` against the row's `mb-4`) and 16 px above the grid (GanttApp's `.pt-filter`,
- * `margin: -0.25rem 0 1rem`). The caller renders it only while something is archived.
+ * "Show archived (N)" (v0.50.0): the collection's one filter row (contract §3, "Filter row"), hooked
+ * `data-sf="filters"`, 16 px below the heading row (the frame's `.sf-below`) and 16 px above the grid or the
+ * all-archived line (`mb-4`, which beats the tab's `space-y-6`). The caller renders it only while something is
+ * archived. Until v0.53.0 (FRAME26 clean-up A) it was not hooked and sat 12 px below the row (`-mt-1`), GanttApp's
+ * `.pt-filter` place, so the frame read the grid under it as 31.5 px too low.
  */
 export function ShowArchivedFilter({
   id,
@@ -25,7 +27,7 @@ export function ShowArchivedFilter({
 }) {
   return (
     // leading-[normal]: GanttApp's row is line-height normal (19.5 px at DPR 1); the page's 24 px line-height made it 24 (measured).
-    <div className="-mt-1 mb-4 leading-[normal]">
+    <div className="sf-below mb-4 leading-[normal]" data-sf="filters">
       <label className={CHECK} htmlFor={id}>
         <input
           type="checkbox"

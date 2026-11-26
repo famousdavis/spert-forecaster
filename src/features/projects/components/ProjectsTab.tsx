@@ -22,9 +22,9 @@ import { ImportPreviewSection } from './ImportPreviewSection'
 import { ProjectsToolbar } from './ProjectsToolbar'
 import { NOTE } from './dashboard-styles'
 import { HeadingRow } from '@/shared/components/HeadingRow'
+import { ErrorBoundary } from '@/shared/components/ErrorBoundary'
 import { AllArchivedLine, ArchiveAnnouncer, ShowArchivedFilter } from './ArchiveControls'
 import { ProjectsEmptyState } from '@/shared/components/ProjectsEmptyState'
-import { loadSampleProject } from '../lib/sample-project'
 // Type-only: the hook is CALLED in AppShell now, not here. Importing the value would put it
 // back in this component's runtime graph and invite someone to call it again by accident.
 import type { useImportState } from '../hooks/useImportState'
@@ -39,6 +39,11 @@ import type { Project } from '@/shared/types'
 
 interface ProjectsTabProps {
   onViewHistory?: (projectId: string) => void
+  /**
+   * v0.53.0 (FRAME26 clean-up L): AppShell's one Load Sample handler, for the toolbar's Load Sample and the Welcome
+   * panel's: it adds the sample and opens it on Forecast. Required, so a render that forgets it fails `tsc`.
+   */
+  onLoadSample: () => void
   /**
    * ⚠️ Owned by `AppShell`, not by this component, because this component UNMOUNTS on every
    * tab switch and a transfer arriving mid-switch would land on nothing.
@@ -56,7 +61,7 @@ interface ProjectsTabProps {
  * The Projects dashboard (v0.49.0, GanttApp's): the heading row and toolbar, the notices, the
  * grid of tiles, and one New Project / Edit Project dialog.
  */
-export function ProjectsTab({ onViewHistory, importState }: ProjectsTabProps) {
+export function ProjectsTab({ onViewHistory, onLoadSample, importState }: ProjectsTabProps) {
   const isClient = useIsClient()
   const idPrefix = useId()
   const projects = useProjectStore((state) => state.projects)
@@ -127,10 +132,6 @@ export function ProjectsTab({ onViewHistory, importState }: ProjectsTabProps) {
     fileInputRef.current?.click()
   }
 
-  const handleLoadSample = useCallback(() => {
-    loadSampleProject()
-  }, [])
-
   // The dashboard's first row (the frame's heading row, v0.52.0): the page's `h1` "Projects" on the left, the toolbar
   // on the right. It wraps on a narrow screen with the buttons in the same order, and everything the dashboard shows
   // comes after it. Rendered before hydration too (contract §7: only the body shows a loading state), with the same
@@ -148,7 +149,7 @@ export function ProjectsTab({ onViewHistory, importState }: ProjectsTabProps) {
           onExportAll={handleExport}
           onImportClick={handleImportClick}
           onFileChange={handleFileChange}
-          onLoadSample={handleLoadSample}
+          onLoadSample={onLoadSample}
           onNewProject={dialog.openNew}
         />
       }
@@ -175,147 +176,152 @@ export function ProjectsTab({ onViewHistory, importState }: ProjectsTabProps) {
     <div ref={rootRef} className="space-y-6">
       {headingRow}
 
-      {archive.archivedCount > 0 && (
-        <ShowArchivedFilter
-          id={`${idPrefix}-show-archived`}
-          count={archive.archivedCount}
-          checked={archive.showArchived}
-          onChange={archive.setShowArchived}
-        />
-      )}
-
-      {isCloudPending && (
-        <p
-          role="status"
-          aria-live="polite"
-          className="mt-6 text-sm text-spert-text-muted dark:text-gray-400"
-        >
-          Loading your cloud projects — import will be available shortly.
-        </p>
-      )}
-
-      {importBanner && <ImportBanner banner={importBanner} onDismiss={dismissBanner} />}
-
-      {/* Welcome empty-state — only when the user has no projects yet. */}
-      {projects.length === 0 && !importPreview && (
-        <div className="mt-6" data-sf="empty">
-          <ProjectsEmptyState variant="welcome" onCreateNew={dialog.openNew} onLoadSample={handleLoadSample} />
-        </div>
-      )}
-
-      {importPreview && (
-        <div className="mt-6">
-          <ImportPreviewSection
-            imported={importPreview.imported}
-            conflicts={importPreview.conflicts}
-            decisions={importPreview.decisions}
-            mode={importPreview.mode}
-            applying={applying}
-            existingSprints={sprints}
-            idPrefix={idPrefix}
-            accessOf={accessOf}
-            replaceAllBlocked={replaceAllBlocked}
-            onModeChange={onModeChange}
-            onDecisionChange={onDecisionChange}
-            onConfirm={handleConfirmMerge}
-            onRequestReplaceAll={openReplaceAllConfirm}
-            onCancel={handleImportCancel}
+      {/* v0.53.0 (FRAME26 F6): everything below the heading row has its own boundary, so a view that fails (a tile,
+          the grid, the Welcome panel, a dialog) leaves the page's h1 and the toolbar in place, as Sprint History,
+          Forecast, Settings and About keep theirs. AppShell's boundary around the whole tab stays, for a failure in
+          this component's own state. A boundary adds no element, so the root's spacing is unchanged. */}
+      <ErrorBoundary>
+        {archive.archivedCount > 0 && (
+          <ShowArchivedFilter
+            id={`${idPrefix}-show-archived`}
+            count={archive.archivedCount}
+            checked={archive.showArchived}
+            onChange={archive.setShowArchived}
           />
-        </div>
-      )}
+        )}
 
-      {/* T4c (V6): adding, copying or importing a project — all on this tab — is
-          what drops a not-in-cloud project from the list, so the warning is here. */}
-      {projects.some((p) => accessOf(p.id) === 'not-in-cloud') && (
-        <p role="note" className={cn('mt-6', NOTE)}>
-          {NOT_IN_CLOUD_LIST_NOTE}
-        </p>
-      )}
+        {isCloudPending && (
+          <p
+            role="status"
+            aria-live="polite"
+            className="mt-6 text-sm text-spert-text-muted dark:text-gray-400"
+          >
+            Loading your cloud projects — import will be available shortly.
+          </p>
+        )}
 
-      <ArchiveAnnouncer text={archive.status} />
-      {projects.length > 0 && archive.shown.length === 0 && <AllArchivedLine count={archive.archivedCount} />}
+        {importBanner && <ImportBanner banner={importBanner} onDismiss={dismissBanner} />}
 
-      <ProjectList
-        projects={archive.shown}
-        allProjects={projects}
-        prefs={archive.prefs}
-        colorOpenFor={archive.colorOpenFor}
-        onColorOpenChange={archive.setColorOpen}
-        onPickColor={archive.pickColor}
-        onArchive={archive.archive}
-        onUnarchive={archive.unarchive}
-        sprints={sprints}
-        onEdit={dialog.openEdit}
-        // The Delete dialog takes over the tab: an open colour popover closes first.
-        onDelete={(projectId) => (archive.setColorOpen(projectId, false), deletion.request(projectId))}
-        onExport={tileActions.exportProject}
-        onClone={tileActions.clone}
-        onReorder={reorderProjects}
-        onViewHistory={archive.openProject}
-        onShare={setSharingProject}
-        accessOf={accessOf}
-        canShare={canShare}
-      />
+        {/* The Welcome panel — only when the user has no projects yet. It carries the frame's `data-sf="empty"` itself and
+            sits 16 px below the row above (`.sf-empty`, v0.53.0); until then a `mt-6` wrapper held the hook, 24 px down. */}
+        {projects.length === 0 && !importPreview && (
+          <ProjectsEmptyState variant="welcome" onCreateNew={dialog.openNew} onLoadSample={onLoadSample} />
+        )}
 
-      {/* Sharing panel */}
-      {sharingProject && mode === 'cloud' && (
-        <div className="mt-6 rounded-lg border border-spert-border dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
-          <div className="flex items-start justify-between">
-            <SharingSection projectId={sharingProject.id} projectName={sharingProject.name} />
-            <button
-              onClick={() => setSharingProject(null)}
-              className="text-spert-text-muted hover:text-spert-text dark:hover:text-gray-200 cursor-pointer text-lg px-2 flex-shrink-0"
-              aria-label="Close sharing"
-            >
-              ×
-            </button>
+        {importPreview && (
+          <div className="mt-6">
+            <ImportPreviewSection
+              imported={importPreview.imported}
+              conflicts={importPreview.conflicts}
+              decisions={importPreview.decisions}
+              mode={importPreview.mode}
+              applying={applying}
+              existingSprints={sprints}
+              idPrefix={idPrefix}
+              accessOf={accessOf}
+              replaceAllBlocked={replaceAllBlocked}
+              onModeChange={onModeChange}
+              onDecisionChange={onDecisionChange}
+              onConfirm={handleConfirmMerge}
+              onRequestReplaceAll={openReplaceAllConfirm}
+              onCancel={handleImportCancel}
+            />
           </div>
-        </div>
-      )}
+        )}
 
-      <ConfirmDialog
-        isOpen={deletion.pending !== null}
-        title="Delete Project"
-        message={`Delete project "${deletion.pending?.projectName ?? ''}"? This will also delete all its sprint history.`}
-        confirmLabel="Delete"
-        cancelLabel="Cancel"
-        onConfirm={deletion.confirm}
-        onCancel={deletion.cancel}
-        variant="danger"
-      />
+        {/* T4c (V6): adding, copying or importing a project — all on this tab — is
+            what drops a not-in-cloud project from the list, so the warning is here. */}
+        {projects.some((p) => accessOf(p.id) === 'not-in-cloud') && (
+          <p role="note" className={cn('mt-6', NOTE)}>
+            {NOT_IN_CLOUD_LIST_NOTE}
+          </p>
+        )}
 
-      <ConfirmDialog
-        isOpen={replaceAllPending && importPreview !== null}
-        title="Replace all data"
-        message="This will replace all existing projects, sprint history, milestones, and productivity adjustments with the contents of this file. This cannot be undone. Export your current data first if you want to keep it."
-        confirmLabel="Replace"
-        cancelLabel="Cancel"
-        onConfirm={handleConfirmReplaceAll}
-        onCancel={cancelReplaceAllConfirm}
-        variant="danger"
-      />
+        <ArchiveAnnouncer text={archive.status} />
+        {projects.length > 0 && archive.shown.length === 0 && <AllArchivedLine count={archive.archivedCount} />}
 
-      {/* Rendered ONCE, here, never inside a tile: a portal's events bubble through its React
-          ancestors, so inside a tile its fields' drag events would reach the tile's drop
-          handlers. Its DOM goes to document.body. Keyed by identity, so a different project's
-          Edit starts a fresh form. */}
-      {dialog.open && (
-        <ProjectDialog
-          key={dialog.identity}
-          identity={dialog.identity}
-          title={dialog.editingProject ? 'Edit Project' : 'New Project'}
-          readOnly={dialog.readOnlyReason !== null}
-          onCancel={dialog.close}
-          returnFocusTo={dialog.returnFocusTo}
-        >
-          <ProjectForm
-            project={dialog.editingProject}
-            onSubmit={dialog.submit}
+        <ProjectList
+          projects={archive.shown}
+          allProjects={projects}
+          prefs={archive.prefs}
+          colorOpenFor={archive.colorOpenFor}
+          onColorOpenChange={archive.setColorOpen}
+          onPickColor={archive.pickColor}
+          onArchive={archive.archive}
+          onUnarchive={archive.unarchive}
+          sprints={sprints}
+          onEdit={dialog.openEdit}
+          // The Delete dialog takes over the tab: an open colour popover closes first.
+          onDelete={(projectId) => (archive.setColorOpen(projectId, false), deletion.request(projectId))}
+          onExport={tileActions.exportProject}
+          onClone={tileActions.clone}
+          onReorder={reorderProjects}
+          onViewHistory={archive.openProject}
+          onShare={setSharingProject}
+          accessOf={accessOf}
+          canShare={canShare}
+        />
+
+        {/* Sharing panel */}
+        {sharingProject && mode === 'cloud' && (
+          <div className="mt-6 rounded-lg border border-spert-border dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
+            <div className="flex items-start justify-between">
+              <SharingSection projectId={sharingProject.id} projectName={sharingProject.name} />
+              <button
+                onClick={() => setSharingProject(null)}
+                className="text-spert-text-muted hover:text-spert-text dark:hover:text-gray-200 cursor-pointer text-lg px-2 flex-shrink-0"
+                aria-label="Close sharing"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+        )}
+
+        <ConfirmDialog
+          isOpen={deletion.pending !== null}
+          title="Delete Project"
+          message={`Delete project "${deletion.pending?.projectName ?? ''}"? This will also delete all its sprint history.`}
+          confirmLabel="Delete"
+          cancelLabel="Cancel"
+          onConfirm={deletion.confirm}
+          onCancel={deletion.cancel}
+          variant="danger"
+        />
+
+        <ConfirmDialog
+          isOpen={replaceAllPending && importPreview !== null}
+          title="Replace all data"
+          message="This will replace all existing projects, sprint history, milestones, and productivity adjustments with the contents of this file. This cannot be undone. Export your current data first if you want to keep it."
+          confirmLabel="Replace"
+          cancelLabel="Cancel"
+          onConfirm={handleConfirmReplaceAll}
+          onCancel={cancelReplaceAllConfirm}
+          variant="danger"
+        />
+
+        {/* Rendered ONCE, here, never inside a tile: a portal's events bubble through its React
+            ancestors, so inside a tile its fields' drag events would reach the tile's drop
+            handlers. Its DOM goes to document.body. Keyed by identity, so a different project's
+            Edit starts a fresh form. */}
+        {dialog.open && (
+          <ProjectDialog
+            key={dialog.identity}
+            identity={dialog.identity}
+            title={dialog.editingProject ? 'Edit Project' : 'New Project'}
+            readOnly={dialog.readOnlyReason !== null}
             onCancel={dialog.close}
-            readOnlyReason={dialog.readOnlyReason}
-          />
-        </ProjectDialog>
-      )}
+            returnFocusTo={dialog.returnFocusTo}
+          >
+            <ProjectForm
+              project={dialog.editingProject}
+              onSubmit={dialog.submit}
+              onCancel={dialog.close}
+              readOnlyReason={dialog.readOnlyReason}
+            />
+          </ProjectDialog>
+        )}
+      </ErrorBoundary>
     </div>
   )
 }

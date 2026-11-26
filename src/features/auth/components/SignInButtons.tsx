@@ -142,7 +142,7 @@ export function SignInButtons({ fullLabel = false, onAgreementOpenChange }: Sign
               chosen. Microsoft is restricted to work/school accounts at the
               app registration, so a personal account is refused by Microsoft
               before a password is entered. */}
-          <p className="w-full text-xs text-gray-500 dark:text-gray-400">
+          <p className="w-full text-xs text-gray-600 dark:text-gray-400">
             Microsoft sign-in requires a work or school account. For a personal
             account, use Google.
           </p>

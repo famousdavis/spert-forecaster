@@ -10,7 +10,7 @@
    Each app sets --app-grad-light and --app-grad-dark to its HDR26 title gradient. */
 
 :root {
-  --sf-version: "2";
+  --sf-version: "3";
   --sf-col-max: 1600px;
   --sf-gutter: 32px;
   --sf-bar-h: 56px;
@@ -142,6 +142,17 @@
 .sf-below { margin-top: 16px; }
 .sf-tiles { list-style: none; margin: 16px 0 0; padding: 0; display: grid; gap: 16px;
   grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); }
+
+/* v3: the empty collection's Welcome panel, in the tile grid's place. Title, one or two lines, the actions (.sf-btn), the
+   sample note; MSB's steps go in .sf-empty-body. On the page ground in both themes (contract §3, §7). */
+.sf-empty { margin-top: 16px; padding: 32px; border: 1px dashed var(--sf-border); border-radius: 8px; background: var(--sf-page);
+  text-align: center; }
+.sf-empty-title { margin: 0; font: 600 20px/28px var(--sf-font); color: var(--sf-heading); }
+.sf-empty-text { max-width: 576px; margin: 12px auto 0; font: 400 14px/20px var(--sf-font); color: var(--sf-text-muted); }
+.sf-empty-text + .sf-empty-text { margin-top: 8px; }
+.sf-empty-body { max-width: 512px; margin: 16px auto 0; text-align: left; }
+.sf-empty-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 24px; }
+.sf-empty-note { max-width: 496px; margin: 16px auto 0; font: italic 400 12px/16px var(--sf-font); color: var(--sf-text-muted); }
 
 .sf-footer { flex: none; border-top: 1px solid var(--sf-border); background: var(--sf-page); padding: 12px 0;
   font: 400 14px/20px var(--sf-font); color: var(--sf-text-muted); text-align: center; }
