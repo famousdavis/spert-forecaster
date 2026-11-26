@@ -16,7 +16,7 @@
  * The colours are class pins (jsdom paints nothing); the numbers are the browser's.
  */
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, cleanup } from '@testing-library/react'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
@@ -109,6 +109,25 @@ describe('E: the outermost crash screen', () => {
       expect(reload).toHaveBeenCalledTimes(1)
     } finally {
       Object.defineProperty(window, 'location', { configurable: true, value: original })
+      vi.mocked(console.error).mockRestore()
+    }
+  })
+
+  it('follows the stored theme even when the `dark` class is gone (a crash while hydrating renders <html> again)', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    window.matchMedia = vi.fn().mockReturnValue({ matches: false, addEventListener() {}, removeEventListener() {} }) as never
+    try {
+      localStorage.setItem('spert-theme', 'dark')
+      document.documentElement.classList.remove('dark')
+      render(<ErrorBoundary fallback={<AppCrashScreen />}><Throws /></ErrorBoundary>)
+      expect(document.documentElement.classList.contains('dark')).toBe(true)
+      cleanup()
+      localStorage.setItem('spert-theme', 'light')
+      render(<ErrorBoundary fallback={<AppCrashScreen />}><Throws /></ErrorBoundary>)
+      expect(document.documentElement.classList.contains('dark')).toBe(false)
+    } finally {
+      localStorage.removeItem('spert-theme')
+      document.documentElement.classList.remove('dark')
       vi.mocked(console.error).mockRestore()
     }
   })
