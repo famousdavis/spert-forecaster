@@ -799,7 +799,10 @@ export const useProjectStore = create<ProjectState>()(
           // Per-project entity treatment:
           //   Sprint history:           substituted from incoming (replace); fresh IDs (copy)
           //   Milestones:               substituted from incoming (replace); fresh IDs (copy)
-          //   Productivity adjustments: substituted from incoming (replace); fresh IDs (copy)
+          //   Productivity adjustments: substituted from incoming (replace) — EXCEPT a Story Map
+          //                             replace, which keeps the existing ones, as it keeps the
+          //                             project dates and unit (SD-6, replacementProject);
+          //                             fresh IDs (copy)
           //   Forecast inputs:          RENAMED for name-conflicts; preserved for ID-conflicts
           //                             (same key); BLANK for copies (deliberate — C11).
           //   Burn-up configurations:   CLEARED for ALL replaced IDs; untouched preserved.

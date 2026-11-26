@@ -425,6 +425,27 @@ describe('ImportPreviewSection — the update option', () => {
     // It must name the exits.
     expect(reason!.textContent).toMatch(/delete that sprint/i)
     expect(reason!.textContent).toMatch(/Replace/)
+    // SD-6: and say the Replace exit keeps the user's own setup.
+    expect(reason!.textContent).toMatch(/Replace, which keeps your\s+productivity adjustments/)
+  })
+
+  it('SD-6: for a Story Map file, says before the user decides that Replace keeps adjustments, dates and unit', () => {
+    renderSection({
+      imported: storyMapImport([sprintFor('sp-1')]),
+      conflicts: [idConflict],
+      existingSprints: [sprintFor('sp-1')],
+    })
+    expect(screen.getByText(/keeps your productivity adjustments, project dates and unit of\s+measure;/)).toBeTruthy()
+    expect(screen.queryByText(/substitutes its sprint history with the incoming file/)).toBeNull()
+  })
+
+  it('SD-6 control: for a Forecaster file, Replace is described as taking the file whole', () => {
+    renderSection({
+      imported: projectExport([makeProject({ id: P_ID })]),
+      conflicts: [idConflict],
+    })
+    expect(screen.getByText(/substitutes its sprint history with the incoming file/)).toBeTruthy()
+    expect(screen.queryByText(/keeps your productivity adjustments, project dates and unit of\s+measure;/)).toBeNull()
   })
 
   it('does not offer Update for a name conflict with no matching sprint id, and adds no reason text', () => {
