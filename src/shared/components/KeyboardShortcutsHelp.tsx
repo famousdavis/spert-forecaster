@@ -8,6 +8,7 @@ import { useEffect, useRef } from 'react'
 import { formatShortcut, type KeyboardShortcut } from '@/shared/hooks/useKeyboardShortcuts'
 import { modalSurfaceProps } from '@/shared/lib/modal-surface'
 import { useDialogFocus } from '@/shared/hooks/useDialogFocus'
+import { useScrollLock } from '@/shared/hooks/useScrollLock'
 
 interface KeyboardShortcutsHelpProps {
   isOpen: boolean
@@ -52,6 +53,8 @@ export function KeyboardShortcutsHelp({ isOpen, onClose, shortcuts }: KeyboardSh
   // Open: focus the help itself. Closed: back to what had focus when `?` opened it (v0.50.4;
   // before, focus fell to <body>).
   useDialogFocus(isOpen, () => dialogRef.current)
+  // The page does not scroll behind the dialog while it is open (the shared counted lock, v0.54.0; none before)
+  useScrollLock(isOpen)
 
   if (!isOpen) return null
 

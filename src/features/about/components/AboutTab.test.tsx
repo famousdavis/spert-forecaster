@@ -19,19 +19,28 @@ import { AboutTab } from './AboutTab'
  * Nothing else holds the link and the file together: rename or drop one of them
  * and the build passes, ESLint passes, every type check passes, and the button
  * 404s in the user's face. This asserts the two stay in agreement.
+ *
+ * Since v0.54.0 (FRAME26 pass 3) the guides are the Guides section's rows, and the
+ * Connect AI section links its guide a second time, as contract §7 prescribes: the
+ * rows are checked in order, and every PDF link on the page is checked against public/.
  */
 describe('AboutTab guide links', () => {
-  it('renders a link for each shipped guide, and each target exists in public/', () => {
+  it('renders a row for each shipped guide, and every PDF it links exists in public/', () => {
     const { container } = render(<AboutTab />)
+
+    const rows = Array.from(
+      container.querySelectorAll<HTMLAnchorElement>('.sf-guide a.sf-guide-open'),
+    ).map((a) => a.getAttribute('href'))
+
+    expect(rows).toEqual([
+      '/SPERTForecaster_Quick_Reference_Guide.pdf',
+      '/SPERTForecaster_Connect_AI_Guide.pdf',
+    ])
 
     const hrefs = Array.from(
       container.querySelectorAll<HTMLAnchorElement>('a[href$=".pdf"]'),
     ).map((a) => a.getAttribute('href'))
-
-    expect(hrefs).toEqual([
-      '/SPERTForecaster_Quick_Reference_Guide.pdf',
-      '/SPERTForecaster_Connect_AI_Guide.pdf',
-    ])
+    expect(hrefs).toHaveLength(3)
 
     for (const href of hrefs) {
       expect(

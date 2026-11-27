@@ -11,6 +11,7 @@ import { buildPairingPrompt } from '../copyPrompt'
 import type { AiSessionState } from '../hooks/useAiConnectivity'
 import { modalSurfaceProps } from '@/shared/lib/modal-surface'
 import { useDialogFocus } from '@/shared/hooks/useDialogFocus'
+import { useScrollLock } from '@/shared/hooks/useScrollLock'
 
 interface ConnectAiPanelProps {
   open: boolean
@@ -92,12 +93,9 @@ export function ConnectAiPanel({
     // panel does not also cancel (v0.48.1; see modal-surface.ts).
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.preventDefault(); onClose() } }
     document.addEventListener('keydown', onKey)
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.removeEventListener('keydown', onKey)
-      document.body.style.overflow = ''
-    }
+    return () => document.removeEventListener('keydown', onKey)
   }, [open, onClose])
+  useScrollLock(open)
 
   const copy = async (kind: 'code' | 'prompt') => {
     if (!code) return

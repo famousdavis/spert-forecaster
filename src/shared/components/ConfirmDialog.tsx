@@ -8,6 +8,7 @@ import { useEffect, useRef, useCallback } from 'react'
 import { cn } from '@/lib/utils'
 import { modalSurfaceProps } from '@/shared/lib/modal-surface'
 import { useDialogFocus } from '@/shared/hooks/useDialogFocus'
+import { useScrollLock } from '@/shared/hooks/useScrollLock'
 
 interface ConfirmDialogProps {
   isOpen: boolean
@@ -105,17 +106,8 @@ export function ConfirmDialog({
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [handleKeyDown])
 
-  // Prevent body scroll when dialog is open
-  useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden'
-    } else {
-      document.body.style.overflow = ''
-    }
-    return () => {
-      document.body.style.overflow = ''
-    }
-  }, [isOpen])
+  // The page does not scroll behind the dialog while it is open (the shared counted lock, v0.54.0)
+  useScrollLock(isOpen)
 
   if (!isOpen) return null
 

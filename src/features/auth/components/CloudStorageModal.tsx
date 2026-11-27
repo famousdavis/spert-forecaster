@@ -18,6 +18,7 @@ import { SignInButtons } from './SignInButtons'
 import { UploadConfirmPanel } from './UploadConfirmPanel'
 import { modalSurfaceProps } from '@/shared/lib/modal-surface'
 import { useDialogFocus } from '@/shared/hooks/useDialogFocus'
+import { useScrollLock } from '@/shared/hooks/useScrollLock'
 
 interface CloudStorageModalProps {
   isOpen: boolean
@@ -111,16 +112,8 @@ export function CloudStorageModal({ isOpen, onClose, returnFocusTo }: CloudStora
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [handleKeyDown])
 
-  useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden'
-    } else {
-      document.body.style.overflow = ''
-    }
-    return () => {
-      document.body.style.overflow = ''
-    }
-  }, [isOpen])
+  // The page does not scroll behind the modal while it is open (the shared counted lock, v0.54.0)
+  useScrollLock(isOpen)
 
   const handleRadioCloud = useCallback(() => {
     if (!user) return

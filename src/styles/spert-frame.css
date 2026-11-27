@@ -10,7 +10,7 @@
    Each app sets --app-grad-light and --app-grad-dark to its HDR26 title gradient. */
 
 :root {
-  --sf-version: "3";
+  --sf-version: "4";
   --sf-col-max: 1600px;
   --sf-gutter: 32px;
   --sf-bar-h: 56px;
@@ -153,6 +153,39 @@
 .sf-empty-body { max-width: 512px; margin: 16px auto 0; text-align: left; }
 .sf-empty-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 24px; }
 .sf-empty-note { max-width: 496px; margin: 16px auto 0; font: italic 400 12px/16px var(--sf-font); color: var(--sf-text-muted); }
+
+/* v4: the About page (contract §3 About page, §4, §7 About). A 672 px prose column inside X4's capped body, 16 px below
+   the heading row: sections with an h2, the Guides list (.sf-guides), and the Version and license block (.sf-about-legal).
+   Its h1 is the heading row's .sf-heading, so the title's marks keep the brand's size; marks in the page scale with
+   their line. Placed after .sf-main--capped, whose 896 px cap it narrows at equal specificity. */
+.sf-main--capped > .sf-about, .sf-about { max-width: 672px; }
+.sf-about { margin-top: 16px; font: 400 16px/24px var(--sf-font); color: var(--sf-text); }
+.sf-about > section { margin: 0; }
+.sf-about > section + section { margin-top: 32px; }
+.sf-about h2 { margin: 0 0 8px; font: 600 18px/28px var(--sf-font); color: var(--sf-heading); }
+.sf-about h3 { margin: 24px 0 4px; font: 600 16px/24px var(--sf-font); color: var(--sf-heading); }
+.sf-about h2 + h3 { margin-top: 0; }
+.sf-about p, .sf-about ul, .sf-about ol { margin: 0; }
+.sf-about :is(p, ul, ol) + :is(p, ul, ol) { margin-top: 12px; }
+.sf-about ul, .sf-about ol { padding-left: 24px; }
+.sf-about ul { list-style: disc; }
+.sf-about ol { list-style: decimal; }
+.sf-about li + li { margin-top: 4px; }
+.sf-about a { color: var(--sf-link); text-decoration: underline; text-underline-offset: 2px; }
+.sf-about .sf-mark { font-size: 0.6em; vertical-align: 0.4em; }
+.sf-about .sf-guides { list-style: none; margin: 0; padding: 0; border-bottom: 1px solid var(--sf-border); }
+.sf-about .sf-guide { display: flex; align-items: center; gap: 16px; margin: 0; padding: 12px 0; border-top: 1px solid var(--sf-border); }
+.sf-about .sf-guide-body { flex: 1 1 auto; min-width: 0; }
+.sf-about .sf-guide-title { margin: 0; font: 600 16px/24px var(--sf-font); color: var(--sf-heading); }
+.sf-about .sf-guide-text { margin: 2px 0 0; font: 400 14px/20px var(--sf-font); color: var(--sf-text-muted); }
+.sf-about .sf-guide-open { flex: none; height: 36px; display: inline-flex; align-items: center; gap: 4px; padding: 0 12px;
+  border: 1px solid var(--sf-border); border-radius: 6px; background: var(--sf-page); color: var(--sf-link);
+  font: 500 14px/20px var(--sf-font); text-decoration: none; white-space: nowrap; }
+.sf-about .sf-guide-open:hover { background: var(--sf-hover); }
+.sf-about .sf-guides + p { margin-top: 12px; }
+.sf-about .sf-about-legal p { font: 400 14px/20px var(--sf-font); color: var(--sf-text-muted); }
+.sf-about .sf-about-legal p + p { margin-top: 8px; }
+.sf-about :focus-visible { outline: 2px solid var(--sf-focus); outline-offset: 2px; }
 
 .sf-footer { flex: none; border-top: 1px solid var(--sf-border); background: var(--sf-page); padding: 12px 0;
   font: 400 14px/20px var(--sf-font); color: var(--sf-text-muted); text-align: center; }
