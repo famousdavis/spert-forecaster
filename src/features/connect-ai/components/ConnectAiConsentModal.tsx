@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from 'react'
 import { AI_PRIVACY_URL } from '../constants'
 import { modalSurfaceProps } from '@/shared/lib/modal-surface'
 import { useDialogFocus } from '@/shared/hooks/useDialogFocus'
+import { useScrollLock } from '@/shared/hooks/useScrollLock'
 
 interface ConnectAiConsentModalProps {
   open: boolean
@@ -34,6 +35,8 @@ export function ConnectAiConsentModal({
   // behind it does not cancel too (modal-surface.ts). Before, it had neither.
   const dialogRef = useRef<HTMLDivElement>(null)
   useDialogFocus(open, () => dialogRef.current, returnFocusTo)
+  // The page does not scroll behind the modal while it is open (the shared counted lock, v0.54.0; none before)
+  useScrollLock(open)
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => {

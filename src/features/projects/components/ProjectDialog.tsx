@@ -30,6 +30,7 @@ import { useEffect, useId, useRef, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { cn } from '@/lib/utils'
 import { modalSurfaceProps } from '@/shared/lib/modal-surface'
+import { useScrollLock } from '@/shared/hooks/useScrollLock'
 import { DIALOG, DIALOG_BG, DIALOG_TITLE, OVERLAY } from './dashboard-styles'
 
 interface ProjectDialogProps {
@@ -88,6 +89,8 @@ export function ProjectDialog({ identity, title, readOnly, onCancel, returnFocus
   const titleId = useId()
   const overlayRef = useRef<HTMLDivElement>(null)
   const dialogRef = useRef<HTMLDivElement>(null)
+  // The page does not scroll behind the dialog while it is mounted (the shared counted lock, v0.54.0; none before)
+  useScrollLock()
 
   // The latest callbacks, read by the listener and the cleanup when they run.
   const cancelRef = useRef(onCancel)

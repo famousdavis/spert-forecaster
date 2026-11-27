@@ -189,8 +189,9 @@ export function AppShell({ children }: { children?: ReactNode }) {
       case 'settings':
         return <><HeadingRow>Settings</HeadingRow><div className="sf-below"><ErrorBoundary><SettingsTab /></ErrorBoundary></div></>
       case 'about':
-        // The ® is never bold (Branding): the heading is 700, the mark 400.
-        return <><HeadingRow>About SPERT<span className="font-normal">®</span> Forecaster</HeadingRow><div className="sf-below"><ErrorBoundary><AboutTab /></ErrorBoundary></div></>
+        // The ® is the brand row's mark (FRAME26 pass 3): small, light and never bold. The About page carries its own
+        // 16 px gap below the heading row (`.sf-about`), so it is main's next child, with no `.sf-below` wrapper.
+        return <><HeadingRow>About SPERT<span className="sf-mark">®</span> Forecaster</HeadingRow><ErrorBoundary><AboutTab /></ErrorBoundary></>
     }
   }
 

@@ -8,6 +8,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { TOS_URL, PRIVACY_URL } from '@/features/auth/lib/tos'
 import { modalSurfaceProps } from '@/shared/lib/modal-surface'
 import { useDialogFocus } from '@/shared/hooks/useDialogFocus'
+import { useScrollLock } from '@/shared/hooks/useScrollLock'
 
 interface ConsentModalProps {
   onAccept: () => void
@@ -68,13 +69,9 @@ export function ConsentModal({ onAccept, onCancel }: ConsentModalProps) {
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [handleKeyDown])
 
-  // Lock body scroll for the lifetime of this modal's mount.
-  useEffect(() => {
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.body.style.overflow = ''
-    }
-  }, [])
+  // The page does not scroll behind this modal while it is mounted (the shared counted lock, v0.54.0): cancelling it
+  // over the open Cloud Storage modal releases only this hold, so the page stays locked.
+  useScrollLock()
 
   return (
     <div

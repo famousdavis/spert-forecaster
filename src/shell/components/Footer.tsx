@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { APP_VERSION } from '@/shared/constants'
 import { TOS_URL, PRIVACY_URL } from '@/features/auth/lib/tos'
 import { AI_PRIVACY_URL } from '@/features/connect-ai/constants'
+import { CopyrightYear } from '@/shared/lib/copyright'
 
 /**
  * The frame's footer (FRAME26, contract §3, v0.52.0): a full-width 69 px band with a 1 px top rule and two centred
@@ -18,7 +19,7 @@ export function Footer() {
     <footer className="sf-footer" data-sf="footer">
       <div className="sf-col">
         <div>
-          &copy; {new Date().getFullYear()} William W. Davis, MSPM, PMP |{' '}
+          &copy; <CopyrightYear /> William W. Davis, MSPM, PMP |{' '}
           <Link href="/changelog">Version {APP_VERSION}</Link>{' '}
           | Licensed under GNU GPL v3
         </div>
