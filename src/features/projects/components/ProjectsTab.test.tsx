@@ -66,7 +66,7 @@ import { loadOwnedProjectIds } from '@/shared/firebase/firestore-driver'
 function renderProjectsTab() {
   function Harness() {
     const importState = useImportState()
-    return <ProjectsTab importState={importState} />
+    return <ProjectsTab onLoadSample={vi.fn()} importState={importState} />
   }
   return render(<Harness />)
 }

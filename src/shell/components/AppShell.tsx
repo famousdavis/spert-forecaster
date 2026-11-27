@@ -35,6 +35,7 @@ import { AiTeardownBanner } from '@/features/connect-ai/components/AiTeardownBan
 import { useImportState } from '@/features/projects/hooks/useImportState'
 import { useCrosslinkReceiver } from '@/features/projects/hooks/useCrosslinkReceiver'
 import { exportWorkspaceBackup } from '@/features/projects/lib/export-backup'
+import { loadSampleProject } from '@/features/projects/lib/sample-project'
 import { useAuth } from '@/shared/providers/AuthProvider'
 import { useStorageMode } from '@/shared/hooks/useStorageMode'
 import { CloudLoadingPanel, PROJECT_DATA_TABS, awaitsFirstCloudLoad } from './CloudLoadingPanel'
@@ -100,6 +101,16 @@ export function AppShell({ children }: { children?: ReactNode }) {
     selectTab('sprint-history')
   }, [setViewingProjectId, selectTab])
 
+  // v0.53.0 (FRAME26 clean-up L, contract §7): the ONE Load Sample handler, for the toolbar's Load Sample, the Welcome
+  // panel's and the Forecast tab's empty card: add the sample (numbered against every project), view it and open it on
+  // Forecast, the app's result view. The loader's toast announces it. Until v0.53.0 it stayed on the list.
+  const handleLoadSample = useCallback(() => {
+    const sample = loadSampleProject()
+    if (!sample) return
+    setViewingProjectId(sample.id)
+    selectTab('forecast')
+  }, [setViewingProjectId, selectTab])
+
   // Define keyboard shortcuts
   const shortcuts: KeyboardShortcut[] = useMemo(() => [
     {
@@ -160,7 +171,7 @@ export function AppShell({ children }: { children?: ReactNode }) {
     }
     switch (activeTab) {
       case 'projects':
-        return <ErrorBoundary><ProjectsTab onViewHistory={handleViewHistory} importState={importState} /></ErrorBoundary>
+        return <ErrorBoundary><ProjectsTab onViewHistory={handleViewHistory} onLoadSample={handleLoadSample} importState={importState} /></ErrorBoundary>
       case 'sprint-history':
       case 'forecast': {
         const heading = projectViewHeading(activeTab, viewedName)
@@ -170,7 +181,7 @@ export function AppShell({ children }: { children?: ReactNode }) {
             <div className="sf-below">
               {activeTab === 'sprint-history'
                 ? <ErrorBoundary><SprintHistoryTab /></ErrorBoundary>
-                : <ErrorBoundary><ForecastTab onTabChange={selectTab} /></ErrorBoundary>}
+                : <ErrorBoundary><ForecastTab onTabChange={selectTab} onLoadSample={handleLoadSample} /></ErrorBoundary>}
             </div>
           </>
         )

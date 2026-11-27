@@ -41,7 +41,7 @@ function renderTab(projects: Project[], roles: Record<string, ProjectAccess>, op
   useStorageModeStore.setState({ mode: opts.mode ?? 'cloud' })
   useProjectStore.setState({ projects, sprints: [], cloudDataLoaded: opts.loaded ?? true, projectRoles: roles })
   function Harness() {
-    return <ProjectsTab importState={useImportState()} />
+    return <ProjectsTab onLoadSample={vi.fn()} importState={useImportState()} />
   }
   return render(<Harness />)
 }

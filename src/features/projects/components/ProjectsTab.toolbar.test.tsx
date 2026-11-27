@@ -31,6 +31,7 @@ vi.mock('@/shared/hooks', async () => {
 })
 
 import { ProjectsTab } from './ProjectsTab'
+import { loadSampleProject } from '../lib/sample-project'
 import { useImportState } from '../hooks/useImportState'
 import { useProjectStore } from '@/shared/state/project-store'
 import type { Project } from '@/shared/types'
@@ -55,7 +56,8 @@ function renderTab(projects: Project[] = [], opts: { mode?: 'local' | 'cloud'; l
   mockMode.mode = opts.mode ?? 'local'
   useProjectStore.setState({ projects, cloudDataLoaded: opts.loaded ?? false })
   function Harness() {
-    return <ProjectsTab importState={useImportState()} />
+    // v0.53.0: Load Sample is AppShell's handler, passed in; here the loader itself, as before.
+    return <ProjectsTab onLoadSample={() => { loadSampleProject() }} importState={useImportState()} />
   }
   return render(<Harness />)
 }

@@ -81,7 +81,8 @@ describe('the app-wide notices are the frame’s notices', () => {
     expect([root.className, root.getAttribute('role')]).toEqual(['sf-notice sf-notice--caution', 'alert'])
     expect([...root.querySelectorAll('button.sf-notice-dismiss')].map((b) => b.textContent?.trim())).toEqual(['Dismiss'])
     const retry = screen.getByRole('button', { name: 'Try again' })
-    expect([retry.classList.contains('sf-notice-dismiss'), retry.classList.contains('bg-amber-600')]).toEqual([false, true])
+    // v0.53.0 (FRAME26 clean-up F4): amber-700 (white on it 5.03:1; amber-600 measured 3.20), its own look still.
+    expect([retry.classList.contains('sf-notice-dismiss'), retry.classList.contains('bg-amber-700'), retry.classList.contains('bg-amber-600')]).toEqual([false, true, false])
   })
 
   it('the invitation’s sign-in buttons and its "✕" keep their own look (never the frame’s dismiss)', () => {

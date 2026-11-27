@@ -33,9 +33,14 @@ import type { TabId } from '@/shell/components/TabNavigation'
 interface ForecastTabProps {
   /** Optional callback to switch tabs from inside the empty-state CTA. Wired by AppShell. */
   onTabChange?: (tab: TabId) => void
+  /**
+   * v0.53.0 (FRAME26 clean-up L): the app's one Load Sample handler (AppShell's), so the empty card's Load Sample adds,
+   * views and announces the sample exactly as the Projects tab's does. Without it (a tab rendered alone) the loader runs.
+   */
+  onLoadSample?: () => void
 }
 
-export function ForecastTab({ onTabChange }: ForecastTabProps = {}) {
+export function ForecastTab({ onTabChange, onLoadSample }: ForecastTabProps = {}) {
   const {
     isClient,
     projects,
@@ -136,8 +141,9 @@ export function ForecastTab({ onTabChange }: ForecastTabProps = {}) {
     onTabChange?.('projects')
   }, [onTabChange, setShouldFocusNewProjectForm])
   const handleLoadSample = useCallback(() => {
-    loadSampleProject()
-  }, [])
+    if (onLoadSample) onLoadSample()
+    else loadSampleProject()
+  }, [onLoadSample])
 
   // Filter chart input arrays based on Settings "Statistical methods to show".
   // Pass null for any distribution the user has disabled — the chart components silently drop

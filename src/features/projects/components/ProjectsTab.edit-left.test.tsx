@@ -48,7 +48,7 @@ function renderTab(planRole: ProjectAccess) {
     projects: [PLAN, OTHER], sprints: [], cloudDataLoaded: true, projectRoles: { p: planRole, o: 'owner' },
   })
   function Harness() {
-    return <ProjectsTab importState={useImportState()} />
+    return <ProjectsTab onLoadSample={vi.fn()} importState={useImportState()} />
   }
   return render(<Harness />)
 }

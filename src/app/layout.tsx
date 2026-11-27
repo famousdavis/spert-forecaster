@@ -7,6 +7,8 @@ import { Geist, Geist_Mono } from 'next/font/google'
 import { AuthProvider } from '@/shared/providers/AuthProvider'
 import { StorageProvider } from '@/shared/providers/StorageProvider'
 import { AppShell } from '@/shell'
+import { ErrorBoundary } from '@/shared/components/ErrorBoundary'
+import { AppCrashScreen } from '@/shell/components/AppCrashScreen'
 import './globals.css'
 
 const geistSans = Geist({
@@ -56,15 +58,19 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <AuthProvider>
-          <StorageProvider>
-            {/* The SPERT® Suite frame holds every route (FRAME26, v0.52.0). Held HERE, by the layout, so it never
-                remounts between "/" and "/changelog": the tab, the Connect AI provider, a held crosslink transfer
-                and the notices' dismissals survive the visit. "/" renders the tabs (AppShell's own state); every
-                other route renders its page inside the frame's main. */}
-            <AppShell>{children}</AppShell>
-          </StorageProvider>
-        </AuthProvider>
+        {/* v0.53.0 (FRAME26 clean-up E): the outermost boundary, around everything the app mounts. Its crash screen
+            stays outside the frame on purpose (contract §7): a fault in the frame must not take it down too. */}
+        <ErrorBoundary fallback={<AppCrashScreen />}>
+          <AuthProvider>
+            <StorageProvider>
+              {/* The SPERT® Suite frame holds every route (FRAME26, v0.52.0). Held HERE, by the layout, so it never
+                  remounts between "/" and "/changelog": the tab, the Connect AI provider, a held crosslink transfer
+                  and the notices' dismissals survive the visit. "/" renders the tabs (AppShell's own state); every
+                  other route renders its page inside the frame's main. */}
+              <AppShell>{children}</AppShell>
+            </StorageProvider>
+          </AuthProvider>
+        </ErrorBoundary>
       </body>
     </html>
   )

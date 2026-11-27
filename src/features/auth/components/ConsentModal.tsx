@@ -115,7 +115,7 @@ export function ConsentModal({ onAccept, onCancel }: ConsentModalProps) {
               href={TOS_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-blue-500 hover:text-blue-600 transition-colors underline"
+              className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 transition-colors underline"
             >
               Terms of Service
             </a>
@@ -124,7 +124,7 @@ export function ConsentModal({ onAccept, onCancel }: ConsentModalProps) {
               href={PRIVACY_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-blue-500 hover:text-blue-600 transition-colors underline"
+              className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 transition-colors underline"
             >
               Privacy Policy
             </a>

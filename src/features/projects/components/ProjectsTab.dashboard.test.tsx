@@ -45,7 +45,7 @@ function renderTab(
   useStorageModeStore.setState({ mode: opts.mode ?? 'local' })
   useProjectStore.setState({ projects, sprints: [], cloudDataLoaded: opts.loaded ?? false, projectRoles: opts.roles ?? {} })
   function Harness() {
-    return <ProjectsTab onViewHistory={opts.onViewHistory} importState={useImportState()} />
+    return <ProjectsTab onViewHistory={opts.onViewHistory} onLoadSample={vi.fn()} importState={useImportState()} />
   }
   return render(<Harness />)
 }
@@ -204,7 +204,7 @@ describe('focus when "Replace all data" closes with the import still waiting (v0
     const file = JSON.stringify(useProjectStore.getState().exportData()) // Export All: a workspace file
     function Harness() {
       importState = useImportState()
-      return <ProjectsTab importState={importState} />
+      return <ProjectsTab onLoadSample={vi.fn()} importState={importState} />
     }
     render(<Harness />)
     await act(async () => {

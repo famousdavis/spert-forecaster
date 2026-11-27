@@ -75,17 +75,29 @@ export function generateUniqueProjectName(
   return `${baseName} (${n})`
 }
 
+/** What Load Sample says once the sample is added and open (v0.53.0, FRAME26 clean-up L; contract §7's sentence). */
+export function sampleLoadedText(name: string): string {
+  return `Added \u201c${name}\u201d to your projects and opened it.`
+}
+
 /**
  * Load the sample project into the store. If a project with the canonical sample name
  * already exists, the new project is created with a numeric suffix — "Sample: Mobile
  * App Launch (2)", "(3)", and so on — rather than silently no-op'ing (v0.33.2). The
  * sample's structure (sprints, milestones, productivity adjustment) is identical
- * regardless of name; only the project name varies.
+ * regardless of name; only the project name varies. The names checked are every
+ * project in the store: archive is each person's own setting, so an archived project
+ * is in the list and holds its name.
+ *
+ * Returns the new project's id and name, or null when it could not be seeded. The
+ * caller opens it (v0.53.0: AppShell's one Load Sample handler opens it on Forecast);
+ * the toast says so in the contract's words, and sonner's region is polite, so the
+ * toast is the announcement.
  *
  * Plain module function — uses useProjectStore.getState() (NOT hooks) because it's invoked
  * from event handlers, not from a React render path.
  */
-export function loadSampleProject(): void {
+export function loadSampleProject(): { id: string; name: string } | null {
   const store = useProjectStore.getState()
 
   // Collision strategy: walk to the next available "(N)" suffix. Snapshot the current
@@ -114,7 +126,7 @@ export function loadSampleProject(): void {
   const newProjectId = useProjectStore.getState().projects.find((p) => p.name === projectName)?.id
   if (!newProjectId) {
     toast.error('Failed to seed sample project.')
-    return
+    return null
   }
 
   // Seed eight sprints. Dates flow through the shared date helpers so finish dates
@@ -188,5 +200,6 @@ export function loadSampleProject(): void {
     enabled: true,
   })
 
-  toast.success(`Loaded "${projectName}" — eight sprints, four milestones, one productivity adjustment.`)
+  toast.success(sampleLoadedText(projectName))
+  return { id: newProjectId, name: projectName }
 }

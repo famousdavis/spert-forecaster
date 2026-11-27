@@ -251,3 +251,43 @@ describe('generateUniqueProjectName', () => {
     ).toBe('Foo (3)')
   })
 })
+
+// v0.53.0 (FRAME26 clean-up L, contract §7): the loader returns what it added, so AppShell's one handler can open it on
+// Forecast, and its toast is the contract's sentence (sonner's region is polite, so the toast is the announcement).
+describe('loadSampleProject (v0.53.0): what it returns and says', () => {
+  it('returns the new id and name, and the toast says the contract\'s sentence exactly', async () => {
+    const { toast } = await import('sonner')
+    vi.mocked(toast.success).mockClear()
+    const first = loadSampleProject()
+    const second = loadSampleProject()
+    const projects = useProjectStore.getState().projects
+    expect(first).toEqual({ id: projects[0].id, name: 'Sample: Mobile App Launch' })
+    expect(second).toEqual({ id: projects[1].id, name: 'Sample: Mobile App Launch (2)' })
+    expect(vi.mocked(toast.success).mock.calls.map((c) => c[0])).toEqual([
+      'Added “Sample: Mobile App Launch” to your projects and opened it.',
+      'Added “Sample: Mobile App Launch (2)” to your projects and opened it.',
+    ])
+  })
+
+  it('an ARCHIVED project holding the sample name still holds it: the copy is "(2)"', async () => {
+    const { useSettingsStore } = await import('@/shared/state/settings-store')
+    useProjectStore.getState().addProject({ name: SAMPLE_PROJECT_NAME, unitOfMeasure: 'pts' })
+    const held = useProjectStore.getState().projects[0]
+    expect(useSettingsStore.getState().setProjectArchived(held.id, true)).toBe(true)
+    expect(loadSampleProject()?.name).toBe('Sample: Mobile App Launch (2)')
+  })
+
+  it('a person\'s own "(2)" with the sample name taken: "(3)"', () => {
+    useProjectStore.getState().addProject({ name: SAMPLE_PROJECT_NAME, unitOfMeasure: 'pts' })
+    useProjectStore.getState().addProject({ name: `${SAMPLE_PROJECT_NAME} (2)`, unitOfMeasure: 'pts' })
+    expect(loadSampleProject()?.name).toBe('Sample: Mobile App Launch (3)')
+  })
+
+  it('no projects at all: the sample\'s own name', () => {
+    expect(generateUniqueProjectName(SAMPLE_PROJECT_NAME, new Set())).toBe(SAMPLE_PROJECT_NAME)
+  })
+
+  it('"(2)" taken but the sample name free: the sample name wins', () => {
+    expect(generateUniqueProjectName(SAMPLE_PROJECT_NAME, new Set([`${SAMPLE_PROJECT_NAME} (2)`]))).toBe(SAMPLE_PROJECT_NAME)
+  })
+})

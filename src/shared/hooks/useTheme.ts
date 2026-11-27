@@ -28,6 +28,26 @@ function applyTheme(theme: Theme) {
   }
 }
 
+/**
+ * Applies the stored preference to <html>, as the layout's pre-paint script does: "light" or "dark", anything else (or
+ * no storage) System. For a screen with no theme switch mounted: the outermost crash screen (v0.53.0), where the
+ * `dark` class can be gone, since a crash while the page hydrates makes React render the document again without it.
+ */
+export function applyStoredTheme(): void {
+  // Never throws: its caller is the crash screen, where a throw would bring the boundary straight back to itself.
+  try {
+    let stored: string | null = null
+    try {
+      stored = localStorage.getItem(STORAGE_KEY)
+    } catch {
+      // Storage blocked: System.
+    }
+    applyTheme(stored === 'light' || stored === 'dark' ? stored : 'system')
+  } catch {
+    // No matchMedia (an old browser, a test DOM): leave the class as it is.
+  }
+}
+
 export function useTheme() {
   const [theme, setThemeState] = useState<Theme>('system')
   const [isInitialized, setIsInitialized] = useState(false)

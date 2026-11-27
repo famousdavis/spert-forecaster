@@ -26,6 +26,7 @@ vi.mock('@/shared/hooks', async () => {
 
 import { render, screen, fireEvent, cleanup, act, within } from '@testing-library/react'
 import { ProjectsTab } from './ProjectsTab'
+import { loadSampleProject } from '../lib/sample-project'
 import { useImportState } from '../hooks/useImportState'
 import { useProjectStore } from '@/shared/state/project-store'
 import { useSettingsStore } from '@/shared/state/settings-store'
@@ -59,7 +60,8 @@ function renderTab(
   useSettingsStore.setState({ projectPrefs: prefs, _isCloudUpdate: false })
   function Harness() {
     importState = useImportState()
-    return <ProjectsTab onViewHistory={opts.onViewHistory} importState={importState} />
+    // v0.53.0: Load Sample is AppShell's handler, passed in; here the loader itself, as before.
+    return <ProjectsTab onViewHistory={opts.onViewHistory} onLoadSample={() => { loadSampleProject() }} importState={importState} />
   }
   return render(<Harness />)
 }

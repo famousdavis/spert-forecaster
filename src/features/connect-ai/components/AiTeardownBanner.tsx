@@ -91,7 +91,7 @@ export function AiTeardownBanner() {
           type="button"
           onClick={() => void retry()}
           disabled={retrying}
-          className="text-xs font-medium px-2.5 py-1 rounded-md bg-amber-600 hover:bg-amber-700 disabled:opacity-60 text-white transition-colors"
+          className="text-xs font-medium px-2.5 py-1 rounded-md bg-amber-700 hover:bg-amber-800 disabled:opacity-60 text-white transition-colors"
         >
           {retrying ? 'Trying…' : 'Try again'}
         </button>
