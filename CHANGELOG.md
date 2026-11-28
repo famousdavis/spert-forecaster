@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.54.1 - 2026-11-28
+
+A file from SPERT® Story Map that matches one of your projects by name now says why Update isn't offered, as a match by ID always has.
+
+### Fixed
+- **Update's reason now shows for a project matched by name.** When a Story Map file matches one of your projects by name and shares a sprint with it, but your project also has a sprint the file doesn't, Update is withheld, for the same reason as when it matches by ID: keeping that sprint would duplicate a sprint number and shift the forecast dates. A match by ID said so; a match by name left Update out without a word. Both now give the same reason, to screen readers too. If you can edit the project but not delete it, Replace isn't offered to you, so the reason names only the other way out: delete that sprint on the Sprint History tab. A project that only shares a name, with no sprint in common, still gets neither Update nor a reason, as before.
+
+### Internal
+- **`ImportPreviewSection`: the reason shows whenever §4.1 alone withholds `update`.** It asks `availableActions` again with no unmatched sprint, so it composes through the one predicate instead of mirroring it. The old `conflict.type === 'id'` guard dated from v0.41.0, before v0.43.0 offered Update on a name match with a shared sprint. The Replace exit is said only when `replace` is offered. 7 new tests, each seen to fail on purpose. No dependency, Firestore rules or legal-document change.
+
 ## v0.54.0 - 2026-11-27
 
 The About page is rebuilt as the one About page every SPERT® Suite app now shares: the same sections in the same order, the same words where the apps say the same thing, and the same look. It now says what Forecaster does, lists its guides the way the Help Center does, and says plainly where your projects are kept. And the page behind a dialog no longer scrolls: when you cancelled the sign-in agreement over the Cloud Storage window, the page behind it could scroll again, and three dialogs never stopped it scrolling at all.

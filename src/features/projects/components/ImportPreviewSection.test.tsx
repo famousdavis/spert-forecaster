@@ -3,7 +3,7 @@
 // See LICENSE file in the project root for full license text.
 
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { ImportPreviewSection } from './ImportPreviewSection'
 import type {
   ParsedImportData,
@@ -427,6 +427,83 @@ describe('ImportPreviewSection — the update option', () => {
     expect(reason!.textContent).toMatch(/Replace/)
     // SD-6: and say the Replace exit keeps the user's own setup.
     expect(reason!.textContent).toMatch(/Replace, which keeps your\s+productivity adjustments/)
+  })
+
+  // F1 of the FRAME26 follow-ups (v0.54.1). A name match that shares a sprint
+  // id carries its own evidence of identity (v0.43.0), so §4.1 alone withholds
+  // `update` there exactly as it does for an ID match, and deleting the extra
+  // sprint brings `update` back. Until v0.54.1 the reason was guarded by
+  // `conflict.type === 'id'` and a name match said nothing.
+  describe('F1 — the §4.1 reason, for a match by name', () => {
+    const OLD = 'old-1'
+    const REASON_OWNER =
+      'Update isn’t available here. This project has a sprint that isn’t in the imported file, and keeping it would duplicate a sprint number and shift the forecast dates. Either delete that sprint on the Sprint History tab, or choose Replace, which keeps your productivity adjustments, project dates and unit of measure.'
+    const REASON_NO_REPLACE =
+      'Update isn’t available here. This project has a sprint that isn’t in the imported file, and keeping it would duplicate a sprint number and shift the forecast dates. Delete that sprint on the Sprint History tab, and Update will be offered.'
+    const nameConflict: ImportConflict = {
+      type: 'name',
+      incomingProject: makeProject({ id: P_ID, name: 'Existing' }),
+      existingProject: makeProject({ id: OLD, name: 'Existing' }),
+    }
+    const local = (...ids: string[]): Sprint[] => ids.map((id) => ({ ...sprintFor(id), projectId: OLD }))
+    const text = (el: Element | null) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim()
+    const describedBy = () =>
+      (screen.getByRole('radiogroup').getAttribute('aria-describedby') ?? '').split(' ').filter(Boolean)
+    const offered = () => screen.queryAllByRole('radio').map((r) => (r as HTMLInputElement).value)
+
+    it('T1: owner, a shared sprint plus a local one: no Update, and the radiogroup is described by the reason', () => {
+      renderSection({ imported: storyMapImport([sprintFor('sp-1')]), conflicts: [nameConflict], existingSprints: local('sp-1', 'sp-LOCAL') })
+      expect(offered()).toEqual(['skip', 'copy', 'replace'])
+      expect(describedBy()).toEqual([`t-conflict-${P_ID}-update-reason`])
+      expect(text(document.getElementById(describedBy()[0]))).toBe(REASON_OWNER)
+    })
+
+    it('T2: the name match gives the ID match’s reason, word for word', () => {
+      renderSection({ imported: storyMapImport([sprintFor('sp-1')]), conflicts: [idConflict], existingSprints: [sprintFor('sp-1'), sprintFor('sp-LOCAL')] })
+      const byId = text(document.getElementById(`t-conflict-${P_ID}-update-reason`))
+      cleanup()
+      renderSection({ imported: storyMapImport([sprintFor('sp-1')]), conflicts: [nameConflict], existingSprints: local('sp-1', 'sp-LOCAL') })
+      const byName = text(document.getElementById(`t-conflict-${P_ID}-update-reason`))
+      expect(byId).toBe(REASON_OWNER)
+      expect(byName).toBe(byId)
+    })
+
+    it('T3: an editor, who is not offered Replace, hears only the exit they have, then the editor note', () => {
+      renderSection({
+        imported: storyMapImport([sprintFor('sp-1')]),
+        conflicts: [nameConflict],
+        existingSprints: local('sp-1', 'sp-LOCAL'),
+        accessOf: () => 'editor',
+      })
+      expect(offered()).toEqual(['skip', 'copy'])
+      expect(describedBy()).toEqual([`t-conflict-${P_ID}-update-reason`, `t-conflict-${P_ID}-access-note`])
+      const reason = text(document.getElementById(describedBy()[0]))
+      expect(reason).toBe(REASON_NO_REPLACE)
+      expect(reason).not.toMatch(/choose Replace/)
+      expect(text(document.getElementById(describedBy()[1]))).toBe('Replace isn\'t offered: it would delete "Existing", and only its owner can delete it.')
+    })
+
+    it.each([
+      ['a sprint the file lacks, none shared', ['sp-X']],
+      ['no sprints at all', []],
+    ])('T4 (§3j unchanged): a name match with %s gets no Update and no reason', (_label, ids) => {
+      renderSection({ imported: storyMapImport([sprintFor('sp-1')]), conflicts: [nameConflict], existingSprints: local(...ids) })
+      expect(offered()).toEqual(['skip', 'copy', 'replace'])
+      expect(screen.getByRole('radiogroup').getAttribute('aria-describedby')).toBeNull()
+      expect(document.getElementById(`t-conflict-${P_ID}-update-reason`)).toBeNull()
+    })
+
+    it.each(['viewer', 'not-in-cloud'] as const)('T5: a %s project, shared sprint plus a local one: its access note, and no reason', (access) => {
+      renderSection({
+        imported: storyMapImport([sprintFor('sp-1')]),
+        conflicts: [nameConflict],
+        existingSprints: local('sp-1', 'sp-LOCAL'),
+        accessOf: () => access,
+      })
+      expect(offered()).toEqual(['skip', 'copy'])
+      expect(describedBy()).toEqual([`t-conflict-${P_ID}-access-note`])
+      expect(document.getElementById(`t-conflict-${P_ID}-update-reason`)).toBeNull()
+    })
   })
 
   it('SD-6: for a Story Map file, says before the user decides that Replace keeps adjustments, dates and unit', () => {
