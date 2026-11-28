@@ -16,7 +16,7 @@ import {
   hasUnmatchedExistingSprints,
 } from '@/shared/state/import-utils'
 import type { Sprint } from '@/shared/types'
-import { REPLACE_ALL_SHARED_TEXT, canEditProject, type ProjectAccess } from '@/shared/state/project-access'
+import { REPLACE_ALL_SHARED_TEXT, type ProjectAccess } from '@/shared/state/project-access'
 import { importEditorReplaceNote, importNotInCloudNote, importViewerNote } from '@/features/auth/lib/access-texts'
 import { isModalSurfaceOpen } from '@/shared/lib/modal-surface'
 
@@ -201,33 +201,45 @@ export function ImportPreviewSection({
             // independent conditionals is how the availability rule becomes
             // untestable.
             const access = accessOf(conflict.existingProject.id)
+            const hasUnmatchedSprints = hasUnmatchedExistingSprints(
+              existingSprints,
+              imported.sprints,
+              conflict.existingProject.id,
+              incomingId,
+            )
+            const hasMatchingSprintId = hasMatchingExistingSprintId(
+              existingSprints,
+              imported.sprints,
+              conflict.existingProject.id,
+              incomingId,
+            )
             const actions = availableActions(
               conflict.type,
               imported.exportType,
-              hasUnmatchedExistingSprints(
-                existingSprints,
-                imported.sprints,
-                conflict.existingProject.id,
-                incomingId,
-              ),
-              hasMatchingExistingSprintId(
-                existingSprints,
-                imported.sprints,
-                conflict.existingProject.id,
-                incomingId,
-              ),
+              hasUnmatchedSprints,
+              hasMatchingSprintId,
               access,
             )
             const note = accessNote(conflict, access)
             const noteId = `${idPrefix}-conflict-${incomingId}-access-note`
-            // `update` withheld only because of §4.1 — not because of the
-            // payload type or the conflict kind. That is the case worth
-            // explaining, and the explanation names its exits.
+            // `update` withheld by §4.1 ALONE: asked again as if the project
+            // held no sprint the file lacks, the one predicate would offer it.
+            // That is the case worth explaining, because its exits are real:
+            // delete the sprint and `update` returns. It holds for an ID match
+            // and for a name match with a shared sprint id alike (v0.54.1:
+            // until then this read `conflict.type === 'id'`, a guard from
+            // v0.41.0, before v0.43.0 offered `update` on a name match). A name
+            // match with NO shared sprint id fails the identity term too, so it
+            // stays unexplained (§3j, "parity declined"); a viewer, or a project
+            // not in this cloud account, fails the access term first.
+            // ⚠️ Composed through availableActions, never mirrored: three
+            // hand-mirrors of that rule went stale before v0.43.0.
             const updateWithheldForSprints =
-              canEditProject(access) &&
-              conflict.type === 'id' &&
-              imported.exportType === 'spert-story-map' &&
-              !actions.includes('update')
+              !actions.includes('update') &&
+              availableActions(conflict.type, imported.exportType, false, hasMatchingSprintId, access).includes('update')
+            // An editor on a name match is not offered Replace (it would delete
+            // the project), so the reason names only the exit they have.
+            const offersReplace = actions.includes('replace')
             const reasonId = `${idPrefix}-conflict-${incomingId}-update-reason`
 
             return (
@@ -298,9 +310,16 @@ export function ImportPreviewSection({
                   <p id={reasonId} className="text-xs text-spert-text-muted dark:text-gray-400">
                     <span className="font-medium">Update isn&rsquo;t available here.</span> This
                     project has a sprint that isn&rsquo;t in the imported file, and keeping it
-                    would duplicate a sprint number and shift the forecast dates. Either delete
-                    that sprint on the Sprint History tab, or choose Replace, which keeps your
-                    productivity adjustments, project dates and unit of measure.
+                    would duplicate a sprint number and shift the forecast dates.{' '}
+                    {offersReplace ? (
+                      <>
+                        Either delete that sprint on the Sprint History tab, or choose Replace,
+                        which keeps your productivity adjustments, project dates and unit of
+                        measure.
+                      </>
+                    ) : (
+                      <>Delete that sprint on the Sprint History tab, and Update will be offered.</>
+                    )}
                   </p>
                 )}
               </div>
